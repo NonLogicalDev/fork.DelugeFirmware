@@ -19,6 +19,7 @@
 #include "extern.h"
 #include "gui/menu_item/multi_range.h"
 #include "gui/ui/audio_recorder.h"
+#include "gui/ui/keyboard/chords.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/ui_timer_manager.h"
 #include "gui/views/arranger_view.h"
@@ -185,6 +186,7 @@ ActionResult KeyboardScreen::padAction(int32_t x, int32_t y, int32_t velocity) {
 	}
 	else {
 		updateActiveNotes();
+		displayHeldChord();
 	}
 
 	// The main pad grid only changes when the set of active notes changes, but rendering it re-transmits the whole
@@ -382,6 +384,54 @@ void KeyboardScreen::updateActiveNotes() {
 			redrawNumericDisplay();
 		}
 	}
+}
+
+void KeyboardScreen::displayHeldChord() {
+	KeyboardLayoutType layout = getCurrentInstrumentClip()->keyboardState.currentLayout;
+	if (getCurrentOutputType() == OutputType::KIT || layout == KeyboardLayoutType::KeyboardLayoutTypeChord
+	    || layout == KeyboardLayoutType::KeyboardLayoutTypeChordLibrary) {
+		chordNameDisplayed = false;
+		return;
+	}
+	if (currentNotesState.count == 0) {
+		chordNameDisplayed = false;
+		return;
+	}
+
+	ChordMatch match = findExactChord(currentNotesState.toPitchClasses(), currentNotesState.lowestNote());
+	if (!match.found()) {
+		if (!chordNameDisplayed) {
+			return;
+		}
+
+		chordNameDisplayed = false;
+		if (currentNotesState.count == 1 && !currentNotesState.notes[0].generatedNote) {
+			drawNoteCode(currentNotesState.notes[0].note);
+		}
+		else if (currentNotesState.count > 1) {
+			if (display->haveOLED()) {
+				deluge::hid::display::OLED::removePopup();
+			}
+			else {
+				redrawNumericDisplay();
+			}
+		}
+		return;
+	}
+
+	char rootName[3] = {0};
+	int32_t isNatural = 1;
+	noteCodeToString(match.root, rootName, &isNatural, false);
+
+	char chordName[16];
+	snprintf(chordName, sizeof(chordName), "%s%s", rootName, match.suffix);
+	if (display->haveOLED()) {
+		display->popupTextTemporary(chordName);
+	}
+	else {
+		display->setScrollingText(chordName, 0);
+	}
+	chordNameDisplayed = true;
 }
 
 void KeyboardScreen::noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument,

@@ -147,10 +147,10 @@ PLACE_SDRAM_DATA const Chord kDim = {"DIM",
 PLACE_SDRAM_DATA const Chord kFullDim = {
     "FULLDIM", NoteSet({ROOT, MIN3, DIM5, DIM7}), {{ROOT, MIN3, DIM5, DIM7, NONE, NONE, NONE}}};
 PLACE_SDRAM_DATA const Chord kAug = {"AUG",
-                                     NoteSet({ROOT, MIN3, AUG5}),
-                                     {{ROOT, MIN3, AUG5, NONE, NONE, NONE, NONE},
-                                      {ROOT, OCT + MIN3, AUG5, NONE, NONE, NONE, NONE},
-                                      {ROOT, OCT + MIN3, AUG5, -OCT, NONE, NONE, NONE}}};
+                                     NoteSet({ROOT, MAJ3, AUG5}),
+                                     {{ROOT, MAJ3, AUG5, NONE, NONE, NONE, NONE},
+                                      {ROOT, OCT + MAJ3, AUG5, NONE, NONE, NONE, NONE},
+                                      {ROOT, OCT + MAJ3, AUG5, -OCT, NONE, NONE, NONE}}};
 PLACE_SDRAM_DATA const Chord kSus2 = {"SUS2",
                                       NoteSet({ROOT, MAJ2, P5}),
                                       {{ROOT, MAJ2, P5, NONE, NONE, NONE, NONE},
@@ -285,6 +285,58 @@ PLACE_SDRAM_DATA const Chord kMinor6 = {"-6",
                                         {
                                             {ROOT, MIN3, P5, MAJ6, NONE, NONE, NONE},
                                         }};
+
+namespace {
+
+const std::array<const Chord*, kUniqueChords - 1> kDetectableChords = {
+    &kMajor,  &kMinor,  &k6,         &k2,        &k69,       &kSus2,       &kSus4,       &k7,
+    &k7Sus4,  &k7Sus2,  &kM7,        &kMinor7,   &kMinor2,   &kMinor4,     &kDim,        &kFullDim,
+    &kAug,    &kMinor6, &kMinorMaj7, &kMinor7b5, &kMinor9b5, &kMinor7b5b9, &k9,          &kM9,
+    &kMinor9, &k11,     &kM11,       &kMinor11,  &k13,       &kM13,        &kM13Sharp11, &kMinor13,
+};
+
+ChordMatch findMatchAtRoot(NoteSet heldPitchClasses, uint8_t rootPitchClass) {
+	NoteSet intervals = heldPitchClasses.modulateByOffset(kOctaveSize - rootPitchClass);
+	for (const Chord* chord : kDetectableChords) {
+		if (chord->intervalSet == intervals) {
+			return {.root = static_cast<int8_t>(rootPitchClass), .suffix = chord->name};
+		}
+	}
+	return {};
+}
+
+} // namespace
+
+ChordMatch findExactChord(NoteSet heldPitchClasses, uint8_t bassPitchClass) {
+	if (heldPitchClasses.count() < 3) {
+		return {};
+	}
+
+	bassPitchClass %= kOctaveSize;
+	if (heldPitchClasses.has(bassPitchClass)) {
+		ChordMatch bassMatch = findMatchAtRoot(heldPitchClasses, bassPitchClass);
+		if (bassMatch.found()) {
+			return bassMatch;
+		}
+	}
+
+	ChordMatch inversionMatch;
+	for (uint8_t rootPitchClass = 0; rootPitchClass < kOctaveSize; ++rootPitchClass) {
+		if (rootPitchClass == bassPitchClass || !heldPitchClasses.has(rootPitchClass)) {
+			continue;
+		}
+
+		ChordMatch match = findMatchAtRoot(heldPitchClasses, rootPitchClass);
+		if (!match.found()) {
+			continue;
+		}
+		if (inversionMatch.found()) {
+			return {};
+		}
+		inversionMatch = match;
+	}
+	return inversionMatch;
+}
 
 PLACE_SDRAM_DATA const std::array<const Chord, 10> majorChords = {kMajor, kM7,  k6,    k2,    k69,
                                                                   kM9,    kM13, kSus4, kSus2, kM13Sharp11};

@@ -72,6 +72,7 @@ private:
 
 	void evaluateActiveNotes();
 	void updateActiveNotes();
+	void displayHeldChord();
 
 	void noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument, int32_t note);
 
@@ -94,6 +95,7 @@ private:
 	PressedPad pressedPads[kMaxNumKeyboardPadPresses];
 	NotesState lastNotesState;
 	NotesState currentNotesState;
+	bool chordNameDisplayed = false;
 
 	bool keyboardButtonActive = false;
 	bool keyboardButtonUsed = false;

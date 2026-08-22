@@ -18,6 +18,8 @@
 #pragma once
 
 #include "definitions_cxx.hpp"
+#include "model/scale/note_set.h"
+#include <algorithm>
 #include <array>
 #include <bitset>
 #include <climits>
@@ -103,6 +105,22 @@ struct NotesState {
 	}
 
 	[[nodiscard]] constexpr bool noteEnabled(uint8_t note) const { return note < kHighestKeyboardNote && states[note]; }
+
+	[[nodiscard]] NoteSet toPitchClasses() const {
+		NoteSet pitchClasses;
+		for (const NoteState& state : *this) {
+			pitchClasses.add(state.note % kOctaveSize);
+		}
+		return pitchClasses;
+	}
+
+	[[nodiscard]] uint8_t lowestNote() const {
+		uint8_t lowest = kHighestKeyboardNote;
+		for (const NoteState& state : *this) {
+			lowest = std::min(lowest, state.note);
+		}
+		return lowest;
+	}
 };
 
 }; // namespace deluge::gui::ui::keyboard

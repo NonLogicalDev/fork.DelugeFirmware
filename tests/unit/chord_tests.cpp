@@ -1,9 +1,13 @@
 #include "CppUTest/TestHarness.h"
 #include "definitions_cxx.hpp"
 #include "gui/ui/keyboard/chords.h"
+#include "gui/ui/keyboard/notes_state.h"
 
 using deluge::gui::ui::keyboard::ChordList;
+using deluge::gui::ui::keyboard::ChordMatch;
+using deluge::gui::ui::keyboard::findExactChord;
 using deluge::gui::ui::keyboard::NONE;
+using deluge::gui::ui::keyboard::NotesState;
 using deluge::gui::ui::keyboard::Voicing;
 
 TEST_GROUP(ChordTests) {
@@ -89,4 +93,47 @@ TEST(ChordTests, adjustVoicingOffsetBoundsCheck) {
 		chordList.adjustVoicingOffset(chordNo, -1);
 		CHECK_EQUAL(kUniqueVoicings - 2, chordList.voicingOffset[chordNo]);
 	}
+}
+
+TEST(ChordTests, findsMajorChordAcrossInversionAndDuplicateOctaves) {
+	NotesState notes;
+	notes.enableNote(64, 64); // E
+	notes.enableNote(67, 64); // G
+	notes.enableNote(72, 64); // C
+	notes.enableNote(84, 64); // C, one octave higher
+
+	CHECK_EQUAL(64, notes.lowestNote());
+	ChordMatch match = findExactChord(notes.toPitchClasses(), notes.lowestNote());
+	CHECK_TRUE(match.found());
+	CHECK_EQUAL(0, match.root);
+	STRCMP_EQUAL("M", match.suffix);
+}
+
+TEST(ChordTests, prefersTheBassWhenAChordHasMultipleNames) {
+	NoteSet heldPitchClasses({0, 4, 7, 9}); // C6 / Am7
+
+	ChordMatch c6 = findExactChord(heldPitchClasses, 0);
+	CHECK_TRUE(c6.found());
+	CHECK_EQUAL(0, c6.root);
+	STRCMP_EQUAL("6", c6.suffix);
+
+	ChordMatch aMinor7 = findExactChord(heldPitchClasses, 9);
+	CHECK_TRUE(aMinor7.found());
+	CHECK_EQUAL(9, aMinor7.root);
+	STRCMP_EQUAL("-7", aMinor7.suffix);
+
+	CHECK_FALSE(findExactChord(heldPitchClasses, 4).found());
+}
+
+TEST(ChordTests, findsStandardAugmentedChord) {
+	ChordMatch match = findExactChord(NoteSet({0, 4, 8}), 0); // C augmented
+
+	CHECK_TRUE(match.found());
+	CHECK_EQUAL(0, match.root);
+	STRCMP_EQUAL("AUG", match.suffix);
+}
+
+TEST(ChordTests, rejectsIncompleteAndUnknownChordSets) {
+	CHECK_FALSE(findExactChord(NoteSet({0, 4}), 0).found());
+	CHECK_FALSE(findExactChord(NoteSet({0, 1, 7}), 0).found());
 }

@@ -88,6 +88,17 @@ struct Chord {
 	Voicing voicings[kUniqueVoicings] = {0};
 };
 
+struct ChordMatch {
+	int8_t root = -1;
+	const char* suffix = nullptr;
+
+	[[nodiscard]] bool found() const { return root >= 0 && suffix != nullptr; }
+};
+
+/// Identify an exact chord from its held pitch classes. The bass is preferred when it is a valid root; otherwise,
+/// a unique matching inversion is accepted.
+ChordMatch findExactChord(NoteSet heldPitchClasses, uint8_t bassPitchClass);
+
 // ChordList
 extern const Chord kEmptyChord;
 extern const Chord kMajor;

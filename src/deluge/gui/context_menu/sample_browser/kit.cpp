@@ -21,6 +21,7 @@
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/slicer.h"
 #include "hid/display/display.h"
+#include "processing/engines/audio_engine.h"
 #include "storage/file_item.h"
 #include "util/functions.h"
 
@@ -60,6 +61,7 @@ bool Kit::acceptCurrentOption() {
 		openUI(&slicer);
 		return true;
 	case 2: // Manual slicer
+		AudioEngine::stopAnyPreviewing();
 		slicer.requestInitialMode(SLICER_MODE_MANUAL);
 		display->setNextTransitionDirection(1);
 		openUI(&slicer);

@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains six deviations:
+The local stack currently contains seven deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -12,6 +12,7 @@ The local stack currently contains six deviations:
 4. Show the latest physical held note under a recognized OLED chord label.
 5. Start kit creation in Manual Slice mode directly from the sample browser.
 6. Improve Manual Slicer positioning and preview stopping.
+7. Stop the browser preview on direct Manual Slice entry.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -159,6 +160,29 @@ Make it practical to place manual slice boundaries across a large sample and sil
 
 - Source review confirms that ordinary and pressed-encoder slice starts remain bounded and ordered for the first, middle, and last slices; a combined press gesture consumes the mode-switch tap even when encoder input is deferred; a bare tap retains mode switching; Shift + Back does not exit the editor or modify slice data; and pad audition remains available.
 - The host unit-test suite and a local Release build pass. A person with a physical Deluge should confirm fine and coarse control feel, bare-tap mode switching, press-turn consumption, simultaneous pad audition, and the immediate stop behavior before flashing any build.
+
+## 7. Stop browser preview on direct Manual Slice entry
+
+### Intent
+
+Enter direct Manual Slice ready for deliberate slice placement, without the selected sample continuing to audition from the browser.
+
+### Required behavior
+
+- Choosing Manual slice from the kit sample-browser action menu stops any current browser sample preview before the Manual Slicer opens.
+- The selected sample remains available for Manual Slicer and its normal pad-based audition after entry.
+- The Manual Slicer still opens in its established Manual mode with its normal initial state.
+
+### Compatibility and boundaries
+
+- The existing Slice action and Load all action retain their current entry and preview behavior.
+- Stop only the dedicated browser preview. Do not stop sequenced kit voices, alter project playback, modify sample data, or change a saved project.
+- Do not change the Slicer algorithm, its in-editor preview controls, its mode-switch behavior, MIDI, firmware installation, or flashing behavior.
+
+### Verification contract
+
+- A human runtime check on a physical Deluge should confirm that a playing browser preview is silent when Manual Slicer opens, that the first Manual Slicer pad can still audition the selected sample, and that standard Slice behavior is unchanged.
+- The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
 
 ## Maintaining this document
 

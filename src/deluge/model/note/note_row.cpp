@@ -27,6 +27,7 @@
 #include "model/clip/instrument_clip.h"
 #include "model/consequence/consequence_note_existence.h"
 #include "model/drum/drum_name.h"
+#include "model/drum/generated_slice_name.h"
 #include "model/drum/gate_drum.h"
 #include "model/instrument/kit.h"
 #include "model/note/copied_note_row.h"
@@ -3869,8 +3870,9 @@ void NoteRow::rememberDrumName() {
 
 		SoundDrum* soundDrum = (SoundDrum*)drum;
 
-		// If it's all numeric (most likely meaning it's a slice), don't store it
-		if (stringIsNumericChars(soundDrum->drumName)) {
+		// Generated slices are recreated from their Kit position, so don't retain their names as manual assignments.
+		if (stringIsNumericChars(soundDrum->drumName)
+		    || deluge::generated_slice_name::isGeneratedSliceName(soundDrum->drumName)) {
 			return;
 		}
 

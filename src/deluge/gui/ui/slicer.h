@@ -17,12 +17,16 @@
 
 #pragma once
 
+#include "definitions_cxx.hpp"
+#include "gui/ui/slicer_batch_playback_mode.h"
 #include "gui/ui/ui.h"
 #include "hid/button.h"
 
 #define SLICER_MODE_REGION 0
 #define SLICER_MODE_MANUAL 1
 #define MAX_MANUAL_SLICES 64
+
+class SoundDrum;
 
 struct SliceItem {
 	int32_t startPos;
@@ -33,6 +37,7 @@ class Slicer final : public UI {
 public:
 	Slicer() { oledShowsUIUnderneath = true; }
 
+	bool opened() override;
 	void focusRegained() override;
 	bool canSeeViewUnderneath() override { return false; }
 	void selectEncoderAction(int8_t offset) override;
@@ -41,6 +46,8 @@ public:
 
 	bool renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) override;
+	bool renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+	                   uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) override;
 	void graphicsRoutine() override;
 	ActionResult horizontalEncoderAction(int32_t offset) override;
 	ActionResult verticalEncoderAction(int32_t offset, bool inCardRoutine) override;
@@ -48,6 +55,8 @@ public:
 	void stopAnyPreviewing();
 	void preview(int64_t startPoint, int64_t endPoint, int32_t transpose, int32_t on);
 	void requestInitialMode(int32_t mode) { requestedInitialMode = mode; }
+	int32_t getBatchPlaybackModeMenuIndex() const;
+	bool confirmWithBatchPlaybackModeMenuIndex(int32_t menuIndex);
 
 	int32_t numManualSlice;
 	int32_t currentSlice;
@@ -65,11 +74,20 @@ private:
 	int32_t requestedInitialMode = SLICER_MODE_REGION;
 	bool horizontalEncoderPressed = false;
 	bool horizontalEncoderPressUsed = false;
+	bool usesExistingKit = false;
+	deluge::gui::slicer_playback::BatchMode batchPlaybackMode = deluge::gui::slicer_playback::BatchMode::AUTO;
+	SampleRepeatMode repeatModeBeforeManualPreview = SampleRepeatMode::CUT;
+	bool manualPreviewChangedRepeatMode = false;
+	SoundDrum* manualSliceDrums[MAX_MANUAL_SLICES]{};
 
 	// 7SEG Only
 	void redraw();
 
-	void doSlice();
+	bool doSlice();
+	bool confirmSlices();
+	void chooseBatchPlaybackMode(deluge::gui::slicer_playback::BatchMode newMode);
+	SampleRepeatMode getBatchRepeatMode(uint32_t lengthMSPerSlice) const;
+	void restoreManualPreviewRepeatMode();
 };
 
 extern Slicer slicer;

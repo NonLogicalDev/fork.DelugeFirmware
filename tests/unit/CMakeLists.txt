@@ -64,6 +64,8 @@ file(GLOB_RECURSE deluge_SOURCES
         # For name comparison / default naming tests
         ../../src/deluge/util/name_compare.cpp
         ../../src/deluge/gui/ui/browser/default_name.cpp
+        # For generated slice-name tests
+        ../../src/deluge/model/drum/generated_slice_name.cpp
 )
 
 add_executable(UnitTests
@@ -80,12 +82,14 @@ add_executable(UnitTests
         clock_output_scheduler_tests.cpp
         name_compare_tests.cpp
         default_name_tests.cpp
+        generated_slice_name_tests.cpp
         rgb_tests.cpp
         notes_state_tests.cpp
 )
 add_test(NAME UnitTests
         COMMAND UnitTests)
 target_sources(UnitTests PRIVATE ${deluge_SOURCES})
+target_sources(UnitTests PRIVATE slicer_batch_playback_mode_tests.cpp)
 target_include_directories(UnitTests PRIVATE
         # include the non test project source
         mocks

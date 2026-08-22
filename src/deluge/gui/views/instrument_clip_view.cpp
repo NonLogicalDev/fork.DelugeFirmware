@@ -464,7 +464,8 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
 				return ActionResult::DEALT_WITH;
 			}
 
-			ModelStackWithNoteRow* modelStackWithNoteRow = modelStack->addNoteRow(noteRowIndex, newNoteRow);
+			int32_t noteRowId = getCurrentInstrumentClip()->getNoteRowId(newNoteRow, noteRowIndex);
+			ModelStackWithNoteRow* modelStackWithNoteRow = modelStack->addNoteRow(noteRowId, newNoteRow);
 
 			enterDrumCreator(modelStackWithNoteRow, false);
 

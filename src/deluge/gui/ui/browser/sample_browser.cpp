@@ -300,13 +300,13 @@ ActionResult SampleBrowser::timerCallback() {
 			// Kit
 			else if (soundEditor.editingKit()) {
 
-				if (canImportWholeKit()) {
+				if (canUseKitSampleCreationOnTopEmptyPad()) {
 					contextMenu = &gui::context_menu::sample_browser::kit;
 					goto considerContextMenu;
 				}
 				else {
-					display->displayPopup(deluge::l10n::get(
-					    deluge::l10n::String::STRING_FOR_CAN_ONLY_IMPORT_WHOLE_FOLDER_INTO_BRAND_NEW_KIT));
+					display->displayPopup(
+					    deluge::l10n::get(deluge::l10n::String::STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD));
 				}
 			}
 
@@ -382,13 +382,13 @@ void SampleBrowser::enterKeyPress() {
 
 			// Can only do this for Kit Clips, and for source 0, not 1, AND there has to be only one drum present, which
 			// is assigned to the first NoteRow
-			if (canImportWholeKit()) {
+			if (canUseKitSampleCreationOnTopEmptyPad()) {
 				display->displayPopup("SLICER");
-				openUI(&slicer);
+				openSlicer(SLICER_MODE_REGION);
 			}
 			else {
 				display->displayPopup(
-				    deluge::l10n::get(deluge::l10n::String::STRING_FOR_CAN_ONLY_USE_SLICER_FOR_BRAND_NEW_KIT));
+				    deluge::l10n::get(deluge::l10n::String::STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD));
 			}
 		}
 
@@ -504,6 +504,33 @@ bool SampleBrowser::canImportWholeKit() {
 	return (soundEditor.editingKit() && soundEditor.currentSourceIndex == 0
 	        && (SoundDrum*)getCurrentInstrumentClip()->noteRows.getElement(0)->drum == soundEditor.currentSound
 	        && (!getCurrentKit()->firstDrum->next));
+}
+
+bool SampleBrowser::canUseKitSampleCreationOnTopEmptyPad() {
+	if (canImportWholeKit()) {
+		return true;
+	}
+
+	if (!soundEditor.editingKit() || soundEditor.currentSourceIndex != 0 || !soundEditor.currentSound) {
+		return false;
+	}
+
+	InstrumentClip* clip = getCurrentInstrumentClip();
+	int32_t anchorIndex;
+	NoteRow* anchorRow = clip->getNoteRowForDrum((SoundDrum*)soundEditor.currentSound, &anchorIndex);
+	if (!anchorRow || anchorRow->drum->type != DrumType::SOUND) {
+		return false;
+	}
+
+	// The selected drum receives slice one. It may already have a sample; only rows above it determine whether the
+	// complete new batch has a clear path to the top of the Kit.
+	for (int32_t i = anchorIndex + 1; i < clip->noteRows.getNumElements(); i++) {
+		if (clip->noteRows.getElement(i)->drum) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 Error SampleBrowser::getCurrentFilePath(String* path) {
@@ -753,6 +780,37 @@ Error SampleBrowser::claimAudioFileForInstrument(bool makeWaveTableWorkAtAllCost
 
 	return holder->loadFile(soundEditor.currentSource->sampleControls.isCurrentlyReversed(), true, true,
 	                        CLUSTER_ENQUEUE, nullptr, makeWaveTableWorkAtAllCosts);
+}
+
+bool SampleBrowser::openSlicer(int32_t initialMode) {
+	if (!canUseKitSampleCreationOnTopEmptyPad()) {
+		return false;
+	}
+
+	// A new-Kit Region Slice can continue to use the browser preview. A Manual Slice, and every reuse of an existing
+	// Kit, needs the selected file to belong to the new anchor so a later browser session cannot show an older preview.
+	if (initialMode == SLICER_MODE_MANUAL || !canImportWholeKit()) {
+		soundEditor.currentSource->setOscType(OscType::SAMPLE);
+		Error error = claimAudioFileForInstrument();
+		if (error != Error::NONE) {
+			display->displayError(error);
+			return false;
+		}
+
+		AudioFileHolder* holder = soundEditor.getCurrentAudioFileHolder();
+		if (!holder->audioFile) {
+			display->displayError(Error::FILE_UNREADABLE);
+			return false;
+		}
+
+		waveformBasicNavigator.sample = static_cast<Sample*>(holder->audioFile);
+		waveformBasicNavigator.opened();
+		AudioEngine::stopAnyPreviewing();
+	}
+
+	slicer.requestInitialMode(initialMode);
+	display->setNextTransitionDirection(1);
+	return openUI(&slicer);
 }
 
 Error SampleBrowser::claimAudioFileForAudioClip() {
@@ -1902,10 +1960,18 @@ doReturnFalse:
 
 	Kit* kit = getCurrentKit();
 	SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
+	InstrumentClip* clip = getCurrentInstrumentClip();
+	bool usesExistingKit = !canImportWholeKit();
+	int32_t firstDrumNoteRowIndex = 0;
+	if (usesExistingKit && !clip->getNoteRowForDrum(firstDrum, &firstDrumNoteRowIndex)) {
+		display->removeWorkingAnimation();
+		return false;
+	}
 
 	char modelStackMemory[MODEL_STACK_MAX_SIZE];
 	{
 		ModelStackWithThreeMainThings* modelStack = soundEditor.getCurrentModelStack(modelStackMemory);
+		ModelStackWithTimelineCounter* noteRowModelStack = nullptr;
 
 		for (int32_t s = 0; s < numSamples; s++) {
 
@@ -1980,10 +2046,30 @@ getOut:
 
 				Sound::initParams(&paramManager);
 
-				kit->addDrum(drum);
 				drum->setupAsSample(&paramManager);
 				drum->nameIsDiscardable = true;
-				currentSong->backUpParamManager(drum, getCurrentClip(), &paramManager, true);
+				if (usesExistingKit) {
+					if (!noteRowModelStack) {
+						noteRowModelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
+					}
+
+					int32_t noteRowIndex = firstDrumNoteRowIndex + s;
+					NoteRow* newNoteRow = clip->noteRows.insertNoteRowAtIndex(noteRowIndex);
+					if (!newNoteRow) {
+						drum->~SoundDrum();
+						delugeDealloc(drum);
+						goto getOut;
+					}
+
+					kit->addDrum(drum);
+					ModelStackWithNoteRow* newNoteRowModelStack = noteRowModelStack->addNoteRow(
+					    clip->getNoteRowId(newNoteRow, noteRowIndex), newNoteRow);
+					newNoteRow->setDrum(drum, kit, newNoteRowModelStack, nullptr, &paramManager);
+				}
+				else {
+					kit->addDrum(drum);
+					currentSong->backUpParamManager(drum, getCurrentClip(), &paramManager, true);
+				}
 			}
 
 			AudioFileHolder* holder = range->getAudioFileHolder();
@@ -2029,11 +2115,13 @@ skipNameStuff:
 		delugeDealloc(sortArea);
 	}
 
-	// Make NoteRows for all these new Drums
-	getCurrentKit()->resetDrumTempValues();
-	firstDrum->noteRowAssignedTemp = 1;
-	ModelStackWithTimelineCounter* modelStack = (ModelStackWithTimelineCounter*)modelStackMemory;
-	getCurrentInstrumentClip()->assignDrumsToNoteRows(modelStack);
+	if (!usesExistingKit) {
+		// Make NoteRows for all these new Drums.
+		getCurrentKit()->resetDrumTempValues();
+		firstDrum->noteRowAssignedTemp = 1;
+		ModelStackWithTimelineCounter* modelStack = (ModelStackWithTimelineCounter*)modelStackMemory;
+		getCurrentInstrumentClip()->assignDrumsToNoteRows(modelStack);
+	}
 
 	getCurrentInstrument()->beenEdited();
 

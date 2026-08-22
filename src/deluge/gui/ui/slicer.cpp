@@ -18,6 +18,7 @@
 #include "gui/ui/slicer.h"
 #include "definitions_cxx.hpp"
 #include "gui/colour/colour.h"
+#include "gui/context_menu/slicer_playback_mode.h"
 #include "gui/l10n/l10n.h"
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/sound_editor.h"
@@ -32,8 +33,11 @@
 #include "memory/general_memory_allocator.h"
 #include "model/action/action_logger.h"
 #include "model/clip/instrument_clip.h"
+#include "model/drum/drum.h"
+#include "model/drum/generated_slice_name.h"
 #include "model/instrument/kit.h"
 #include "model/model_stack.h"
+#include "model/note/note_row.h"
 #include "model/sample/sample.h"
 #include "model/song/song.h"
 #include "model/voice/voice.h"
@@ -55,7 +59,25 @@ Slicer slicer{};
 
 namespace params = deluge::modulation::params;
 
-void Slicer::focusRegained() {
+namespace {
+
+int32_t getNextGeneratedSliceSeriesIndex(Kit* kit, SoundDrum* anchorDrum) {
+	int32_t highestSeriesIndex = -1;
+	for (Drum* drum = kit->firstDrum; drum; drum = drum->next) {
+		if (drum->type != DrumType::SOUND || drum == anchorDrum) {
+			continue;
+		}
+
+		int32_t seriesIndex = deluge::generated_slice_name::getSeriesIndex(drum->drumName);
+		highestSeriesIndex = std::max(highestSeriesIndex, seriesIndex);
+	}
+
+	return highestSeriesIndex + 1;
+}
+
+} // namespace
+
+bool Slicer::opened() {
 
 	actionLogger.deleteAllLogs();
 
@@ -67,10 +89,20 @@ void Slicer::focusRegained() {
 	requestedInitialMode = SLICER_MODE_REGION;
 	horizontalEncoderPressed = false;
 	horizontalEncoderPressUsed = false;
+	usesExistingKit = !sampleBrowser.canImportWholeKit();
+	batchPlaybackMode = deluge::gui::slicer_playback::BatchMode::AUTO;
+	manualPreviewChangedRepeatMode = false;
 	for (int32_t i = 0; i < MAX_MANUAL_SLICES; i++) {
 		manualSlicePoints[i].startPos = 0;
 		manualSlicePoints[i].transpose = 0;
+		manualSliceDrums[i] = nullptr;
 	}
+
+	focusRegained();
+	return true;
+}
+
+void Slicer::focusRegained() {
 
 	if (display->have7SEG()) {
 		redraw();
@@ -160,6 +192,34 @@ bool Slicer::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSid
 	return true;
 }
 
+bool Slicer::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+                           uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) {
+	if (!image) {
+		return true;
+	}
+
+	instrumentClipView.renderSidebar(whichRows, image, occupancyMask);
+
+	// The status column normally belongs to the view underneath. Slicer reserves its top three pads for the pending
+	// batch mode while leaving all other sidebar controls available.
+	constexpr RGB modeColours[] = {
+	    colours::yellow_orange,
+	    colours::red,
+	    colours::magenta,
+	};
+	for (int32_t y = 0; y < 3; y++) {
+		if (whichRows & (1 << y)) {
+			RGB colour = modeColours[y];
+			image[y][kDisplayWidth] = (y == (int32_t)batchPlaybackMode) ? colour : colour.dim(4);
+			if (occupancyMask) {
+				PadLEDs::refreshSidebarOccupancy(image[y], occupancyMask[y]);
+			}
+		}
+	}
+
+	return true;
+}
+
 const uint8_t zeroes[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 void Slicer::graphicsRoutine() {
@@ -169,8 +229,7 @@ void Slicer::graphicsRoutine() {
 	SamplePlaybackGuide* guide = nullptr;
 
 	MultisampleRange* range;
-	Kit* kit = getCurrentKit();
-	SoundDrum* drum = (SoundDrum*)kit->firstDrum;
+	SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
 
 	if (getCurrentClip()->type == ClipType::INSTRUMENT && drum->hasActiveVoices()) {
 		range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
@@ -331,7 +390,11 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 			horizontalEncoderPressUsed = false;
 			return ActionResult::DEALT_WITH;
 		}
+		if (usesExistingKit) {
+			return ActionResult::DEALT_WITH;
+		}
 
+		restoreManualPreviewRepeatMode();
 		slicerMode++;
 		slicerMode %= 2;
 		if (slicerMode == SLICER_MODE_MANUAL)
@@ -343,7 +406,7 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 			redraw();
 		}
 
-		getCurrentKit()->firstDrum->killAllVoices(); // stop
+		((SoundDrum*)soundEditor.currentSound)->killAllVoices(); // stop
 		uiNeedsRendering(this, 0xFFFFFFFF, 0xFFFFFFFF);
 		return ActionResult::DEALT_WITH;
 	}
@@ -365,7 +428,6 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 		}
 		return ActionResult::DEALT_WITH;
 	}
-
 	// pop up Transpose value
 	if (b == Y_ENC && on && slicerMode == SLICER_MODE_MANUAL && currentSlice < numManualSlice) {
 		if (display->haveOLED()) {
@@ -422,40 +484,23 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 		if (inCardRoutine) {
 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 		}
-		if (slicerMode == SLICER_MODE_REGION) {
-			doSlice();
-		}
-		else {
-			getCurrentKit()->firstDrum->killAllVoices(); // stop
-			numClips = numManualSlice;
-			doSlice();
-			Kit* kit = getCurrentKit();
-			for (int32_t i = 0; i < numManualSlice; i++) {
-				Drum* drum = kit->getDrumFromIndex(i);
-				SoundDrum* soundDrum = (SoundDrum*)drum;
-				MultisampleRange* range = (MultisampleRange*)soundDrum->sources[0].getOrCreateFirstRange();
-				Sample* sample = (Sample*)range->sampleHolder.audioFile;
-				range->sampleHolder.startPos = manualSlicePoints[i].startPos;
-				range->sampleHolder.endPos = (i == numManualSlice - 1) ? waveformBasicNavigator.sample->lengthInSamples
-				                                                       : this->manualSlicePoints[i + 1].startPos;
-				range->sampleHolder.transpose = manualSlicePoints[i].transpose;
-			}
-		}
+		deluge::gui::context_menu::slicerPlaybackMode.setupAndCheckAvailability();
+		display->setNextTransitionDirection(1);
+		openUI(&deluge::gui::context_menu::slicerPlaybackMode);
 	}
 
 	else if (b == BACK) {
 		if (inCardRoutine) {
 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 		}
+		restoreManualPreviewRepeatMode();
 		if (slicerMode == SLICER_MODE_MANUAL) {
 			RGB myImage[kDisplayHeight][kDisplayWidth + kSideBarWidth];
 			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
 			                                  waveformBasicNavigator.xZoom, PadLEDs::image,
 			                                  &waveformBasicNavigator.renderData);
-			getCurrentKit()->firstDrum->killAllVoices(); // stop
-			Kit* kit = getCurrentKit();
-			Drum* drum = kit->firstDrum;
-			SoundDrum* soundDrum = (SoundDrum*)drum;
+			SoundDrum* soundDrum = (SoundDrum*)soundEditor.currentSound;
+			soundDrum->killAllVoices(); // stop
 			MultisampleRange* range = (MultisampleRange*)soundDrum->sources[0].getOrCreateFirstRange();
 			Sample* sample = (Sample*)range->sampleHolder.audioFile;
 			range->sampleHolder.startPos = 0;
@@ -473,9 +518,82 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 	return ActionResult::DEALT_WITH;
 }
 
+int32_t Slicer::getBatchPlaybackModeMenuIndex() const {
+	return deluge::gui::slicer_playback::toMenuIndex(batchPlaybackMode);
+}
+
+bool Slicer::confirmWithBatchPlaybackModeMenuIndex(int32_t menuIndex) {
+	if (!deluge::gui::slicer_playback::setFromMenuIndex(batchPlaybackMode, menuIndex)) {
+		return false;
+	}
+
+	bool confirmed = confirmSlices();
+	if (!confirmed) {
+		uiNeedsRendering(this, 0, 0xFFFFFFFF);
+	}
+	return confirmed;
+}
+
+bool Slicer::confirmSlices() {
+	if (slicerMode == SLICER_MODE_REGION) {
+		return doSlice();
+	}
+
+	SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
+	firstDrum->killAllVoices();
+	numClips = numManualSlice;
+	if (!doSlice()) {
+		return false;
+	}
+
+	for (int32_t i = 0; i < numManualSlice; i++) {
+		SoundDrum* soundDrum = manualSliceDrums[i];
+		MultisampleRange* range = (MultisampleRange*)soundDrum->sources[0].getOrCreateFirstRange();
+		range->sampleHolder.startPos = manualSlicePoints[i].startPos;
+		range->sampleHolder.endPos = (i == numManualSlice - 1) ? waveformBasicNavigator.sample->lengthInSamples
+		                                                       : manualSlicePoints[i + 1].startPos;
+		range->sampleHolder.transpose = manualSlicePoints[i].transpose;
+	}
+
+	return true;
+}
+
+void Slicer::chooseBatchPlaybackMode(deluge::gui::slicer_playback::BatchMode newMode) {
+	batchPlaybackMode = newMode;
+
+	char const* popupText[2];
+	switch (newMode) {
+	case deluge::gui::slicer_playback::BatchMode::AUTO:
+		popupText[0] = "DEF";
+		popupText[1] = "Slice mode: Default";
+		break;
+	case deluge::gui::slicer_playback::BatchMode::CUT:
+		popupText[0] = "CUT";
+		popupText[1] = "Slice mode: All Cut";
+		break;
+	case deluge::gui::slicer_playback::BatchMode::ONCE:
+		popupText[0] = "ONCE";
+		popupText[1] = "Slice mode: All Once";
+		break;
+	}
+
+	display->displayPopup(popupText);
+	uiNeedsRendering(this, 0, 0xFFFFFFFF);
+}
+
+SampleRepeatMode Slicer::getBatchRepeatMode(uint32_t lengthMSPerSlice) const {
+	return deluge::gui::slicer_playback::resolve(batchPlaybackMode, lengthMSPerSlice, FlashStorage::defaultSliceMode);
+}
+
+void Slicer::restoreManualPreviewRepeatMode() {
+	if (manualPreviewChangedRepeatMode) {
+		((SoundDrum*)soundEditor.currentSound)->sources[0].repeatMode = repeatModeBeforeManualPreview;
+		manualPreviewChangedRepeatMode = false;
+	}
+}
+
 void Slicer::stopAnyPreviewing() {
-	Kit* kit = getCurrentKit();
-	SoundDrum* drum = (SoundDrum*)kit->firstDrum;
+	SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
 	drum->killAllVoices();
 	if (drum->sources[0].ranges.getNumElements()) {
 		MultisampleRange* range = (MultisampleRange*)drum->sources[0].ranges.getElement(0);
@@ -484,14 +602,17 @@ void Slicer::stopAnyPreviewing() {
 }
 void Slicer::preview(int64_t startPoint, int64_t endPoint, int32_t transpose, int32_t on) {
 	if (on) {
-		Kit* kit = getCurrentKit();
-		SoundDrum* drum = (SoundDrum*)kit->firstDrum;
+		SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
 
 		char modelStackMemory[MODEL_STACK_MAX_SIZE];
 		ModelStackWithThreeMainThings* modelStack = soundEditor.getCurrentModelStack(modelStackMemory);
 
 		MultisampleRange* range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
-		drum->drumName = "1";
+		if (!manualPreviewChangedRepeatMode) {
+			// Preview forces Once, but cancelling Slicer must leave the anchor's stored mode unchanged.
+			repeatModeBeforeManualPreview = drum->sources[0].repeatMode;
+			manualPreviewChangedRepeatMode = true;
+		}
 		drum->sources[0].repeatMode = SampleRepeatMode::ONCE;
 
 		if (!waveformBasicNavigator.sample->filePath.equals(&range->sampleHolder.filePath)) {
@@ -524,6 +645,15 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
 	if (on && horizontalEncoderPressed) {
 		horizontalEncoderPressUsed = true;
 	}
+	if (x == kDisplayWidth && y < 3) {
+		if (on) {
+			deluge::gui::slicer_playback::BatchMode mode = batchPlaybackMode;
+			if (deluge::gui::slicer_playback::setFromMenuIndex(mode, y)) {
+				chooseBatchPlaybackMode(mode);
+			}
+		}
+		return ActionResult::DEALT_WITH;
+	}
 
 	if (on && x < kDisplayWidth && y < kDisplayHeight / 2 && slicerMode == SLICER_MODE_MANUAL) { // pad on
 
@@ -550,16 +680,14 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
 			VoiceSample* voiceSample = nullptr;
 			SamplePlaybackGuide* guide = nullptr;
 			MultisampleRange* range;
-			Kit* kit = getCurrentKit();
-			SoundDrum* drum = (SoundDrum*)kit->firstDrum;
+			SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
 
 			if (getCurrentClip()->type == ClipType::INSTRUMENT && drum->hasActiveVoices()) {
+				range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
 				auto valid_voices_view = drum->voices() | std::views::filter([&](const Sound::ActiveVoice& voice) {
 					                         // Ensure correct MultisampleRange.
 					                         return voice->guides[0].audioFileHolder == range->getAudioFileHolder();
 				                         });
-
-				range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
 
 				if (!valid_voices_view.empty()) {
 					const Sound::ActiveVoice& assigned_voice =
@@ -614,18 +742,40 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
 	return sampleBrowser.padAction(x, y, on);
 }
 
-void Slicer::doSlice() {
+bool Slicer::doSlice() {
 
 	AudioEngine::stopAnyPreviewing();
+	bool isManualSlice = slicerMode == SLICER_MODE_MANUAL;
+	int32_t firstDrumNoteRowIndex = 0;
+	if (usesExistingKit
+	    && !getCurrentInstrumentClip()->getNoteRowForDrum((SoundDrum*)soundEditor.currentSound,
+	                                                      &firstDrumNoteRowIndex)) {
+		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD));
+		return false;
+	}
+
+	Kit* kit = getCurrentKit();
+	SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
+	int32_t generatedSliceSeriesIndex = getNextGeneratedSliceSeriesIndex(kit, firstDrum);
 
 	Error error = sampleBrowser.claimAudioFileForInstrument();
 	if (error != Error::NONE) {
 getOut:
 		display->displayError(error);
-		return;
+		return false;
 	}
 
-	Kit* kit = getCurrentKit();
+	MultisampleRange* firstRange = (MultisampleRange*)firstDrum->sources[0].getOrCreateFirstRange();
+	if (!firstRange) {
+		display->displayError(Error::INSUFFICIENT_RAM);
+		return false;
+	}
+
+	Sample* sample = (Sample*)firstRange->sampleHolder.audioFile;
+	if (!sample) {
+		display->displayError(Error::FILE_UNREADABLE);
+		return false;
+	}
 
 	// Do the first Drum
 
@@ -652,15 +802,12 @@ getOut:
 			// getCurrentClip(), false);
 		}
 
-		SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
-
-		if (firstDrum->nameIsDiscardable) {
-			firstDrum->drumName = "1";
+		if (isManualSlice) {
+			manualSliceDrums[0] = firstDrum;
 		}
 
-		MultisampleRange* firstRange = (MultisampleRange*)firstDrum->sources[0].getOrCreateFirstRange();
-
-		Sample* sample = (Sample*)firstRange->sampleHolder.audioFile;
+		firstDrum->drumName = deluge::generated_slice_name::makeName(generatedSliceSeriesIndex, 1);
+		firstDrum->nameIsDiscardable = false;
 
 		uint32_t lengthInSamples = sample->lengthInSamples;
 
@@ -674,18 +821,10 @@ getOut:
 		uint32_t nextDrumStart = lengthInSamples / numClips;
 		firstRange->sampleHolder.endPos = nextDrumStart;
 
-		firstDrum->sources[0].repeatMode =
-		    (lengthMSPerSlice < 2002) ? SampleRepeatMode::ONCE : FlashStorage::defaultSliceMode;
+		firstDrum->sources[0].repeatMode = getBatchRepeatMode(lengthMSPerSlice);
 
 		firstDrum->sources[0].sampleControls.reversed = false;
 		firstDrum->sources[0].sampleControls.invertReversed = false;
-
-#if 1 || ALPHA_OR_BETA_VERSION
-		if (!firstRange->sampleHolder.audioFile) {
-			FREEZE_WITH_ERROR("i032"); // Trying to narrow down E368 that Kevin F got
-		}
-#endif
-
 		firstRange->sampleHolder.claimClusterReasons(firstDrum->sources[0].sampleControls.isCurrentlyReversed(),
 		                                             CLUSTER_ENQUEUE);
 		if (doEnvelopes) {
@@ -698,7 +837,14 @@ getOut:
 			    modelStackWithAutoParam, getParamFromUserValue(params::LOCAL_ENV_0_RELEASE, 1));
 		}
 
-		// Do the rest of the Drums
+		ModelStackWithTimelineCounter* noteRowModelStack = nullptr;
+		if (usesExistingKit) {
+			noteRowModelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
+		}
+
+		// Do the rest of the Drums.
+		// Their rows are placed directly above the selected first drum, rather than using the generic Kit row
+		// allocator.
 		for (int32_t i = 1; i < numClips; i++) {
 
 			// Make the Drum and its ParamManager
@@ -725,19 +871,17 @@ ramError2:
 				goto ramError;
 			}
 
-			newDrum->drumName = deluge::string::fromInt(i + 1);
+			newDrum->drumName = deluge::generated_slice_name::makeName(generatedSliceSeriesIndex, i + 1);
 
 			Sound::initParams(&paramManager);
 
-			kit->addDrum(newDrum);
 			newDrum->setupAsSample(&paramManager);
 
 			range->sampleHolder.startPos = nextDrumStart;
 			nextDrumStart = (uint64_t)lengthInSamples * (i + 1) / numClips;
 			range->sampleHolder.endPos = nextDrumStart;
 
-			newDrum->sources[0].repeatMode =
-			    (lengthMSPerSlice < 2002) ? SampleRepeatMode::ONCE : FlashStorage::defaultSliceMode;
+			newDrum->sources[0].repeatMode = getBatchRepeatMode(lengthMSPerSlice);
 
 			range->sampleHolder.filePath.set(&sample->filePath);
 			range->sampleHolder.loadFile(false, false, true);
@@ -751,18 +895,43 @@ ramError2:
 				}
 			}
 
-			// I moved this here, from being earlier/above. Is this fine?
-			currentSong->backUpParamManager(newDrum, getCurrentClip(), &paramManager, true);
+			if (usesExistingKit) {
+				int32_t noteRowIndex = firstDrumNoteRowIndex + i;
+				NoteRow* newNoteRow = getCurrentInstrumentClip()->noteRows.insertNoteRowAtIndex(noteRowIndex);
+				if (!newNoteRow) {
+					newDrum->~SoundDrum();
+					delugeDealloc(drumMemory);
+					goto ramError;
+				}
+
+				kit->addDrum(newDrum);
+				ModelStackWithNoteRow* newNoteRowModelStack = noteRowModelStack->addNoteRow(
+				    getCurrentInstrumentClip()->getNoteRowId(newNoteRow, noteRowIndex), newNoteRow);
+				newNoteRow->setDrum(newDrum, kit, newNoteRowModelStack, nullptr, &paramManager);
+			}
+			else {
+				kit->addDrum(newDrum);
+				currentSong->backUpParamManager(newDrum, getCurrentClip(), &paramManager, true);
+			}
+
+			if (isManualSlice) {
+				manualSliceDrums[i] = newDrum;
+			}
 		}
 
-		// Make NoteRows for all these new Drums
-		getCurrentKit()->resetDrumTempValues();
-		firstDrum->noteRowAssignedTemp = 1;
+		if (!usesExistingKit) {
+			// Region Slice retains its established generic Kit-row assignment behavior.
+			getCurrentKit()->resetDrumTempValues();
+			firstDrum->noteRowAssignedTemp = 1;
+		}
 	}
-	ModelStackWithTimelineCounter* modelStack = (ModelStackWithTimelineCounter*)modelStackMemory;
-	getCurrentInstrumentClip()->assignDrumsToNoteRows(modelStack);
+	if (!usesExistingKit) {
+		ModelStackWithTimelineCounter* modelStack = (ModelStackWithTimelineCounter*)modelStackMemory;
+		getCurrentInstrumentClip()->assignDrumsToNoteRows(modelStack);
+	}
 
 	getCurrentInstrument()->beenEdited();
+	manualPreviewChangedRepeatMode = false;
 
 	// New NoteRows have probably been created, whose colours haven't been grabbed yet.
 	instrumentClipView.recalculateColours();
@@ -770,4 +939,5 @@ ramError2:
 	display->setNextTransitionDirection(-1);
 	sampleBrowser.exitAndNeverDeleteDrum();
 	uiNeedsRendering(&instrumentClipView);
+	return true;
 }

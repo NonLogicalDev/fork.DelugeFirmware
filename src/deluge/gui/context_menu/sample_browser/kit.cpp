@@ -20,10 +20,7 @@
 #include "gui/l10n/l10n.h"
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/slicer.h"
-#include "hid/display/display.h"
-#include "processing/engines/audio_engine.h"
 #include "storage/file_item.h"
-#include "util/functions.h"
 
 namespace deluge::gui::context_menu::sample_browser {
 Kit kit{};
@@ -46,26 +43,24 @@ std::span<char const*> Kit::getOptions() {
 bool Kit::isCurrentOptionAvailable() {
 	switch (currentOption) {
 	case 0: // "ALL" option - to import whole folder. Works whether they're currently on a file or a folder.
-		return true;
-	default: // Slicer option - only works if currently on a file, not a folder.
-		return (!sampleBrowser.getCurrentFileItem()->isFolder);
+		return sampleBrowser.canUseKitSampleCreationOnTopEmptyPad();
+	case 1: // Slicer only works on an audio file.
+		return !sampleBrowser.getCurrentFileItem()->isFolder && sampleBrowser.canUseKitSampleCreationOnTopEmptyPad();
+	case 2: // Manual slicer only works on an audio file.
+		return !sampleBrowser.getCurrentFileItem()->isFolder && sampleBrowser.canUseKitSampleCreationOnTopEmptyPad();
+	default:
+		return false;
 	}
 }
 
 bool Kit::acceptCurrentOption() {
 	switch (currentOption) {
 	case 0: // Import whole folder
-		return sampleBrowser.importFolderAsKit();
+		return sampleBrowser.canUseKitSampleCreationOnTopEmptyPad() && sampleBrowser.importFolderAsKit();
 	case 1: // Slicer
-		display->setNextTransitionDirection(1);
-		openUI(&slicer);
-		return true;
+		return sampleBrowser.openSlicer(SLICER_MODE_REGION);
 	case 2: // Manual slicer
-		AudioEngine::stopAnyPreviewing();
-		slicer.requestInitialMode(SLICER_MODE_MANUAL);
-		display->setNextTransitionDirection(1);
-		openUI(&slicer);
-		return true;
+		return sampleBrowser.openSlicer(SLICER_MODE_MANUAL);
 	default:
 		return false;
 	}

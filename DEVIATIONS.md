@@ -109,17 +109,21 @@ When exact chord recognition is active on an OLED, show both the harmony and the
 - Automated tests demonstrate that press order chooses the latest physical held note, that a release promotes the latest remaining physical note, and that a generated note cannot take precedence.
 - The host unit-test suite and a local Release build pass.
 
-## 5. Manual Slice entry during kit creation
+## 5. Manual Slice entry and reuse
 
 ### Intent
 
-Let a player choose manual slice placement before creating a kit, rather than entering the standard slicer and changing its mode afterward.
+Let a player choose manual slice placement before creating a kit, or append manual slices safely to the empty top of an existing Kit, rather than entering the standard slicer and changing its mode afterward.
 
 ### Required behavior
 
 - When the sample browser is creating a kit from a selected audio file, its action menu contains three choices: Load all, Slice, and Manual slice.
-- Manual slice is available under the same selected-file condition as the existing Slice action. It is not offered for a folder.
+- In a brand-new Kit, Manual slice is available under the same selected-file condition as the existing Slice action. It is not offered for a folder.
+- In an existing Kit, Manual slice is available only after the player selected a pad that had no Sound, MIDI, or Gate Drum and that has no assigned Kit row above it. The selected pad becomes the first new slice and every additional slice is appended on a pad above it.
+- An occupied selected pad, or an unassigned selected pad below an existing Kit row, cannot start Manual slice. The player receives localized feedback that Manual slice needs the top empty Kit pad.
+- A reuse entry remains in Manual mode. Its mode-switch control does not enter Region Slice, whose placement rules are intentionally still limited to a brand-new Kit.
 - Choosing Manual slice opens the existing Slicer directly in its established Manual mode, with the same initial one-slice state, waveform view, pad editing, slice count, transpose, preview, save, confirm, and cancel behavior that Manual mode already provides.
+- Leaving Manual Slice with Back retains its established behavior: the new anchor remains as one full-sample pad. Existing Kit rows remain unchanged.
 - Entering either Manual slice or the existing Slice action requests the Slicer's initial grid redraw immediately. The player does not need to move an encoder or send another input before the waveform and Slicer grid appear.
 - Choosing the existing Slice action continues to open the Slicer in its established Region mode with its existing initial slice count and controls.
 - The Manual slice selection applies only to that entry into the Slicer. A later normal Slice entry must still begin in Region mode.
@@ -128,12 +132,14 @@ Let a player choose manual slice placement before creating a kit, rather than en
 ### Compatibility and boundaries
 
 - Do not add a new slicing algorithm, slice-detection heuristic, kit type, sample format rule, maximum slice count, or save format.
-- Do not change the behavior of Load all, standard Slice, the Slicer mode-switch control, existing manual slicing actions, sample playback, kit playback, MIDI, or project saving.
+- Load all and standard Slice remain available only for a brand-new Kit. The reuse route applies to Manual slice only.
+- Do not move, replace, clear, or reorder existing Kit rows below the selected pad. Keep their notes, sound settings, and playback state unchanged.
+- Do not change the Slicer mode-switch control for brand-new Kit entry, existing manual slicing actions, sample playback, kit playback, MIDI, or project saving.
 - The new choice is a faster route to an existing mode. It does not persist as a global default.
 
 ### Verification contract
 
-- A human runtime check on a physical Deluge should confirm that Manual slice starts in Manual mode, standard Slice still starts in Region mode, and a normal entry after Manual slice is still Region mode.
+- A human runtime check on a physical Deluge should confirm that Manual slice starts in Manual mode, standard Slice still starts in Region mode, and a normal entry after Manual slice is still Region mode. It should also confirm that a top empty Kit pad receives the first slice, later slices appear above it, existing rows below remain unchanged, and lower or occupied selections are refused.
 - The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
 
 ## 6. Manual Slicer positioning and preview stop

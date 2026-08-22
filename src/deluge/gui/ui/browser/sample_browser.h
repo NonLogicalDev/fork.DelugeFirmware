@@ -62,6 +62,9 @@ public:
 	bool renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea = true) override;
 	void exitAndNeverDeleteDrum();
+	bool canImportWholeKit();
+	bool canUseKitSampleCreationOnTopEmptyPad();
+	bool openSlicer(int32_t initialMode);
 
 	String lastFilePathLoaded;
 
@@ -84,7 +87,6 @@ private:
 	void displayCurrentFilename();
 	void previewIfPossible(int32_t movementDirection = 1);
 	void audioFileIsNowSet();
-	bool canImportWholeKit();
 	bool loadAllSamplesInFolder(bool detectPitch, int32_t* getNumSamples, Sample*** getSortArea,
 	                            bool* getDoingSingleCycle = nullptr, int32_t* getNumCharsInPrefix = nullptr);
 	Error getCurrentFilePath(String* path) override;
@@ -97,6 +99,7 @@ private:
 	bool currentlyShowingSamplePreview;
 
 	bool qwertyCurrentlyDrawnOnscreen; // This will linger as true even when qwertyVisible has been set to false
+
 };
 
 extern SampleBrowser sampleBrowser;

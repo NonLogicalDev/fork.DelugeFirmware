@@ -33,6 +33,7 @@
 #include "model/consequence/consequence_note_row_mute.h"
 #include "model/consequence/consequence_scale_add_note.h"
 #include "model/drum/drum_name.h"
+#include "model/drum/generated_slice_name.h"
 #include "model/instrument/cv_instrument.h"
 #include "model/instrument/midi_instrument.h"
 #include "model/iterance/iterance.h"
@@ -1979,7 +1980,9 @@ bool InstrumentClip::possiblyDeleteEmptyNoteRow(NoteRow* noteRow, bool onlyIfNoD
 			return false;
 		}
 
-		if (onlyIfNonNumeric && drum->type == DrumType::SOUND && stringIsNumericChars(drum->drumName.c_str())) {
+		if (onlyIfNonNumeric && drum->type == DrumType::SOUND
+		    && (stringIsNumericChars(drum->drumName.c_str())
+		        || deluge::generated_slice_name::isGeneratedSliceName(drum->drumName))) {
 			return false;
 		}
 

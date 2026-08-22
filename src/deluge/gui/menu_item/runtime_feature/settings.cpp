@@ -20,6 +20,9 @@
 #include "emulated_display.h"
 #include "hid/display/display.h"
 #include "hid/display/oled_canvas/canvas.h"
+#include "model/model_stack.h"
+#include "model/song/song.h"
+#include "processing/sound/sound_instrument.h"
 #include "setting.h"
 #include "shift_is_sticky.h"
 #include <array>
@@ -45,6 +48,27 @@ public:
 		OledOnlySettingToggle::writeCurrentValue();
 		hid::display::oled_canvas::Canvas::roundedCornersEnabled =
 		    runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::RoundedCorners);
+	}
+};
+
+class MidiSustainPedalSetting final : public SettingToggle {
+public:
+	using SettingToggle::SettingToggle;
+
+	void writeCurrentValue() override {
+		bool wasEnabled = runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::MidiSustainPedal);
+		SettingToggle::writeCurrentValue();
+		if (!wasEnabled || runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::MidiSustainPedal) || !currentSong) {
+			return;
+		}
+
+		char modelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+		for (Output* output = currentSong->firstOutput; output; output = output->next) {
+			if (output->type == OutputType::SYNTH) {
+				static_cast<SoundInstrument*>(output)->releaseDeferredMIDISustainNotes(modelStack);
+			}
+		}
 	}
 };
 
@@ -74,6 +98,7 @@ SettingToggle menuTrimFromStartOfAudioClip(RuntimeFeatureSettingType::TrimFromSt
 SettingToggle menuShowBatteryLevel(RuntimeFeatureSettingType::ShowBatteryLevel);
 RoundedCornersSettingToggle menuRoundedCorners(RuntimeFeatureSettingType::RoundedCorners);
 SettingToggle menuShortcutOverlay(RuntimeFeatureSettingType::ShortcutOverlay);
+MidiSustainPedalSetting menuMidiSustainPedal(RuntimeFeatureSettingType::MidiSustainPedal);
 
 std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettings> subMenuEntries{
     &menuDrumRandomizer,
@@ -100,7 +125,8 @@ std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettin
     &menuRoundedCorners,
     &menuTrimFromStartOfAudioClip,
     &menuShowBatteryLevel,
-    &menuShortcutOverlay};
+    &menuShortcutOverlay,
+    &menuMidiSustainPedal};
 
 Settings::Settings(l10n::String name, l10n::String title) : menu_item::Submenu(name, title, subMenuEntries) {
 }

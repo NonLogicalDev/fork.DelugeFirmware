@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains ten deviations:
+The local stack currently contains eleven deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -16,6 +16,7 @@ The local stack currently contains ten deviations:
 8. Organize local revisions by coherent firmware area or core capability.
 9. Provide a global Panic action for immediate silence.
 10. Copy, paste, and reorder a Kit Sound Drum row.
+11. Add optional incoming MIDI sustain-pedal support for internal Synth tracks.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -296,6 +297,34 @@ Let a player duplicate a Kit Sound Drum, its sound settings, and its musical row
 - A source review confirms that all resources for a prospective target are ready before that target is changed, and that a failed allocation leaves the destination unchanged.
 - The host unit-test suite and a local Release build pass.
 - A physical Deluge check confirms a full copy to an empty target and an existing Sound Drum target, exact sample-marker and loop transfer, independent later edits, full note transfer, sound-only note preservation, MIDI/Gate rejection, ordinary Horizontal Encoder behavior, local display feedback, and save/reload behavior. It also confirms Kit-row reorder, Undo, Redo, and an earlier unrelated Undo action remain correct. No flashing or installation is authorized by this contract.
+
+## 11. Optional incoming MIDI sustain pedal
+
+### Intent
+
+Let a standard sustain pedal control the live release of notes played from an external MIDI controller into an internal Deluge Synth, including a DX7 sound, without changing existing MIDI behavior until the player chooses it.
+
+### Required behavior
+
+- Community Features contains a persisted `MIDI Sustain Pedal` setting that defaults to Off.
+- With the setting Off, incoming CC64 and incoming note-offs retain their established behavior.
+- With the setting On, an incoming CC64 value from 64 through 127 holds the live release of notes that the player releases from a matched external MIDI input on an internal Synth track. A value from 0 through 63 releases only those previously released notes.
+- A note that remains physically held when the pedal is released continues sounding normally. If the player replays a pitch before releasing the pedal, a later pedal release must not stop the new held note.
+- The feature applies through the ordinary internal Synth input path, so DX7 sounds gain the same pedal behavior without a DX7-only setting, sound-file field, or preset conversion.
+- MIDI Learn receives CC64 before this behavior. A player can still learn or unlearn CC64 normally, and a normal learned CC64 mapping may continue to receive its value.
+- Turning the setting Off releases any notes already held by the pedal. Stopping or replacing the receiving Synth, and Panic, also clear the pedal-held state so it cannot leave a later note sounding.
+- Clip recording retains the physical note-off timing. This deviation does not record pedal events or change saved song, synth, or automation data.
+
+### Compatibility and boundaries
+
+- Do not add half-pedal response, sostenuto, pedal recording, a new MIDI mapping format, or a global MIDI filter.
+- Do not apply this behavior to Kit, Audio, CV, or external MIDI-output tracks. Sequenced notes, grid-pad audition, external MIDI output, existing sound envelopes, DX7 synthesis, and Community Feature settings other than this opt-in toggle retain their established behavior.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- A local Release build and the configured host test suite pass.
+- A physical Deluge check with a CC64 controller verifies the setting defaults Off; pedal-down and pedal-up behavior for a single note, chord, repeated pitch, and a still-held pitch; DX7 behavior; normal MIDI Learn and unlearn; a learned CC64 mapping; target change; Stop; Panic; and save/reload. No flashing is implied by this check.
 
 ## Maintaining this document
 

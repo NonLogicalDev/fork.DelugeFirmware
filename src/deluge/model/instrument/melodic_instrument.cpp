@@ -34,6 +34,15 @@
 #include <cstring>
 #include <ranges>
 
+namespace {
+constexpr uint8_t kMIDISustainPedalController = 64;
+constexpr uint8_t kMIDISustainPedalOnThreshold = 64;
+} // namespace
+
+bool MelodicInstrument::isMIDISustainPedalEnabled() const {
+	return type == OutputType::SYNTH && runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::MidiSustainPedal);
+}
+
 bool MelodicInstrument::writeMelodicInstrumentAttributesToFile(Serializer& writer, Clip* clipForSavingOutputOnly,
                                                                Song* song) {
 	Instrument::writeDataToFile(writer, clipForSavingOutputOnly, song);
@@ -116,6 +125,8 @@ void MelodicInstrument::receivedNote(ModelStackWithTimelineCounter* modelStack, 
 
 		// Note-on
 		if (on) {
+			midiSustainDeferredNotes.erase(note);
+
 			if (runtimeFeatureSettings.get(RuntimeFeatureSettingType::HighlightIncomingNotes)
 			        == RuntimeFeatureStateToggle::On
 			    && instrumentClip == getCurrentInstrumentClip()) {
@@ -269,11 +280,18 @@ justAuditionNote:
 				}
 			}
 
-			// We want to make sure we sent the note-off even if it didn't think auditioning was happening. This is to
-			// stop a stuck note if MIDI thru was on and they're releasing the note while still holding learn to learn
-			// that input to a MIDIInstrument (with external synth attached)
-			endAuditioningForNote(modelStack->toWithSong(), // Safe, cos we won't reference this again
-			                      note, velocity);
+			// Keep the physical note-off, but delay only the internal Synth release while the pedal is down. The fixed
+			// MIDI note table cannot allocate; an invalid pitch or a note with no matching audition is released
+			// immediately so MIDI-thru's existing stuck-note safeguard remains intact.
+			const bool deferred = isMIDISustainPedalEnabled() && midiSustainPedalDown && notesAuditioned.contains(note)
+			                      && midiSustainDeferredNotes.defer(note, static_cast<uint8_t>(velocity));
+			if (!deferred) {
+				// We want to make sure we sent the note-off even if it didn't think auditioning was happening. This is
+				// to stop a stuck note if MIDI thru was on and they're releasing the note while still holding learn to
+				// learn that input to a MIDIInstrument (with external synth attached)
+				endAuditioningForNote(modelStack->toWithSong(), // Safe, cos we won't reference this again
+				                      note, velocity);
+			}
 		}
 	} // end match switch
 
@@ -392,6 +410,15 @@ void MelodicInstrument::receivedCC(ModelStackWithTimelineCounter* modelStackWith
 			// Don't also pass to ccReveived since it will now be handled by output mono expression in midi
 			// clips instead
 			return;
+		}
+
+		if (ccNumber == kMIDISustainPedalController && isMIDISustainPedalEnabled()) {
+			if (value >= kMIDISustainPedalOnThreshold) {
+				midiSustainPedalDown = true;
+			}
+			else {
+				releaseDeferredMIDISustainNotes(modelStackWithTimelineCounter->toWithSong());
+			}
 		}
 
 		// Still send the cc even if the Output is muted. MidiInstruments will check for and block this
@@ -516,6 +543,8 @@ void MelodicInstrument::stopAnyAuditioning(ModelStack* modelStack) {
 	notesAuditioned.clear();
 	earlyNotes.clear(); // This is fine, though in a perfect world we'd prefer to just mark the notes as no
 	                    // longer active
+	midiSustainDeferredNotes.clear();
+	midiSustainPedalDown = false;
 	if (activeClip) {
 		activeClip->expectEvent(); // Because the absence of auditioning here means sequenced notes may play
 	}
@@ -590,6 +619,12 @@ void MelodicInstrument::endAuditioningForNote(ModelStack* modelStack, int32_t no
 	        ->addOtherTwoThingsButNoNoteRow(toModControllable(), getParamManager(modelStack->song));
 
 	sendNote(modelStackWithThreeMainThings, false, note, nullptr, MIDI_CHANNEL_NONE, velocity);
+}
+
+void MelodicInstrument::releaseDeferredMIDISustainNotes(ModelStack* modelStack) {
+	midiSustainPedalDown = false;
+	midiSustainDeferredNotes.releaseAll(
+	    [this, modelStack](int32_t note, uint8_t velocity) { endAuditioningForNote(modelStack, note, velocity); });
 }
 
 bool MelodicInstrument::isAnyAuditioningHappening() {

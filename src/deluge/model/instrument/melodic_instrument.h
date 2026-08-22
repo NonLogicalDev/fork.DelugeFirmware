@@ -19,6 +19,7 @@
 
 #include "io/midi/learned_midi.h"
 #include "model/instrument/instrument.h"
+#include "model/instrument/midi_sustain_deferred_notes.h"
 #include "modulation/arpeggiator.h"
 #include "util/containers.h"
 
@@ -68,6 +69,7 @@ public:
 	void beginAuditioningForNote(ModelStack* modelStack, int32_t note, int32_t velocity, int16_t const* mpeValues,
 	                             int32_t fromMIDIChannel = MIDI_CHANNEL_NONE, uint32_t sampleSyncLength = 0);
 	void endAuditioningForNote(ModelStack* modelStack, int32_t note, int32_t velocity = kDefaultLiftValue);
+	void releaseDeferredMIDISustainNotes(ModelStack* modelStack);
 	virtual ModelStackWithAutoParam* getParamToControlFromInputMIDIChannel(int32_t cc,
 	                                                                       ModelStackWithThreeMainThings* modelStack);
 	void processParamFromInputMIDIChannel(int32_t cc, int32_t newValue,
@@ -94,11 +96,14 @@ public:
 
 	deluge::fast_map<int16_t, EarlyNoteInfo> earlyNotes; // note value, velocity, still_active
 	deluge::fast_map<int16_t, EarlyNoteInfo> notesAuditioned;
+	deluge::midi_support::SustainDeferredNotes midiSustainDeferredNotes;
+	bool midiSustainPedalDown = false;
 
 	ModelStackWithAutoParam* getModelStackWithParam(ModelStackWithTimelineCounter* modelStack, Clip* clip,
 	                                                int32_t paramID, deluge::modulation::params::Kind paramKind,
 	                                                bool affectEntire, bool useMenuStack) override;
 
 private:
+	bool isMIDISustainPedalEnabled() const;
 	void possiblyRefreshAutomationEditorGrid(int32_t ccNumber);
 };

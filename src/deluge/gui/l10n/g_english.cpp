@@ -168,6 +168,7 @@ PLACE_SDRAM_DATA Language english{
         {STRING_FOR_ONCE_LAUNCH, "Once"},
         {STRING_FOR_LOAD_ALL, "Load all"},
         {STRING_FOR_SLICE, "Slice"},
+        {STRING_FOR_MANUAL_SLICE, "Manual slice"},
         {STRING_FOR_MULTISAMPLES, "Multisamples"},
         {STRING_FOR_BASIC, "Basic"},
         {STRING_FOR_SINGLE_CYCLE, "Single-cycle"},

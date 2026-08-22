@@ -47,6 +47,7 @@ public:
 
 	void stopAnyPreviewing();
 	void preview(int64_t startPoint, int64_t endPoint, int32_t transpose, int32_t on);
+	void requestInitialMode(int32_t mode) { requestedInitialMode = mode; }
 
 	int32_t numManualSlice;
 	int32_t currentSlice;
@@ -61,6 +62,8 @@ public:
 	UIType getUIType() override { return UIType::SLICER; }
 
 private:
+	int32_t requestedInitialMode = SLICER_MODE_REGION;
+
 	// 7SEG Only
 	void redraw();
 

@@ -145,6 +145,7 @@ enum class String : size_t {
 	// gui/context_menu/sample_browser/kit.cpp
 	STRING_FOR_LOAD_ALL,
 	STRING_FOR_SLICE,
+	STRING_FOR_MANUAL_SLICE,
 
 	// gui/context_menu/sample_browser/synth.cpp
 	STRING_FOR_MULTISAMPLES,

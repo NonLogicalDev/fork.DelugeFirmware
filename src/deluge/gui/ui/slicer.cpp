@@ -62,7 +62,8 @@ void Slicer::focusRegained() {
 
 	numManualSlice = 1;
 	currentSlice = 0;
-	slicerMode = SLICER_MODE_REGION;
+	slicerMode = requestedInitialMode;
+	requestedInitialMode = SLICER_MODE_REGION;
 	for (int32_t i = 0; i < MAX_MANUAL_SLICES; i++) {
 		manualSlicePoints[i].startPos = 0;
 		manualSlicePoints[i].transpose = 0;
@@ -71,6 +72,8 @@ void Slicer::focusRegained() {
 	if (display->have7SEG()) {
 		redraw();
 	}
+
+	uiNeedsRendering(this, 0xFFFFFFFF, 0xFFFFFFFF);
 }
 
 void Slicer::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {

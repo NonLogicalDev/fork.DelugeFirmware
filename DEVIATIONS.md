@@ -4,12 +4,13 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains four deviations:
+The local stack currently contains five deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
 3. Identify held chords in Keyboard View.
 4. Show the latest physical held note under a recognized OLED chord label.
+5. Start kit creation in Manual Slice mode directly from the sample browser.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -102,6 +103,33 @@ When exact chord recognition is active on an OLED, show both the harmony and the
 
 - Automated tests demonstrate that press order chooses the latest physical held note, that a release promotes the latest remaining physical note, and that a generated note cannot take precedence.
 - The host unit-test suite and a local Release build pass.
+
+## 5. Manual Slice entry during kit creation
+
+### Intent
+
+Let a player choose manual slice placement before creating a kit, rather than entering the standard slicer and changing its mode afterward.
+
+### Required behavior
+
+- When the sample browser is creating a kit from a selected audio file, its action menu contains three choices: Load all, Slice, and Manual slice.
+- Manual slice is available under the same selected-file condition as the existing Slice action. It is not offered for a folder.
+- Choosing Manual slice opens the existing Slicer directly in its established Manual mode, with the same initial one-slice state, waveform view, pad editing, slice count, transpose, preview, save, confirm, and cancel behavior that Manual mode already provides.
+- Entering either Manual slice or the existing Slice action requests the Slicer's initial grid redraw immediately. The player does not need to move an encoder or send another input before the waveform and Slicer grid appear.
+- Choosing the existing Slice action continues to open the Slicer in its established Region mode with its existing initial slice count and controls.
+- The Manual slice selection applies only to that entry into the Slicer. A later normal Slice entry must still begin in Region mode.
+- The new menu label is localized for both OLED and seven-segment displays.
+
+### Compatibility and boundaries
+
+- Do not add a new slicing algorithm, slice-detection heuristic, kit type, sample format rule, maximum slice count, or save format.
+- Do not change the behavior of Load all, standard Slice, the Slicer mode-switch control, existing manual slicing actions, sample playback, kit playback, MIDI, or project saving.
+- The new choice is a faster route to an existing mode. It does not persist as a global default.
+
+### Verification contract
+
+- A human runtime check on a physical Deluge should confirm that Manual slice starts in Manual mode, standard Slice still starts in Region mode, and a normal entry after Manual slice is still Region mode.
+- The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
 
 ## Maintaining this document
 

@@ -35,10 +35,11 @@ char const* Kit::getTitle() {
 std::span<char const*> Kit::getOptions() {
 	using enum l10n::String;
 	static char const* options[] = {
-	    l10n::get(STRING_FOR_LOAD_ALL), //<
-	    l10n::get(STRING_FOR_SLICE)     //<
+	    l10n::get(STRING_FOR_LOAD_ALL),     // <
+	    l10n::get(STRING_FOR_SLICE),        // <
+	    l10n::get(STRING_FOR_MANUAL_SLICE), // <
 	};
-	return {options, 2};
+	return {options, 3};
 }
 
 bool Kit::isCurrentOptionAvailable() {
@@ -54,10 +55,17 @@ bool Kit::acceptCurrentOption() {
 	switch (currentOption) {
 	case 0: // Import whole folder
 		return sampleBrowser.importFolderAsKit();
-	default: // Slicer
+	case 1: // Slicer
 		display->setNextTransitionDirection(1);
 		openUI(&slicer);
 		return true;
+	case 2: // Manual slicer
+		slicer.requestInitialMode(SLICER_MODE_MANUAL);
+		display->setNextTransitionDirection(1);
+		openUI(&slicer);
+		return true;
+	default:
+		return false;
 	}
 }
 

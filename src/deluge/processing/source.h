@@ -63,6 +63,7 @@ public:
 	MultiRange* getRange(int32_t note);
 	MultiRange* getOrCreateFirstRange();
 	bool hasAtLeastOneAudioFileLoaded();
+	Error clonePersistentStateFrom(Source& other);
 	void doneReadingFromFile(Sound* sound);
 	bool hasAnyLoopEndPoint();
 	OscType getOscType();

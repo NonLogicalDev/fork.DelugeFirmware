@@ -197,6 +197,75 @@ bool Source::hasAtLeastOneAudioFileLoaded() {
 	return false;
 }
 
+Error Source::clonePersistentStateFrom(Source& other) {
+	destructAllMultiRanges();
+	ranges.empty();
+
+	sampleControls = other.sampleControls;
+	oscType = other.oscType;
+	transpose = other.transpose;
+	cents = other.cents;
+	fineTuner = other.fineTuner;
+	dxPatchChanged = other.dxPatchChanged;
+	repeatMode = other.repeatMode;
+	timeStretchAmount = other.timeStretchAmount;
+	defaultRangeI = other.defaultRangeI;
+
+	if (other.dxPatch) {
+		DxPatch* newPatch = ensureDxPatch();
+		memcpy(newPatch->params, other.dxPatch->params, sizeof(newPatch->params));
+		newPatch->engineMode = other.dxPatch->engineMode;
+		newPatch->random_detune = other.dxPatch->random_detune;
+		newPatch->pitch_mod = other.dxPatch->pitch_mod;
+		newPatch->eg_mod = other.dxPatch->eg_mod;
+		newPatch->lfo_phase = other.dxPatch->lfo_phase;
+		newPatch->lfo_delta = other.dxPatch->lfo_delta;
+		newPatch->lfo_value = other.dxPatch->lfo_value;
+		newPatch->updateEngineMode();
+	}
+
+	Error error = ranges.changeType(other.ranges.elementSize);
+	if (error != Error::NONE) {
+		return error;
+	}
+
+	for (int32_t i = 0; i < other.ranges.getNumElements(); i++) {
+		MultiRange* otherRange = other.ranges.getElement(i);
+		MultiRange* newRange = ranges.insertMultiRange(i);
+		if (!newRange) {
+			destructAllMultiRanges();
+			ranges.empty();
+			return Error::INSUFFICIENT_RAM;
+		}
+
+		newRange->topNote = otherRange->topNote;
+
+		if (oscType == OscType::SAMPLE) {
+			auto& sourceHolder = static_cast<MultisampleRange*>(otherRange)->sampleHolder;
+			auto& destinationHolder = static_cast<MultisampleRange*>(newRange)->sampleHolder;
+			destinationHolder.beenClonedFrom(&sourceHolder, sampleControls.isCurrentlyReversed());
+			destinationHolder.loopStartPos = sourceHolder.loopStartPos;
+			destinationHolder.loopEndPos = sourceHolder.loopEndPos;
+			destinationHolder.transpose = sourceHolder.transpose;
+			destinationHolder.cents = sourceHolder.cents;
+			destinationHolder.loopLocked = sourceHolder.loopLocked;
+			destinationHolder.startMSec = sourceHolder.startMSec;
+			destinationHolder.endMSec = sourceHolder.endMSec;
+			destinationHolder.recalculateFineTuner();
+		}
+		else if (oscType == OscType::WAVETABLE) {
+			auto& sourceHolder = static_cast<MultiWaveTableRange*>(otherRange)->waveTableHolder;
+			auto& destinationHolder = static_cast<MultiWaveTableRange*>(newRange)->waveTableHolder;
+			destinationHolder.filePath.set(&sourceHolder.filePath);
+			if (sourceHolder.audioFile) {
+				destinationHolder.setAudioFile(sourceHolder.audioFile);
+			}
+		}
+	}
+
+	return Error::NONE;
+}
+
 void Source::doneReadingFromFile(Sound* sound) {
 
 	SynthMode synthMode = sound->getSynthMode();

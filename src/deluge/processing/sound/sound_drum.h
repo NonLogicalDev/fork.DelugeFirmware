@@ -37,6 +37,7 @@ public:
 	using Sound::hasActiveVoices;
 	using Sound::prepareForHibernation;
 	void killAllVoices() override;
+	Error clonePersistentStateFrom(SoundDrum& other);
 
 	bool isDrum() override { return true; }
 	void noteOn(ModelStackWithThreeMainThings* modelStack, uint8_t velocity, int16_t const* mpeValues,

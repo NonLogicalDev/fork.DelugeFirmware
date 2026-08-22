@@ -127,6 +127,10 @@ InstrumentClipView::InstrumentClipView() : numEditPadPresses(0) {
 	lastSelectedNoteYDisplay = kNoSelection;
 }
 
+InstrumentClipView::~InstrumentClipView() {
+	deleteCopiedKitRow();
+}
+
 bool InstrumentClipView::opened() {
 
 	openedInBackground();
@@ -708,7 +712,58 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
 		}
 	}
 
-	// Horizontal encoder button if learn button pressed. Make sure you let the "off" action slide past to the Editor
+	// Learn is normally the MIDI-learn modifier. With a sampled Kit row already held it directly copies that row, and
+	// with Shift it pastes onto the held target. Shift + Learn before Audition remains the normal MIDI-unlearn route:
+	// once MIDI Learn is active, this handler must leave Learn to it. The first copy is sound-only; a second quick
+	// Learn press on the same row deliberately replaces it with a full row copy.
+	else if (b == LEARN && getCurrentOutputType() == OutputType::KIT
+	         && !isUIModeActive(UI_MODE_MIDI_LEARN)
+	         && (oneNoteAuditioning() || currentUIMode == UI_MODE_ADDING_DRUM_NOTEROW)) {
+		if (inCardRoutine) {
+			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+		}
+
+		if (!on) {
+			return ActionResult::DEALT_WITH;
+		}
+
+		if (Buttons::isShiftButtonPressed()) {
+			lastKitRowLearnPressTime = 0;
+			lastKitRowLearnYDisplay = -1;
+			if (pasteKitRow()) {
+				return ActionResult::DEALT_WITH;
+			}
+		}
+		else {
+			if (!oneNoteAuditioning()) {
+				goto passToOthers;
+			}
+
+			NoteRow* noteRow =
+			    getCurrentInstrumentClip()->getNoteRowOnScreen(lastAuditionedYDisplay, currentSong, nullptr);
+			if (!noteRow || !noteRow->drum || noteRow->drum->type != DrumType::SOUND) {
+				goto passToOthers;
+			}
+
+			bool includeNotes = lastKitRowLearnPressTime != 0
+			                    && lastKitRowLearnYDisplay == lastAuditionedYDisplay
+			                    && (AudioEngine::audioSampleTimer - lastKitRowLearnPressTime) < kShortPressTime;
+			if (includeNotes) {
+				lastKitRowLearnPressTime = 0;
+				lastKitRowLearnYDisplay = -1;
+			}
+			else {
+				lastKitRowLearnPressTime = AudioEngine::audioSampleTimer;
+				lastKitRowLearnYDisplay = lastAuditionedYDisplay;
+			}
+
+			if (copyKitRow(!includeNotes)) {
+				return ActionResult::DEALT_WITH;
+			}
+		}
+	}
+	// Preserve the normal note-clipboard shortcut. Kit-row copying uses Learn directly, so this remains the
+	// established Learn + Horizontal Encoder action for notes in every instrument view.
 	else if (b == X_ENC && on && Buttons::isButtonPressed(deluge::hid::button::LEARN)) {
 		if (inCardRoutine) {
 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
@@ -1307,6 +1362,216 @@ void InstrumentClipView::deleteCopiedNoteRows() {
 		toDelete->~CopiedNoteRow();
 		delugeDealloc(toDelete);
 	}
+}
+
+void InstrumentClipView::deleteCopiedKitRow() {
+	if (copiedKitRowDrum) {
+		copiedKitRowDrum->~SoundDrum();
+		delugeDealloc(copiedKitRowDrum);
+		copiedKitRowDrum = nullptr;
+	}
+
+	copiedKitRowParamManager.destructAndForgetParamCollections();
+	copiedKitRowNotes.empty();
+	copiedKitRowSong = nullptr;
+	copiedKitRowKit = nullptr;
+	copiedKitRowIncludesNotes = false;
+}
+
+bool InstrumentClipView::copyKitRow(bool soundOnly) {
+	if (getCurrentOutputType() != OutputType::KIT || !oneNoteAuditioning()) {
+		return false;
+	}
+
+	NoteRow* sourceRow = getCurrentInstrumentClip()->getNoteRowOnScreen(lastAuditionedYDisplay, currentSong, nullptr);
+	if (!sourceRow || !sourceRow->drum || sourceRow->drum->type != DrumType::SOUND) {
+		return false;
+	}
+
+	void* drumMemory = GeneralMemoryAllocator::get().allocMaxSpeed(sizeof(SoundDrum));
+	if (!drumMemory) {
+		display->displayError(Error::INSUFFICIENT_RAM);
+		return true;
+	}
+
+	SoundDrum* copiedDrum = new (drumMemory) SoundDrum();
+	Error error = copiedDrum->clonePersistentStateFrom(*static_cast<SoundDrum*>(sourceRow->drum));
+	if (error != Error::NONE) {
+		copiedDrum->~SoundDrum();
+		delugeDealloc(copiedDrum);
+		display->displayError(error);
+		return true;
+	}
+
+	ParamManagerForTimeline copiedParamManager;
+	error = copiedParamManager.cloneParamCollectionsFrom(&sourceRow->paramManager, false, true);
+	if (error != Error::NONE) {
+		copiedDrum->~SoundDrum();
+		delugeDealloc(copiedDrum);
+		display->displayError(error);
+		return true;
+	}
+
+	NoteVector copiedNotes;
+	if (!soundOnly && !copiedNotes.cloneFrom(&sourceRow->notes)) {
+		copiedDrum->~SoundDrum();
+		delugeDealloc(copiedDrum);
+		display->displayError(Error::INSUFFICIENT_RAM);
+		return true;
+	}
+
+	deleteCopiedKitRow();
+	copiedKitRowDrum = copiedDrum;
+	copiedKitRowParamManager.stealParamCollectionsFrom(&copiedParamManager, true);
+	if (!soundOnly) {
+		copiedKitRowNotes.swapStateWith(&copiedNotes);
+	}
+	copiedKitRowSong = currentSong;
+	copiedKitRowKit = getCurrentKit();
+	copiedKitRowIncludesNotes = !soundOnly;
+	copiedKitRowMuted = sourceRow->muted;
+	copiedKitRowLoopLength = sourceRow->loopLengthIfIndependent;
+	copiedKitRowSequenceDirection = sourceRow->sequenceDirectionMode;
+	copiedKitRowProbability = sourceRow->probabilityValue;
+	copiedKitRowIterance = sourceRow->iteranceValue;
+	copiedKitRowFill = sourceRow->fillValue;
+	copiedKitRowColourOffset = sourceRow->colourOffset;
+
+	display->displayPopup(deluge::l10n::get(soundOnly ? deluge::l10n::String::STRING_FOR_KIT_SOUND_COPIED
+	                                                  : deluge::l10n::String::STRING_FOR_KIT_ROW_COPIED));
+	return true;
+}
+
+bool InstrumentClipView::pasteKitRow() {
+	if (getCurrentOutputType() != OutputType::KIT) {
+		return false;
+	}
+
+	if (!copiedKitRowDrum || copiedKitRowSong != currentSong || copiedKitRowKit != getCurrentKit()) {
+		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_NO_KIT_ROW_TO_PASTE));
+		return true;
+	}
+
+	int32_t destinationYDisplay;
+	int32_t destinationRowIndex;
+	NoteRow* destinationRow;
+	bool destinationIsNew = (currentUIMode == UI_MODE_ADDING_DRUM_NOTEROW);
+
+	if (destinationIsNew) {
+		destinationYDisplay = yDisplayOfNewNoteRow;
+	}
+	else {
+		if (!oneNoteAuditioning()) {
+			return false;
+		}
+		destinationYDisplay = lastAuditionedYDisplay;
+		destinationRow =
+		    getCurrentInstrumentClip()->getNoteRowOnScreen(destinationYDisplay, currentSong, &destinationRowIndex);
+		if (!destinationRow || (destinationRow->drum && destinationRow->drum->type != DrumType::SOUND)) {
+			display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_KIT_ROW_TARGET_UNAVAILABLE));
+			return true;
+		}
+	}
+
+	void* drumMemory = GeneralMemoryAllocator::get().allocMaxSpeed(sizeof(SoundDrum));
+	if (!drumMemory) {
+		display->displayError(Error::INSUFFICIENT_RAM);
+		return true;
+	}
+
+	SoundDrum* newDrum = new (drumMemory) SoundDrum();
+	Error error = newDrum->clonePersistentStateFrom(*copiedKitRowDrum);
+	if (error != Error::NONE) {
+		newDrum->~SoundDrum();
+		delugeDealloc(newDrum);
+		display->displayError(error);
+		return true;
+	}
+
+	ParamManagerForTimeline newParamManager;
+	error = newParamManager.cloneParamCollectionsFrom(&copiedKitRowParamManager, false, true);
+	if (error != Error::NONE) {
+		newDrum->~SoundDrum();
+		delugeDealloc(newDrum);
+		display->displayError(error);
+		return true;
+	}
+
+	NoteVector newNotes;
+	if (copiedKitRowIncludesNotes && !newNotes.cloneFrom(&copiedKitRowNotes)) {
+		newDrum->~SoundDrum();
+		delugeDealloc(newDrum);
+		display->displayError(Error::INSUFFICIENT_RAM);
+		return true;
+	}
+
+	String newDrumName;
+	newDrumName.set(newDrum->drumName.c_str());
+	error = getCurrentKit()->makeDrumNameUnique(&newDrumName, 1);
+	if (error != Error::NONE) {
+		newDrum->~SoundDrum();
+		delugeDealloc(newDrum);
+		display->displayError(error);
+		return true;
+	}
+	newDrum->drumName = newDrumName.get();
+
+	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+	ModelStackWithTimelineCounter* modelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
+	if (destinationIsNew) {
+		destinationRow = getOrCreateEmptyNoteRowForKit(modelStack, destinationYDisplay, &destinationRowIndex);
+		if (!destinationRow) {
+			newDrum->~SoundDrum();
+			delugeDealloc(newDrum);
+			display->displayError(Error::INSUFFICIENT_RAM);
+			return true;
+		}
+		currentUIMode = UI_MODE_AUDITIONING;
+		lastAuditionedYDisplay = destinationYDisplay;
+	}
+
+	ModelStackWithNoteRow* destinationModelStack = modelStack->addNoteRow(destinationRowIndex, destinationRow);
+	SoundDrum* oldDrum = static_cast<SoundDrum*>(destinationRow->drum);
+	if (oldDrum) {
+		destinationRow->stopCurrentlyPlayingNote(destinationModelStack);
+		auditionPadIsPressed[destinationYDisplay] = false;
+		reassessAuditionStatus(destinationYDisplay);
+		oldDrum->drumWontBeRenderedForAWhile();
+		getCurrentKit()->drumsWithRenderingActive.deleteAtKey(reinterpret_cast<int32_t>(oldDrum));
+	}
+
+	getCurrentKit()->addDrum(newDrum);
+	destinationRow->setDrum(newDrum, getCurrentKit(), destinationModelStack, nullptr, &newParamManager);
+
+	if (copiedKitRowIncludesNotes) {
+		destinationRow->notes.swapStateWith(&newNotes);
+		destinationRow->muted = copiedKitRowMuted;
+		destinationRow->loopLengthIfIndependent = copiedKitRowLoopLength;
+		destinationRow->sequenceDirectionMode = copiedKitRowSequenceDirection;
+		destinationRow->probabilityValue = copiedKitRowProbability;
+		destinationRow->iteranceValue = copiedKitRowIterance;
+		destinationRow->fillValue = copiedKitRowFill;
+		destinationRow->colourOffset = copiedKitRowColourOffset;
+	}
+
+	if (oldDrum) {
+		getCurrentKit()->removeDrum(oldDrum);
+		currentSong->deleteBackedUpParamManagersForModControllable(oldDrum);
+		oldDrum->~SoundDrum();
+		delugeDealloc(oldDrum);
+	}
+
+	getCurrentKit()->beenEdited();
+	actionLogger.deleteAllLogs();
+	AudioEngine::mustUpdateReverbParamsBeforeNextRender = true;
+	setSelectedDrum(newDrum, true);
+	auditionPadIsPressed[destinationYDisplay] = true;
+	reassessAuditionStatus(destinationYDisplay);
+	recalculateColours();
+	uiNeedsRendering(this);
+
+	display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_KIT_ROW_PASTED));
+	return true;
 }
 
 void InstrumentClipView::pasteAutomation(int32_t whichModEncoder, int32_t navSysId) {

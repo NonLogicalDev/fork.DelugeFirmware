@@ -220,6 +220,56 @@ void Sound::setupAsSample(ParamManagerForTimeline* paramManager) {
 	doneReadingFromFile();
 }
 
+Error Sound::clonePersistentStateFrom(Sound& other) {
+	ModControllableAudio::cloneFrom(&other);
+
+	for (int32_t s = 0; s < kNumSources; s++) {
+		Error error = sources[s].clonePersistentStateFrom(other.sources[s]);
+		if (error != Error::NONE) {
+			return error;
+		}
+	}
+
+	for (int32_t l = 0; l < LFO_COUNT; l++) {
+		lfoConfig[l] = other.lfoConfig[l];
+	}
+
+	for (int32_t x = 0; x < kNumModButtons; x++) {
+		for (int32_t y = 0; y < kNumPhysicalModKnobs; y++) {
+			modKnobs[x][y] = other.modKnobs[x][y];
+		}
+	}
+
+	sideChainSendLevel = other.sideChainSendLevel;
+	polyphonic = other.polyphonic;
+	maxVoiceCount = other.maxVoiceCount;
+	transpose = other.transpose;
+	numUnison = other.numUnison;
+	unisonDetune = other.unisonDetune;
+	unisonStereoSpread = other.unisonStereoSpread;
+	outputMidiChannel = other.outputMidiChannel;
+	outputMidiNoteForDrum = other.outputMidiNoteForDrum;
+
+	for (int32_t m = 0; m < kNumModulators; m++) {
+		modulatorTranspose[m] = other.modulatorTranspose[m];
+		modulatorCents[m] = other.modulatorCents[m];
+		modulatorRetriggerPhase[m] = other.modulatorRetriggerPhase[m];
+	}
+
+	synthMode = other.synthMode;
+	modulator1ToModulator0 = other.modulator1ToModulator0;
+	oscillatorSync = other.oscillatorSync;
+	voicePriority = other.voicePriority;
+	oscRetriggerPhase = other.oscRetriggerPhase;
+
+	doneReadingFromFile();
+	for (MIDIKnob& knob : midi_knobs) {
+		ensureKnobReferencesCorrectVolume(knob);
+	}
+
+	return Error::NONE;
+}
+
 void Sound::setupAsDefaultSynth(ParamManager* paramManager) {
 
 	PatchedParamSet* patchedParams = paramManager->getPatchedParamSet();

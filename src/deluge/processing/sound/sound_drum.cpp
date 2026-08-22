@@ -53,6 +53,22 @@ void SoundDrum::resetTimeEnteredState() {
 	}
 }
 
+Error SoundDrum::clonePersistentStateFrom(SoundDrum& other) {
+	Error error = Sound::clonePersistentStateFrom(other);
+	if (error != Error::NONE) {
+		return error;
+	}
+
+	drumName = other.drumName;
+	path.set(&other.path);
+	nameIsDiscardable = other.nameIsDiscardable;
+	midiInput = other.midiInput;
+	muteMIDICommand = other.muteMIDICommand;
+	arpSettings.cloneFrom(&other.arpSettings);
+
+	return Error::NONE;
+}
+
 void SoundDrum::noteOn(ModelStackWithThreeMainThings* modelStack, uint8_t velocity, int16_t const* mpeValues,
                        int32_t fromMIDIChannel, uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate) {
 

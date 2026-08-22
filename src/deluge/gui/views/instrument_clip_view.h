@@ -23,6 +23,7 @@
 #include "model/clip/instrument_clip_minder.h"
 #include "model/iterance/iterance.h"
 #include "model/note/note_row.h"
+#include "model/note/note_vector.h"
 #include "modulation/automation/copied_param_automation.h"
 #include "modulation/params/param_node.h"
 #include "util/d_string.h"
@@ -71,6 +72,7 @@ enum class NudgeMode { QUANTIZE, QUANTIZE_ALL };
 class InstrumentClipView final : public ClipView, public InstrumentClipMinder {
 public:
 	InstrumentClipView();
+	~InstrumentClipView() override;
 	bool opened() override;
 	void focusRegained() override;
 	void displayOrLanguageChanged() override;
@@ -387,10 +389,28 @@ private:
 	void pasteNotes(bool overwriteExisting = true, bool pasteFromFile = false, bool noScaling = false,
 	                bool previewOnly = false, bool selectedDrumOnly = false);
 	void deleteCopiedNoteRows();
+	bool copyKitRow(bool soundOnly);
+	bool pasteKitRow();
+	void deleteCopiedKitRow();
 	CopiedNoteRow* firstCopiedNoteRow;
 	int32_t copiedScreenWidth{};
 	ScaleType copiedScaleType{};
 	int16_t copiedYNoteOfBottomRow{};
+	SoundDrum* copiedKitRowDrum{};
+	ParamManagerForTimeline copiedKitRowParamManager;
+	NoteVector copiedKitRowNotes;
+	Song* copiedKitRowSong{};
+	Kit* copiedKitRowKit{};
+	uint32_t lastKitRowLearnPressTime{};
+	int32_t lastKitRowLearnYDisplay{-1};
+	bool copiedKitRowIncludesNotes{};
+	bool copiedKitRowMuted{};
+	int32_t copiedKitRowLoopLength{};
+	SequenceDirection copiedKitRowSequenceDirection{SequenceDirection::OBEY_PARENT};
+	uint8_t copiedKitRowProbability{};
+	Iterance copiedKitRowIterance{};
+	uint8_t copiedKitRowFill{};
+	int8_t copiedKitRowColourOffset{};
 
 	void rotateNoteRowHorizontally(ModelStackWithNoteRow* modelStack, int32_t offset, int32_t yDisplay,
 	                               bool shouldDisplayDirectionEvenIfNoNoteRow = false);

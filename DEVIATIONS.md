@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains nine deviations:
+The local stack currently contains ten deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -15,6 +15,7 @@ The local stack currently contains nine deviations:
 7. Stop the browser preview on direct Manual Slice entry.
 8. Organize local revisions by coherent firmware area or core capability.
 9. Provide a global Panic action for immediate silence.
+10. Copy and paste a Kit Sound Drum row.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -197,6 +198,7 @@ Keep the local change stack understandable by grouping related revisions under o
 - Local user-facing revisions use bookmarks named `nl/patch-<group>-<NN>`, where `NN` starts at `01` within that group.
 - Related Manual Slicer work uses the `sample-slicer` group in stack order: direct Manual entry, editing controls, then direct-entry preview stopping.
 - Related Keyboard View chord-display work uses the `kb-chords` group.
+- Related Kit Sound Drum row-copy work uses the `kit-rows` group.
 - A distinct core capability may use its own group. The Panic feature uses the `panic` group rather than the incidental Settings menu that exposes it.
 - The repository-compatibility revision remains `local/fixups` at the bottom of the local stack, before user-facing revisions.
 - When a new decision replaces earlier local behavior, fold it into the affected feature revision and update this document. Do not retain a later revision solely to cancel obsolete behavior, source, or contract text.
@@ -235,6 +237,38 @@ Give the player one visible emergency action that immediately silences any sourc
 - The host unit-test suite and a local Release build pass.
 - A physical Deluge check verifies silence after invoking Panic during each currently reachable normal-mode scenario: a playing synth or kit, an audio clip, a sample-browser preview, a MIDI or gate note, delay feedback, stutter, modulation effects, reverb, a resonant filter, and compressor-driven audio. When a later caller exposes Panic during recording and stem export, validate the existing abort behavior in those modes too.
 - The same check confirms no project content, settings, automation, or undo history changed after Panic outside the intentionally aborted unfinished capture.
+
+## 10. Copy and paste a Kit Sound Drum row
+
+### Intent
+
+Let a player duplicate a Kit Sound Drum, its sound settings, and its musical row to another pad without rebuilding the sample setup by hand.
+
+### Required behavior
+
+- In a Kit Clip View, holding one assigned Sound Drum's Audition pad and pressing Learn copies that instrument only. The source remains unchanged.
+- The first copy contains the Sound Drum's sample or synthesis definition, sample start and end points, loop settings, sound parameters, and MIDI mappings, but does not include ordinary row notes or row playback defaults.
+- A second Learn press within the normal short double-press interval while the same source remains held replaces the local copy with the Sound Drum plus its ordinary row notes and playback defaults such as mute state, loop length, direction, probability, iterance, fill, and colour.
+- Holding the target Kit pad with Audition, Shift, and Learn pastes the local copy. A full copy replaces the target's Sound Drum, notes, and row defaults; an instrument-only copy replaces only the target's Sound Drum and its sound parameters, leaving that target's notes and row defaults intact.
+- The two Learn uses remain distinct by order: Shift + Learn before an Audition target begins the established MIDI-unlearn flow, while Audition target + Shift + Learn requests Kit-row paste. Once MIDI Learn is active, Kit-row copy and paste do not take over its Learn input.
+- The target may be an empty Kit pad or a pad already assigned to a Sound Drum. A paste to an empty pad creates the target row. A paste to an existing Sound Drum stops that target before replacing it.
+- The pasted Sound Drum is independent of the source. Later changes to either drum's source file reference, sample markers, looping, sound parameters, notes, or row settings do not change the other.
+- Source and target must belong to the currently open Kit in the current song. The copy is not a saved, cross-song, or cross-Kit clipboard.
+- MIDI and Gate drums are not valid sources or replacement targets. Report that an occupied target is unavailable rather than modifying it.
+- Give clear copy-mode, copy-complete, paste-complete, allocation-failure, and unavailable-target feedback on both OLED and seven-segment displays.
+
+### Compatibility and boundaries
+
+- Plain Audition plus Horizontal Encoder continues to edit a row's length. Holding the Horizontal Encoder continues to rotate a row. Learn plus the Horizontal Encoder retains its ordinary note and automation clipboard behavior; it does not trigger this local Kit-row action.
+- The operation does not alter Kit master settings, other rows, source data, sample files, project saving, MIDI playback, or hardware installation behavior.
+- Sound and row-parameter automation are not copied. A successful paste clears the existing undo history rather than offering a partial or unsafe undo operation.
+- Do not add cross-Kit persistence, MIDI/Gate cloning, hardware flashing, installation, release publication, or upstream submission.
+
+### Verification contract
+
+- A source review confirms that all resources for a prospective target are ready before that target is changed, and that a failed allocation leaves the destination unchanged.
+- The host unit-test suite and a local Release build pass.
+- A physical Deluge check confirms a full copy to an empty target and an existing Sound Drum target, exact sample-marker and loop transfer, independent later edits, full note transfer, sound-only note preservation, MIDI/Gate rejection, ordinary Horizontal Encoder behavior, local display feedback, and save/reload behavior. No flashing or installation is authorized by this contract.
 
 ## Maintaining this document
 

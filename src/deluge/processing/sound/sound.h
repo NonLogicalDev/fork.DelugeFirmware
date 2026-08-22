@@ -230,6 +230,7 @@ public:
 
 	virtual bool isDrum() { return false; }
 	void setupAsSample(ParamManagerForTimeline* paramManager);
+	Error clonePersistentStateFrom(Sound& other);
 	void recalculateAllVoicePhaseIncrements(ModelStackWithSoundFlags* modelStack);
 	Error loadAllAudioFiles(bool mayActuallyReadFiles);
 	bool envelopeHasSustainCurrently(int32_t e, ParamManagerForTimeline* paramManager);

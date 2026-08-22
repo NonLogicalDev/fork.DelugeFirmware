@@ -10,12 +10,12 @@ The local stack currently contains ten deviations:
 2. Provide a reproducible Apple Silicon Nix build environment.
 3. Identify held chords in Keyboard View.
 4. Show the latest physical held note under a recognized OLED chord label.
-5. Start kit creation in Manual Slice mode directly from the sample browser.
+5. Start Kit sample creation and reuse directly from the sample browser.
 6. Improve Manual Slicer positioning and preview stopping.
 7. Stop the browser preview on direct Manual Slice entry.
 8. Organize local revisions by coherent firmware area or core capability.
 9. Provide a global Panic action for immediate silence.
-10. Copy and paste a Kit Sound Drum row.
+10. Copy, paste, and reorder a Kit Sound Drum row.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -48,12 +48,15 @@ Allow an Apple Silicon macOS developer to build this firmware locally from a pin
 - The repository includes a locked Nix development environment under `.nix`, with brief human-readable setup guidance beside it.
 - Entering that environment supplies the project build driver, Git support, formatting and pre-commit tools, Python helpers, and an official ARM GCC v22 cross-toolchain compatible with the Deluge's hard-float target.
 - The environment selects that toolchain for firmware builds without requiring a global toolchain installation.
+- The environment provides a checkout-local compiler cache under the ignored `.cache/ccache` path. C and C++ compilation uses that cache while every cache miss still uses the same locked v22 cross-toolchain.
 - A local Release build completes and produces the normal firmware binary at `build/Release/deluge.bin`.
 
 ### Compatibility and verification
 
 - The environment is developer tooling only. It does not change firmware behavior or package a flashing workflow.
 - The toolchain version and all Nix inputs are locked so a later agent can reproduce the same environment from a fresh upstream checkout.
+- Cache state is local and disposable. It is not committed, uploaded, shared with another checkout, or treated as a firmware artifact.
+- A newly configured build and any existing build after one reconfiguration show `ccache` as their C and C++ compiler launcher. Cache statistics may be inspected after a build; a first build may have only misses.
 - A Release build using the local environment passes with synchronizing disabled for the local build and does not publish or install an artifact.
 
 ## 3. Keyboard View exact chord recognition
@@ -109,20 +112,28 @@ When exact chord recognition is active on an OLED, show both the harmony and the
 - Automated tests demonstrate that press order chooses the latest physical held note, that a release promotes the latest remaining physical note, and that a generated note cannot take precedence.
 - The host unit-test suite and a local Release build pass.
 
-## 5. Manual Slice entry and reuse
+## 5. Kit sample-creation entry and reuse
 
 ### Intent
 
-Let a player choose manual slice placement before creating a kit, or append manual slices safely to the empty top of an existing Kit, rather than entering the standard slicer and changing its mode afterward.
+Let a player add a folder, region slices, or manual slices safely to the top of an existing Kit, beginning at the selected Sound Drum.
 
 ### Required behavior
 
 - When the sample browser is creating a kit from a selected audio file, its action menu contains three choices: Load all, Slice, and Manual slice.
 - In a brand-new Kit, Manual slice is available under the same selected-file condition as the existing Slice action. It is not offered for a folder.
-- In an existing Kit, Manual slice is available only after the player selected a pad that had no Sound, MIDI, or Gate Drum and that has no assigned Kit row above it. The selected pad becomes the first new slice and every additional slice is appended on a pad above it.
-- An occupied selected pad, or an unassigned selected pad below an existing Kit row, cannot start Manual slice. The player receives localized feedback that Manual slice needs the top empty Kit pad.
-- A reuse entry remains in Manual mode. Its mode-switch control does not enter Region Slice, whose placement rules are intentionally still limited to a brand-new Kit.
-- Choosing Manual slice opens the existing Slicer directly in its established Manual mode, with the same initial one-slice state, waveform view, pad editing, slice count, transpose, preview, save, confirm, and cancel behavior that Manual mode already provides.
+- In an existing Kit, Load all, Slice, and Manual slice are available when the selected pad contains a Sound Drum and no assigned Kit row is above it. The selected Sound Drum, whether it is empty or already has a sample, becomes the first generated row. Every additional generated row is appended above it.
+- A selected MIDI or Gate Drum, or a selected Sound Drum with an assigned row above it, cannot start any of the three actions. The player receives localized feedback that the top empty Kit pad is required.
+- Each existing-Kit Slicer entry remains in the mode chosen from the menu. Its mode-switch control does not change modes during that reuse session, so the selected anchor and sample source stay valid.
+- Choosing Manual slice retains the selected file as the selected anchor's playable source, stops the separate browser preview, and opens the existing Slicer directly in its established Manual mode. Its waveform and slice-pad audition work without depending on the browser preview. It otherwise retains the same initial one-slice state, pad editing, slice count, transpose, save, confirm, and cancel behavior that Manual mode already provides.
+- Choosing regular Slice from a valid existing-Kit anchor retains its established region-slicing behavior while placing every new row above that anchor. Before either Slice mode opens on an existing Kit, the selected file becomes that anchor's source and the Slicer waveform comes from that source, not a previous browser preview. Load all retains filename-based row naming and applies the same anchor-and-above placement rule.
+- A confirmed Slice or Manual slice longer than two seconds uses the configured default sample mode. A slice shorter than two seconds uses Once so very short fragments do not choke later hits. Temporary Manual Slicer audition may also use Once while the player is editing.
+- The top three pads in Slicer's far-right status column choose the pending batch mode in vertical order: Default, All Cut, All Once. The selected pad is visibly brighter and gives immediate display feedback. The main slice grid and the far-right audition column keep their existing roles.
+- Default retains the normal duration-based behavior. All Cut makes every newly confirmed slice in that batch use Cut, including short slices. All Once makes every newly confirmed slice in that batch use Once. These choices never change the stored device default or existing Kit rows.
+- A Manual Slicer audition may temporarily use Once, but cancelling Slicer restores the selected anchor's prior mode. Only confirmation commits a generated batch's mode.
+- Each confirmed Slice or Manual slice batch receives a series name and zero-padded part number: the first is `A-01`, `A-02`, and onward. A later batch uses the series after the highest existing generated series, such as `B-01`, then `C-01`, with `AA-01` after `Z-01`.
+- Existing row names are never changed. A pre-existing row whose name already has the generated-series form reserves that series. Legacy numeric slice names do not reserve a lettered series.
+- Previewing or cancelling Manual Slice never changes a row name. Names are assigned only after the player confirms the slice batch.
 - Leaving Manual Slice with Back retains its established behavior: the new anchor remains as one full-sample pad. Existing Kit rows remain unchanged.
 - Entering either Manual slice or the existing Slice action requests the Slicer's initial grid redraw immediately. The player does not need to move an encoder or send another input before the waveform and Slicer grid appear.
 - Choosing the existing Slice action continues to open the Slicer in its established Region mode with its existing initial slice count and controls.
@@ -132,14 +143,15 @@ Let a player choose manual slice placement before creating a kit, or append manu
 ### Compatibility and boundaries
 
 - Do not add a new slicing algorithm, slice-detection heuristic, kit type, sample format rule, maximum slice count, or save format.
-- Load all and standard Slice remain available only for a brand-new Kit. The reuse route applies to Manual slice only.
-- Do not move, replace, clear, or reorder existing Kit rows below the selected pad. Keep their notes, sound settings, and playback state unchanged.
-- Do not change the Slicer mode-switch control for brand-new Kit entry, existing manual slicing actions, sample playback, kit playback, MIDI, or project saving.
+- The valid selected-top-Sound-Drum rule is the only existing-Kit reuse route for Load all, Slice, and Manual slice. Do not allow insertion into the middle of a Kit.
+- Do not move, replace, clear, or reorder existing Kit rows below the selected Sound Drum. Keep their notes, sound settings, and playback state unchanged.
+- Do not change the Slicer mode-switch control for a brand-new Kit, kit playback, MIDI, project saving, or the established short-slice Once rule. Generated slices longer than two seconds must follow the configured default sample mode.
+- The three Slicer batch-mode controls apply only while Slicer is open and only to the batch about to be confirmed. They do not alter device defaults, other sample-loading paths, or existing Kit rows.
 - The new choice is a faster route to an existing mode. It does not persist as a global default.
 
 ### Verification contract
 
-- A human runtime check on a physical Deluge should confirm that Manual slice starts in Manual mode, standard Slice still starts in Region mode, and a normal entry after Manual slice is still Region mode. It should also confirm that a top empty Kit pad receives the first slice, later slices appear above it, existing rows below remain unchanged, and lower or occupied selections are refused.
+- A human runtime check on a physical Deluge should confirm that holding Select on a chosen audio file opens the Manual slice action without a timing-sensitive shortcut; the Manual Slicer waveform and its slice pad audition the selected sample; standard Slice still starts in Region mode; and a normal entry after Manual slice is still Region mode. It should also confirm that a second batch started from a selected top Sound Drum, with a different selected file, shows and uses that new file rather than a tail or preview from the earlier batch; that the selected Sound Drum receives the first slice, later slices appear above it, existing rows below remain unchanged, and a Sound Drum with an occupied row above is refused. In both modes, check Default, All Cut, and All Once with long and short slices; confirm that a cancelled Manual audition restores its earlier mode.
 - The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
 
 ## 6. Manual Slicer positioning and preview stop
@@ -184,7 +196,7 @@ Enter direct Manual Slice ready for deliberate slice placement, without the sele
 
 ### Compatibility and boundaries
 
-- The existing Slice action and Load all action retain their current entry and preview behavior.
+- In a brand-new Kit, the existing Slice action and Load all action retain their current entry and preview behavior. Existing-Kit Slice source ownership is defined by the Kit reuse contract above.
 - Stop only the dedicated browser preview. Do not stop sequenced kit voices, alter project playback, modify sample data, or change a saved project.
 - Do not change the Slicer algorithm, its in-editor preview controls, its mode-switch behavior, MIDI, firmware installation, or flashing behavior.
 
@@ -225,6 +237,7 @@ Give the player one visible emergency action that immediately silences any sourc
 ### Required behavior
 
 - The global Settings menu opened with Shift + Select presents Panic as its first action, before all existing Settings actions.
+- Five physical Shift presses, each beginning no more than 500 ms after the previous one and with no intervening button or grid-pad press, invoke that same Panic action. The fifth press gives the existing stopped feedback and starts a new gesture sequence.
 - Selecting Panic stops active playback, scheduled audio events, instrument notes, audio clips, MIDI and gate notes, auditions, and sample-browser preview sound.
 - Panic removes active delay, stutter, modulation, compressor, filter, and reverb runtime state so no existing effect tail or feedback continues after the normal short output-buffer latency.
 - The Panic routine immediately aborts active audio recording or stem export whenever a caller invokes it. An unfinished capture is intentionally not preserved, because emergency silence takes precedence.
@@ -232,7 +245,9 @@ Give the player one visible emergency action that immediately silences any sourc
 
 ### Compatibility and boundaries
 
-- The first Panic entry is available only through the normal-operation Settings menu. Recording and stem export retain their established controls until a later local deviation exposes the existing Panic routine in those modes.
+- The first Panic entry remains available through the normal-operation Settings menu. The five-Shift gesture is an additional global physical-button entry; recording and stem export retain their established controls until a later local deviation exposes a dedicated menu action in those modes.
+- Fewer than five Shift presses, a gap longer than 500 ms, or any intervening button or grid-pad press does not invoke Panic. Encoder turns do not affect the gesture.
+- The first four Shift presses retain normal Shift behavior. The fifth is reserved for Panic and leaves Shift off so the emergency action does not leave a modifier latched.
 - Panic changes only live audio and unfinished capture state. It does not change saved songs, presets, samples, sequences, automation, settings, MIDI configuration, or undo history.
 - Panic does not directly clear the raw hardware output buffer. Any already queued output may finish during the normal short device latency; no new sound or effect tail may follow it.
 - Existing transport controls, menu navigation, audio routing, and device installation behavior remain unchanged until Panic is selected.
@@ -241,14 +256,15 @@ Give the player one visible emergency action that immediately silences any sourc
 ### Verification contract
 
 - The host unit-test suite and a local Release build pass.
+- A physical Deluge check confirms each of Load all, Slice, and Manual slice adds from a valid selected top empty pad upward without changing existing lower rows. It also confirms two slice batches display distinct series names, Manual preview and cancellation leave names unchanged, and save/reload preserves the names.
 - A physical Deluge check verifies silence after invoking Panic during each currently reachable normal-mode scenario: a playing synth or kit, an audio clip, a sample-browser preview, a MIDI or gate note, delay feedback, stutter, modulation effects, reverb, a resonant filter, and compressor-driven audio. When a later caller exposes Panic during recording and stem export, validate the existing abort behavior in those modes too.
 - The same check confirms no project content, settings, automation, or undo history changed after Panic outside the intentionally aborted unfinished capture.
 
-## 10. Copy and paste a Kit Sound Drum row
+## 10. Copy, paste, and reorder a Kit Sound Drum row
 
 ### Intent
 
-Let a player duplicate a Kit Sound Drum, its sound settings, and its musical row to another pad without rebuilding the sample setup by hand.
+Let a player duplicate a Kit Sound Drum, its sound settings, and its musical row to another pad without rebuilding the sample setup by hand, and safely correct an accidental Kit-row move.
 
 ### Required behavior
 
@@ -262,19 +278,24 @@ Let a player duplicate a Kit Sound Drum, its sound settings, and its musical row
 - Source and target must belong to the currently open Kit in the current song. The copy is not a saved, cross-song, or cross-Kit clipboard.
 - MIDI and Gate drums are not valid sources or replacement targets. Report that an occupied target is unavailable rather than modifying it.
 - Give clear copy-mode, copy-complete, paste-complete, allocation-failure, and unavailable-target feedback on both OLED and seven-segment displays.
+- In a Kit Clip View, holding an assigned source row's Audition pad, then an assigned destination row's Audition pad, and pressing the Vertical encoder moves the source to the destination position and shifts the intervening rows. Both rows remain usable as their moved rows after the gesture.
+- Each successful reorder creates one normal Undo action. Undo restores the exact preceding row order and Redo reapplies the same move. Earlier Undo history remains available.
+- Reordering changes row position only. Each row keeps its assigned instrument, notes, row settings, automation, and independent identity.
+- When the gesture does not identify two distinct currently assigned Kit rows, it does not create an Undo action or change row order.
 
 ### Compatibility and boundaries
 
 - Plain Audition plus Horizontal Encoder continues to edit a row's length. Holding the Horizontal Encoder continues to rotate a row. Learn plus the Horizontal Encoder retains its ordinary note and automation clipboard behavior; it does not trigger this local Kit-row action.
 - The operation does not alter Kit master settings, other rows, source data, sample files, project saving, MIDI playback, or hardware installation behavior.
 - Sound and row-parameter automation are not copied. A successful paste clears the existing undo history rather than offering a partial or unsafe undo operation.
+- Do not change the established reorder gesture, replace it with drag-and-drop, or extend reordering across clips or Kits.
 - Do not add cross-Kit persistence, MIDI/Gate cloning, hardware flashing, installation, release publication, or upstream submission.
 
 ### Verification contract
 
 - A source review confirms that all resources for a prospective target are ready before that target is changed, and that a failed allocation leaves the destination unchanged.
 - The host unit-test suite and a local Release build pass.
-- A physical Deluge check confirms a full copy to an empty target and an existing Sound Drum target, exact sample-marker and loop transfer, independent later edits, full note transfer, sound-only note preservation, MIDI/Gate rejection, ordinary Horizontal Encoder behavior, local display feedback, and save/reload behavior. No flashing or installation is authorized by this contract.
+- A physical Deluge check confirms a full copy to an empty target and an existing Sound Drum target, exact sample-marker and loop transfer, independent later edits, full note transfer, sound-only note preservation, MIDI/Gate rejection, ordinary Horizontal Encoder behavior, local display feedback, and save/reload behavior. It also confirms Kit-row reorder, Undo, Redo, and an earlier unrelated Undo action remain correct. No flashing or installation is authorized by this contract.
 
 ## Maintaining this document
 

@@ -46,6 +46,8 @@ public:
 	SampleRecorder* recorder;
 
 	void endRecordingSoon(int32_t buttonLatency = 0);
+	void abortRecording();
+	[[nodiscard]] bool isInputMonitoringActive() const;
 
 	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
 
@@ -58,6 +60,7 @@ private:
 	void finishRecording();
 	bool setupRecordingToFile(AudioInputChannel newMode, int32_t newNumChannels, AudioRecordingFolder folderID,
 	                          bool writeLoopPoints = false, bool shouldNormalize = true);
+	bool inputMonitoringSuppressed = false;
 };
 
 extern AudioRecorder audioRecorder;

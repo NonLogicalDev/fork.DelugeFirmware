@@ -42,7 +42,15 @@ public:
 	void reset() {
 		state = 0;
 		er = 0;
+		rms = 0;
 		mean = 0;
+		currentVolumeL = 0;
+		currentVolumeR = 0;
+		gainReduction = 0;
+		lastSaturationTanHWorkingValue[0] = 0;
+		lastSaturationTanHWorkingValue[1] = 0;
+		hpfL.reset();
+		hpfR.reset();
 		onLastTime = false;
 	}
 

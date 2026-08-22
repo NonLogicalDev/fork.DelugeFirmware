@@ -147,6 +147,7 @@
 #include "gui/menu_item/osc/source/wave_index.h"
 #include "gui/menu_item/osc/sync.h"
 #include "gui/menu_item/osc/type.h"
+#include "gui/menu_item/panic.h"
 #include "gui/menu_item/patch_cable_strength/fixed.h"
 #include "gui/menu_item/patch_cables.h"
 #include "gui/menu_item/patched_param/integer.h"
@@ -1895,9 +1896,11 @@ PLACE_SDRAM_BSS menu_item::Submenu soundEditorRootMenuKitGlobalFX{
 };
 
 // Root Menu
+PLACE_SDRAM_BSS menu_item::panic::Panic panicMenu{STRING_FOR_PANIC};
 PLACE_SDRAM_BSS Submenu settingsRootMenu{
     STRING_FOR_SETTINGS,
     {
+        &panicMenu,
         &settingsActionsSubmenu,
         &cvSelectionMenu,
         &gateSelectionMenu,

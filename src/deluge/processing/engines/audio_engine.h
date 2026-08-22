@@ -147,6 +147,7 @@ void runRoutine();
 void init();
 void previewSample(String* path, FilePointer* filePointer, bool shouldActuallySound);
 void stopAnyPreviewing();
+void panic();
 
 void songSwapAboutToHappen();
 void killAllVoices(bool deletingSong = false);

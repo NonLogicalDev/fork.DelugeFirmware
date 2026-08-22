@@ -103,6 +103,7 @@ Error Stutterer::beginStutter(void* source, ParamManagerForTimeline* paramManage
 		status = Status::RECORDING;
 		sizeLeftUntilRecordFinished = buffer.size();
 		stutterSource = source;
+		stutterParamManager = paramManager;
 	}
 	return error;
 }
@@ -234,4 +235,9 @@ void Stutterer::endStutter(ParamManagerForTimeline* paramManager) {
 	lastQuantizedKnobDiff = 0;
 	valueBeforeStuttering = 0;
 	stutterSource = nullptr;
+	stutterParamManager = nullptr;
+}
+
+void Stutterer::endStutterAndRestoreValue() {
+	endStutter(stutterParamManager);
 }

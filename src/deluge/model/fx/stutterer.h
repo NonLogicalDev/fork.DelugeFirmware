@@ -44,6 +44,7 @@ public:
 	void processStutter(std::span<StereoSample> audio, ParamManager* paramManager, int32_t magnitude,
 	                    uint32_t timePerTickInverse);
 	void endStutter(ParamManagerForTimeline* paramManager = nullptr);
+	void endStutterAndRestoreValue();
 
 private:
 	enum class Status {
@@ -62,6 +63,7 @@ private:
 	int32_t sizeLeftUntilRecordFinished = 0;
 	int32_t valueBeforeStuttering = 0;
 	int32_t lastQuantizedKnobDiff = 0;
+	ParamManagerForTimeline* stutterParamManager = nullptr;
 	/// This functions as cookie, allowing different users to know who is currently stuttering, so only those who
 	/// are will send audio here.
 	void* stutterSource = nullptr;

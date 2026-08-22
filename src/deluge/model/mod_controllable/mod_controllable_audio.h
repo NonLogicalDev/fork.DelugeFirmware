@@ -69,6 +69,7 @@ public:
 	virtual void wontBeRenderedForAWhile();
 	void beginStutter(ParamManagerForTimeline* paramManager);
 	void endStutter(ParamManagerForTimeline* paramManager);
+	virtual void clearRuntimeFXState();
 	virtual ModFXType getModFXType() = 0;
 	virtual bool setModFXType(ModFXType newType);
 	bool offerReceivedCCToLearnedParamsForClip(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value,

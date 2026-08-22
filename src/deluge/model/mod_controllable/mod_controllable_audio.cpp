@@ -1484,8 +1484,36 @@ void ModControllableAudio::wontBeRenderedForAWhile() {
 	endStutter(nullptr);
 }
 
+void ModControllableAudio::clearRuntimeFXState() {
+	delay.discardBuffers();
+	compressor.reset();
+	if (stutterer.isStuttering(this)) {
+		stutterer.endStutterAndRestoreValue();
+		exitUIMode(UI_MODE_STUTTERING);
+	}
+	clearModFXMemory();
+
+	lowSampleRatePos = 0;
+	highSampleRatePos = 0;
+	lastSample = {0, 0};
+	grabbedSample = {0, 0};
+	lastGrabbedSample = {0, 0};
+	sampleRateReductionOnLastTime = false;
+	withoutTrebleL = 0;
+	bassOnlyL = 0;
+	withoutTrebleR = 0;
+	bassOnlyR = 0;
+	postReverbVolumeLastTime = 0;
+	sidechain.status = EnvelopeStage::OFF;
+	sidechain.pos = 0;
+	sidechain.lastValue = ONE_Q31;
+	sidechain.pendingHitStrength = 0;
+	sidechain.envelopeOffset = 0;
+	sidechain.envelopeHeight = 0;
+}
+
 void ModControllableAudio::clearModFXMemory() {
-	if (modFXType_ == ModFXType::GRAIN) {
+	if (modFXType_ == ModFXType::GRAIN && grainFX) {
 		grainFX->clearGrainFXBuffer();
 	}
 	else if (modFXType_ != ModFXType::NONE) {

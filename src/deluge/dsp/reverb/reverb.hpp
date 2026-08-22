@@ -30,12 +30,15 @@ public:
 		switch (m) {
 		case Model::FREEVERB:
 			reverb_.emplace<reverb::Freeverb>();
+			base_ = &std::get<reverb::Freeverb>(reverb_);
 			break;
 		case Model::DIGITAL:
 			reverb_.emplace<reverb::Digital>();
+			base_ = &std::get<reverb::Digital>(reverb_);
 			break;
 		case Model::MUTABLE:
 			reverb_.emplace<reverb::Mutable>();
+			base_ = &std::get<reverb::Mutable>(reverb_);
 			break;
 		}
 		base_->setRoomSize(room_size_);
@@ -66,6 +69,8 @@ public:
 	void setPanLevels(const int32_t amplitude_left, const int32_t amplitude_right) {
 		base_->setPanLevels(amplitude_left, amplitude_right);
 	}
+
+	void clear() { setModel(model_); }
 
 	void setRoomSize(float value) override {
 		room_size_ = value;

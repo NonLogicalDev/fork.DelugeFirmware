@@ -733,6 +733,7 @@ PLACE_SDRAM_DATA Language english{
         {STRING_FOR_AUDIO_CLIP, "Audio clip"},
         {STRING_FOR_SONG, "Song"},
         {STRING_FOR_SETTINGS, "Settings"},
+        {STRING_FOR_PANIC, "Panic"},
         {STRING_FOR_COMP_THRESHOLD_MENU_TITLE, "Comp threshold"},
         {STRING_FOR_ENV_ATTACK_MENU_TITLE, "Env* attack"},
         {STRING_FOR_ENV_DECAY_MENU_TITLE, "Env* decay"},

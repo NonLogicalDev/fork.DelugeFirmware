@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains seven deviations:
+The local stack currently contains nine deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -13,6 +13,8 @@ The local stack currently contains seven deviations:
 5. Start kit creation in Manual Slice mode directly from the sample browser.
 6. Improve Manual Slicer positioning and preview stopping.
 7. Stop the browser preview on direct Manual Slice entry.
+8. Organize local revisions by coherent firmware area or core capability.
+9. Provide a global Panic action for immediate silence.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -183,6 +185,56 @@ Enter direct Manual Slice ready for deliberate slice placement, without the sele
 
 - A human runtime check on a physical Deluge should confirm that a playing browser preview is silent when Manual Slicer opens, that the first Manual Slicer pad can still audition the selected sample, and that standard Slice behavior is unchanged.
 - The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
+
+## 8. Local revision grouping
+
+### Intent
+
+Keep the local change stack understandable by grouping related revisions under one stable firmware area while preserving a clear name for a distinct core capability.
+
+### Required behavior
+
+- Local user-facing revisions use bookmarks named `nl/patch-<group>-<NN>`, where `NN` starts at `01` within that group.
+- Related Manual Slicer work uses the `sample-slicer` group in stack order: direct Manual entry, editing controls, then direct-entry preview stopping.
+- Related Keyboard View chord-display work uses the `kb-chords` group.
+- A distinct core capability may use its own group. The Panic feature uses the `panic` group rather than the incidental Settings menu that exposes it.
+- The repository-compatibility revision remains `local/fixups` at the bottom of the local stack, before user-facing revisions.
+- When a new decision replaces earlier local behavior, fold it into the affected feature revision and update this document. Do not retain a later revision solely to cancel obsolete behavior, source, or contract text.
+- Use Jujutsu, not Git commands, for local repository inspection, revision management, and diff review.
+
+### Compatibility and verification
+
+- This convention changes local revision names and organization only. It does not change firmware behavior, build outputs, installation, flashing, or upstream state.
+- A local Jujutsu bookmark listing shows one sequential series for each firmware area or core capability, with no duplicate feature-specific group for the same area.
+- The stack tip and this document contain only active local behavior. Superseded local behavior is absent rather than preserved as a follow-up cancellation.
+
+## 9. Panic action
+
+### Intent
+
+Give the player one visible emergency action that immediately silences any source or effect that is currently making sound, including feedback loops and runaway samples.
+
+### Required behavior
+
+- The global Settings menu opened with Shift + Select presents Panic as its first action, before all existing Settings actions.
+- Selecting Panic stops active playback, scheduled audio events, instrument notes, audio clips, MIDI and gate notes, auditions, and sample-browser preview sound.
+- Panic removes active delay, stutter, modulation, compressor, filter, and reverb runtime state so no existing effect tail or feedback continues after the normal short output-buffer latency.
+- The Panic routine immediately aborts active audio recording or stem export whenever a caller invokes it. An unfinished capture is intentionally not preserved, because emergency silence takes precedence.
+- Panic gives the existing localized stopped feedback and keeps the Settings menu usable for a later action.
+
+### Compatibility and boundaries
+
+- The first Panic entry is available only through the normal-operation Settings menu. Recording and stem export retain their established controls until a later local deviation exposes the existing Panic routine in those modes.
+- Panic changes only live audio and unfinished capture state. It does not change saved songs, presets, samples, sequences, automation, settings, MIDI configuration, or undo history.
+- Panic does not directly clear the raw hardware output buffer. Any already queued output may finish during the normal short device latency; no new sound or effect tail may follow it.
+- Existing transport controls, menu navigation, audio routing, and device installation behavior remain unchanged until Panic is selected.
+- Panic is local-only. It does not authorize flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- The host unit-test suite and a local Release build pass.
+- A physical Deluge check verifies silence after invoking Panic during each currently reachable normal-mode scenario: a playing synth or kit, an audio clip, a sample-browser preview, a MIDI or gate note, delay feedback, stutter, modulation effects, reverb, a resonant filter, and compressor-driven audio. When a later caller exposes Panic during recording and stem export, validate the existing abort behavior in those modes too.
+- The same check confirms no project content, settings, automation, or undo history changed after Panic outside the intentionally aborted unfinished capture.
 
 ## Maintaining this document
 

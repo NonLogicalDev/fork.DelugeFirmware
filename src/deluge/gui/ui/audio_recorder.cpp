@@ -147,6 +147,7 @@ bool AudioRecorder::setupRecordingToFile(AudioInputChannel newMode, int32_t newN
 
 	recorder->allowFileAlterationAfter = true;
 	recorder->allowNormalization = shouldNormalize;
+	inputMonitoringSuppressed = false;
 
 	recordingSource = newMode; // This sets recording to begin happening even as the file is created, below
 
@@ -178,6 +179,19 @@ void AudioRecorder::endRecordingSoon(int32_t buttonLatency) {
 	}
 }
 
+void AudioRecorder::abortRecording() {
+	inputMonitoringSuppressed = true;
+	if (recorder && recorder->status < RecorderStatus::COMPLETE) {
+		// The card routine owns deletion of an abandoned file; finishRecording() runs after that cleanup.
+		recorder->abort();
+	}
+}
+
+bool AudioRecorder::isInputMonitoringActive() const {
+	return !inputMonitoringSuppressed
+	       && (recordingSource == AudioInputChannel::STEREO || recordingSource == AudioInputChannel::LEFT);
+}
+
 void AudioRecorder::slowRoutine() {
 	// finishRecording() frees the SampleRecorder, which discardRecorder() forbids doing from inside the SD card
 	// routine - the recorder may be suspended part-way through its own cardRoutine(), and freeing it there leaves
@@ -196,7 +210,9 @@ void AudioRecorder::slowRoutine() {
 			FREEZE_WITH_ERROR("E250");
 			return;
 		}
-		if (recorder->status >= RecorderStatus::COMPLETE) {
+		const bool abortAwaitingCardCleanup =
+		    inputMonitoringSuppressed && recorder->status == RecorderStatus::ABORTED && recorder->sample != nullptr;
+		if (recorder->status >= RecorderStatus::COMPLETE && !abortAwaitingCardCleanup) {
 			indicator_leds::setLedState(IndicatorLED::RECORD, (playbackHandler.recording == RecordingMode::NORMAL));
 			finishRecording();
 		}
@@ -219,7 +235,9 @@ void AudioRecorder::process() {
 		AudioEngine::slowRoutine();
 
 		// If recording has finished...
-		if (recorder->status >= RecorderStatus::COMPLETE || recorder->hadCardError) {
+		const bool abortAwaitingCardCleanup =
+		    inputMonitoringSuppressed && recorder->status == RecorderStatus::ABORTED && recorder->sample != nullptr;
+		if ((recorder->status >= RecorderStatus::COMPLETE || recorder->hadCardError) && !abortAwaitingCardCleanup) {
 
 			if (recorder->status == RecorderStatus::ABORTED || recorder->hadCardError) {}
 
@@ -270,6 +288,7 @@ void AudioRecorder::finishRecording() {
 
 	recorder = nullptr;
 	recordingSource = AudioInputChannel::NONE;
+	inputMonitoringSuppressed = false;
 	display->removeLoadingAnimation();
 }
 

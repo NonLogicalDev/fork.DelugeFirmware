@@ -28,6 +28,7 @@ class GlobalEffectable : public ModControllableAudio {
 public:
 	GlobalEffectable();
 	void cloneFrom(ModControllableAudio* other) override;
+	void clearRuntimeFXState() override;
 
 	static void initParams(ParamManager* paramManager);
 	static void initParamsForAudioClip(ParamManagerForTimeline* paramManager);

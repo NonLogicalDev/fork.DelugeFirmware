@@ -249,6 +249,62 @@ void killAllVoices(bool deletingSong) {
 	}
 }
 
+void panic() {
+	if (stemExport.processStarted) {
+		stemExport.stopStemExportProcess();
+	}
+
+	audioRecorder.abortRecording();
+
+	if (currentSong) {
+		currentSong->stopAllMIDIAndGateNotesPlaying();
+		currentSong->stopAllAuditioning();
+	}
+
+	stopAnyPreviewing();
+	killAllVoices();
+
+	for (Sound* sound : sounds) {
+		sound->clearRuntimeFXState();
+	}
+
+	if (currentSong) {
+		currentSong->globalEffectable.clearRuntimeFXState();
+		for (Output* output = currentSong->firstOutput; output != nullptr; output = output->next) {
+			switch (output->type) {
+			case OutputType::AUDIO:
+				static_cast<AudioOutput*>(output)->clearRuntimeFXState();
+				break;
+			case OutputType::KIT:
+				static_cast<Kit*>(output)->clearRuntimeFXState();
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
+	reverb.clear();
+	reverbSidechain.status = EnvelopeStage::OFF;
+	reverbSidechain.pos = 0;
+	reverbSidechain.lastValue = ONE_Q31;
+	reverbSidechain.pendingHitStrength = 0;
+	reverbSidechain.envelopeOffset = 0;
+	reverbSidechain.envelopeHeight = 0;
+	timeThereWasLastSomeReverb = audioSampleTimer - (kSampleRate * 12);
+	sideChainHitPending = 0;
+	timeLastSideChainHit = audioSampleTimer;
+	sizeLastSideChainHit = 0;
+	approxRMSLevel = {0};
+
+	if (playbackHandler.isEitherClockActive()) {
+		playbackHandler.endPlayback();
+	}
+	else {
+		playbackHandler.stopAnyRecording();
+	}
+}
+
 void songSwapAboutToHappen() {
 	// Otherwise, a timer might get called and try to access Clips that we may have deleted below
 	uiTimerManager.unsetTimer(TimerName::PLAY_ENABLE_FLASH);
@@ -945,8 +1001,7 @@ void renderSongFX(size_t numSamples) { // LPF and stutter for song (must happen 
 }
 void setMonitoringMode() { // Monitoring setup
 	doMonitoring = false;
-	if (audioRecorder.recordingSource == AudioInputChannel::STEREO
-	    || audioRecorder.recordingSource == AudioInputChannel::LEFT) {
+	if (audioRecorder.isInputMonitoringActive()) {
 		if (inputMonitoringMode == InputMonitoringMode::SMART) {
 			doMonitoring = (lineInPluggedIn || headphonesPluggedIn);
 		}

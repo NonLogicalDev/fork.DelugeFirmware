@@ -59,6 +59,11 @@ void GlobalEffectable::cloneFrom(ModControllableAudio* other) {
 	currentFilterType = ((GlobalEffectable*)other)->currentFilterType;
 }
 
+void GlobalEffectable::clearRuntimeFXState() {
+	ModControllableAudio::clearRuntimeFXState();
+	filterSet.reset();
+}
+
 void GlobalEffectable::initParams(ParamManager* paramManager) {
 	ModControllableAudio::initParams(paramManager);
 

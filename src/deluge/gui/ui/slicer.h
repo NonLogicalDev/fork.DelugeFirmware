@@ -63,6 +63,8 @@ public:
 
 private:
 	int32_t requestedInitialMode = SLICER_MODE_REGION;
+	bool horizontalEncoderPressed = false;
+	bool horizontalEncoderPressUsed = false;
 
 	// 7SEG Only
 	void redraw();

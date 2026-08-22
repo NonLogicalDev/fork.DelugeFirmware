@@ -18,6 +18,7 @@
 #include "gui/ui/slicer.h"
 #include "definitions_cxx.hpp"
 #include "gui/colour/colour.h"
+#include "gui/l10n/l10n.h"
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/views/instrument_clip_view.h"
@@ -64,6 +65,8 @@ void Slicer::focusRegained() {
 	currentSlice = 0;
 	slicerMode = requestedInitialMode;
 	requestedInitialMode = SLICER_MODE_REGION;
+	horizontalEncoderPressed = false;
+	horizontalEncoderPressUsed = false;
 	for (int32_t i = 0; i < MAX_MANUAL_SLICES; i++) {
 		manualSlicePoints[i].startPos = 0;
 		manualSlicePoints[i].transpose = 0;
@@ -209,17 +212,18 @@ void Slicer::graphicsRoutine() {
 }
 
 ActionResult Slicer::horizontalEncoderAction(int32_t offset) {
+	if (horizontalEncoderPressed && offset != 0) {
+		horizontalEncoderPressUsed = true;
+	}
 
 	if (slicerMode == SLICER_MODE_MANUAL) {
 		int32_t newPos = manualSlicePoints[currentSlice].startPos;
-		newPos += ((Buttons::isShiftButtonPressed() == true) ? 10 : 100) * offset;
+		newPos += (horizontalEncoderPressed ? 1000 : 100) * offset;
 
-		if (currentSlice > 0 && currentSlice < numManualSlice - 1) {
-			if (newPos <= manualSlicePoints[currentSlice - 1].startPos + 1)
-				newPos = manualSlicePoints[currentSlice - 1].startPos + 1;
-			if (newPos >= manualSlicePoints[currentSlice + 1].startPos - 1)
-				newPos = manualSlicePoints[currentSlice + 1].startPos - 1;
-		}
+		if (currentSlice > 0 && newPos <= manualSlicePoints[currentSlice - 1].startPos + 1)
+			newPos = manualSlicePoints[currentSlice - 1].startPos + 1;
+		if (currentSlice < numManualSlice - 1 && newPos >= manualSlicePoints[currentSlice + 1].startPos - 1)
+			newPos = manualSlicePoints[currentSlice + 1].startPos - 1;
 
 		if (newPos < 0)
 			newPos = 0;
@@ -303,12 +307,31 @@ void Slicer::selectEncoderAction(int8_t offset) {
 ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	using namespace deluge::hid::button;
 
-	if (currentUIMode != UI_MODE_NONE || !on) {
-		return ActionResult::NOT_DEALT_WITH;
-	}
+	// A bare Horizontal Encoder tap still switches Slicer mode. Turning it while held consumes that tap and provides
+	// coarse Manual Slicer movement instead.
+	if (b == X_ENC) {
+		if (!on && inCardRoutine) {
+			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+		}
+		if (on) {
+			if (currentUIMode != UI_MODE_NONE) {
+				return ActionResult::NOT_DEALT_WITH;
+			}
+			horizontalEncoderPressed = true;
+			horizontalEncoderPressUsed = false;
+			return ActionResult::DEALT_WITH;
+		}
 
-	// switch slicer mode
-	if (b == X_ENC && on) {
+		if (!horizontalEncoderPressed) {
+			return ActionResult::NOT_DEALT_WITH;
+		}
+
+		horizontalEncoderPressed = false;
+		if (horizontalEncoderPressUsed) {
+			horizontalEncoderPressUsed = false;
+			return ActionResult::DEALT_WITH;
+		}
+
 		slicerMode++;
 		slicerMode %= 2;
 		if (slicerMode == SLICER_MODE_MANUAL)
@@ -322,6 +345,24 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 
 		getCurrentKit()->firstDrum->killAllVoices(); // stop
 		uiNeedsRendering(this, 0xFFFFFFFF, 0xFFFFFFFF);
+		return ActionResult::DEALT_WITH;
+	}
+	if (on && horizontalEncoderPressed) {
+		horizontalEncoderPressUsed = true;
+	}
+
+	if (currentUIMode != UI_MODE_NONE || !on) {
+		return ActionResult::NOT_DEALT_WITH;
+	}
+
+	if (b == BACK && Buttons::isShiftButtonPressed() && slicerMode == SLICER_MODE_MANUAL) {
+		preview(0, 0, 0, 0);
+		if (display->haveOLED()) {
+			display->popupTextTemporary(deluge::l10n::get(deluge::l10n::String::STRING_FOR_STOPPED));
+		}
+		else {
+			display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_STOPPED));
+		}
 		return ActionResult::DEALT_WITH;
 	}
 
@@ -480,6 +521,9 @@ void Slicer::preview(int64_t startPoint, int64_t endPoint, int32_t transpose, in
 }
 
 ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
+	if (on && horizontalEncoderPressed) {
+		horizontalEncoderPressUsed = true;
+	}
 
 	if (on && x < kDisplayWidth && y < kDisplayHeight / 2 && slicerMode == SLICER_MODE_MANUAL) { // pad on
 

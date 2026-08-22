@@ -4,13 +4,14 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains five deviations:
+The local stack currently contains six deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
 3. Identify held chords in Keyboard View.
 4. Show the latest physical held note under a recognized OLED chord label.
 5. Start kit creation in Manual Slice mode directly from the sample browser.
+6. Improve Manual Slicer positioning and preview stopping.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -130,6 +131,34 @@ Let a player choose manual slice placement before creating a kit, rather than en
 
 - A human runtime check on a physical Deluge should confirm that Manual slice starts in Manual mode, standard Slice still starts in Region mode, and a normal entry after Manual slice is still Region mode.
 - The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
+
+## 6. Manual Slicer positioning and preview stop
+
+### Intent
+
+Make it practical to place manual slice boundaries across a large sample and silence an audition immediately without leaving the Manual Slicer.
+
+### Required behavior
+
+- In Manual Slicer mode, an ordinary Horizontal Encoder turn continues to move the selected slice start by 100 samples for each received detent.
+- Holding the Horizontal Encoder down while turning it moves the selected slice start by 1,000 samples for each received detent. A faster physical turn already supplies a larger accumulated detent movement, so it covers more sample distance without changing the ordinary control. Shift alone does not select coarse movement.
+- Turning the Horizontal Encoder or pressing another button or pad while it is held consumes that button press. Releasing it after a combined gesture does not switch Slicer mode or stop a pad audition. A press and release with no companion input retains the established Region and Manual mode switch wherever that switch is available.
+- If storage work temporarily defers an encoder turn, the corresponding release must wait for normal input handling so the deferred turn still consumes the press instead of causing an accidental mode switch.
+- Manual slice pads remain available for audition while the Horizontal Encoder is held, leaving the player's other hand free to select and audition slices during boundary editing.
+- The existing ordering limits, sample-start and sample-end bounds, selected slice, slice count, and ordinary slice-point editing behavior continue to apply to both adjustments.
+- Holding Shift and pressing Back stops the current Manual Slicer audition, shows the existing localized stopped feedback, and leaves the user in Manual Slicer with all slice data unchanged.
+- After a Shift + Back stop, pressing a manual slice pad can audition that slice normally.
+
+### Compatibility and boundaries
+
+- The existing Save + Pad manual-slice deletion gesture remains the sole direct deletion gesture. This deviation does not add a Shift + Pad delete shortcut.
+- Back without Shift retains its established behavior of leaving the Slicer. Shift + Back has no new behavior outside Manual Slicer mode.
+- Do not change Region slicing, the slicing algorithm, sample data, kit playback, saving, MIDI, global undo history, firmware installation, or flashing behavior. In particular, Shift + Back must not cut sequenced kit voices that are unrelated to the current Manual Slicer audition.
+
+### Verification contract
+
+- Source review confirms that ordinary and pressed-encoder slice starts remain bounded and ordered for the first, middle, and last slices; a combined press gesture consumes the mode-switch tap even when encoder input is deferred; a bare tap retains mode switching; Shift + Back does not exit the editor or modify slice data; and pad audition remains available.
+- The host unit-test suite and a local Release build pass. A person with a physical Deluge should confirm fine and coarse control feel, bare-tap mode switching, press-turn consumption, simultaneous pad audition, and the immediate stop behavior before flashing any build.
 
 ## Maintaining this document
 

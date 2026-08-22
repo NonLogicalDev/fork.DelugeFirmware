@@ -17,6 +17,7 @@
 
 #include "hid/buttons.h"
 #include "definitions_cxx.hpp"
+#include "gui/l10n/l10n.h"
 #include "gui/ui/audio_recorder.h"
 #include "gui/ui/load/load_song_ui.h"
 #include "gui/ui/ui.h"
@@ -70,7 +71,45 @@ bool considerShiftReleaseForSticky;
  */
 bool considerCrossScreenReleaseForCrossScreenMode;
 
+constexpr uint8_t kShiftPanicPressCount = 5;
+uint8_t shiftPanicPresses = 0;
+uint32_t timeLastShiftPanicPress;
+bool panicAfterCardRoutine = false;
+bool suppressShiftReleaseAfterPanic = false;
+
 bool buttonStates[NUM_BUTTON_COLS + 1][NUM_BUTTON_ROWS]; // The extra col is for "fake" buttons
+
+void resetShiftPanicGesture() {
+	shiftPanicPresses = 0;
+	timeLastShiftPanicPress = 0;
+}
+
+bool shiftPanicGestureComplete() {
+	uint32_t now = AudioEngine::audioSampleTimer;
+	if (shiftPanicPresses == 0 || static_cast<int32_t>(now - timeLastShiftPanicPress) > kShortPressTime) {
+		shiftPanicPresses = 1;
+	}
+	else {
+		shiftPanicPresses++;
+	}
+	timeLastShiftPanicPress = now;
+
+	if (shiftPanicPresses != kShiftPanicPressCount) {
+		return false;
+	}
+
+	resetShiftPanicGesture();
+	return true;
+}
+
+void triggerShiftPanic() {
+	clearShiftSticky();
+	// The fifth press bypasses commandToggleShift(), so ignore its physical release rather than treating it as a
+	// normal sticky-Shift tap.
+	suppressShiftReleaseAfterPanic = true;
+	AudioEngine::panic();
+	display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_STOPPED));
+}
 
 ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	using namespace deluge::hid::button;
@@ -86,12 +125,27 @@ ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	D_PRINT("UI=%s, Button=%s, On=%d", getCurrentUI()->getUIName(), getButtonName(b), on);
 #endif
 	if (on) {
+		if (b != SHIFT) {
+			resetShiftPanicGesture();
+		}
+
 		// If the user presses a different button while holding shift, don't consider the shift press for the purposes
 		// of toggling sticky shift.
 		considerShiftReleaseForSticky = false;
 		// If the user presses a different button while holding cross screen, don't consider the cross screen press for
 		// for the purposes of toggling cross screen mode
 		considerCrossScreenReleaseForCrossScreenMode = false;
+	}
+
+	if (b == SHIFT && !on && suppressShiftReleaseAfterPanic) {
+		suppressShiftReleaseAfterPanic = false;
+		return ActionResult::DEALT_WITH;
+	}
+
+	if (b == SHIFT && on && panicAfterCardRoutine) {
+		panicAfterCardRoutine = false;
+		triggerShiftPanic();
+		return ActionResult::DEALT_WITH;
 	}
 
 	ActionResult result;
@@ -145,6 +199,16 @@ ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	}
 	else if (result == ActionResult::DEALT_WITH) {
 		goto dealtWith;
+	}
+
+	if (b == SHIFT && on && shiftPanicGestureComplete()) {
+		if (inCardRoutine) {
+			panicAfterCardRoutine = true;
+			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+		}
+
+		triggerShiftPanic();
+		return ActionResult::DEALT_WITH;
 	}
 
 	// Play button
@@ -331,6 +395,7 @@ void noPressesHappening(bool inCardRoutine) {
 }
 void ignoreCurrentShiftForSticky() {
 	considerShiftReleaseForSticky = false;
+	resetShiftPanicGesture();
 }
 
 const char* getButtonName(uint8_t button) {

@@ -133,6 +133,28 @@ TEST(ChordTests, findsStandardAugmentedChord) {
 	STRCMP_EQUAL("AUG", match.suffix);
 }
 
+TEST(ChordTests, findsLatestPhysicalHeldNoteByPressOrder) {
+	NotesState notes;
+	notes.enableNote(60, 64);       // C
+	notes.enableNote(64, 64);       // E
+	notes.enableNote(67, 64);       // G
+	notes.enableNote(72, 64, true); // Generated C
+
+	NotesState::NotePressOrder pressOrder = {};
+	pressOrder[60] = 1;
+	pressOrder[64] = 3;
+	pressOrder[67] = 2;
+	pressOrder[72] = 4;
+
+	CHECK_EQUAL(64, notes.latestPhysicalNote(pressOrder));
+
+	NotesState releasedNotes;
+	releasedNotes.enableNote(60, 64);       // C remains held
+	releasedNotes.enableNote(67, 64);       // G remains held
+	releasedNotes.enableNote(72, 64, true); // Generated C remains held
+	CHECK_EQUAL(67, releasedNotes.latestPhysicalNote(pressOrder));
+}
+
 TEST(ChordTests, rejectsIncompleteAndUnknownChordSets) {
 	CHECK_FALSE(findExactChord(NoteSet({0, 4}), 0).found());
 	CHECK_FALSE(findExactChord(NoteSet({0, 1, 7}), 0).found());

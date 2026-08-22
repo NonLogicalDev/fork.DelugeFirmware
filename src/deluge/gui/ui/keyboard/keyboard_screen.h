@@ -71,6 +71,7 @@ private:
 	void displayOrLanguageChanged() final;
 
 	void evaluateActiveNotes();
+	void updatePhysicalNotePressOrder();
 	void updateActiveNotes();
 	void displayHeldChord();
 
@@ -95,6 +96,8 @@ private:
 	PressedPad pressedPads[kMaxNumKeyboardPadPresses];
 	NotesState lastNotesState;
 	NotesState currentNotesState;
+	NotesState::NotePressOrder physicalNotePressOrder = {};
+	uint32_t nextPhysicalNotePressOrder = 0;
 	bool chordNameDisplayed = false;
 
 	bool keyboardButtonActive = false;

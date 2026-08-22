@@ -57,6 +57,7 @@ constexpr uint8_t kLowestKeyboardNote = 0;
 constexpr uint8_t kHighestKeyboardNote = kOctaveSize * 12;
 struct NotesState {
 	using NoteArray = std::array<NoteState, kMaxNumActiveNotes>;
+	using NotePressOrder = std::array<uint32_t, kHighestKeyboardNote>;
 
 	std::bitset<kHighestKeyboardNote> states;
 	NoteArray notes;
@@ -120,6 +121,18 @@ struct NotesState {
 			lowest = std::min(lowest, state.note);
 		}
 		return lowest;
+	}
+
+	[[nodiscard]] uint8_t latestPhysicalNote(const NotePressOrder& pressOrder) const {
+		uint8_t latest = kHighestKeyboardNote;
+		uint32_t latestOrder = 0;
+		for (const NoteState& state : *this) {
+			if (!state.generatedNote && pressOrder[state.note] > latestOrder) {
+				latest = state.note;
+				latestOrder = pressOrder[state.note];
+			}
+		}
+		return latest;
 	}
 };
 

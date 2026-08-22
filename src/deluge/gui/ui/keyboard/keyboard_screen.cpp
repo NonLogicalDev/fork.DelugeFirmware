@@ -160,6 +160,7 @@ ActionResult KeyboardScreen::padAction(int32_t x, int32_t y, int32_t velocity) {
 	}
 
 	evaluateActiveNotes();
+	updatePhysicalNotePressOrder();
 
 	if (markDead != -1) {
 		pressedPads[markDead].dead = true;
@@ -204,6 +205,26 @@ void KeyboardScreen::evaluateActiveNotes() {
 	lastNotesState = currentNotesState;
 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->evaluatePads(pressedPads);
 	currentNotesState = layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->getNotesState();
+}
+
+void KeyboardScreen::updatePhysicalNotePressOrder() {
+	for (const NoteState& currentNote : currentNotesState) {
+		if (currentNote.generatedNote) {
+			continue;
+		}
+
+		const NoteState* lastNote = nullptr;
+		for (const NoteState& previousNote : lastNotesState) {
+			if (previousNote.note == currentNote.note) {
+				lastNote = &previousNote;
+				break;
+			}
+		}
+
+		if (lastNote == nullptr || currentNote.activationCount > lastNote->activationCount) {
+			physicalNotePressOrder[currentNote.note] = ++nextPhysicalNotePressOrder;
+		}
+	}
 }
 
 void KeyboardScreen::updateActiveNotes() {
@@ -426,7 +447,18 @@ void KeyboardScreen::displayHeldChord() {
 	char chordName[16];
 	snprintf(chordName, sizeof(chordName), "%s%s", rootName, match.suffix);
 	if (display->haveOLED()) {
-		display->popupTextTemporary(chordName);
+		uint8_t lastPressedNote = currentNotesState.latestPhysicalNote(physicalNotePressOrder);
+		if (lastPressedNote == kHighestKeyboardNote) {
+			display->popupTextTemporary(chordName);
+		}
+		else {
+			char lastPressedName[3] = {0};
+			noteCodeToString(lastPressedNote, lastPressedName, &isNatural, false);
+
+			char chordPopup[20];
+			snprintf(chordPopup, sizeof(chordPopup), "%s\n%s", chordName, lastPressedName);
+			display->popupTextTemporary(chordPopup);
+		}
 	}
 	else {
 		display->setScrollingText(chordName, 0);
@@ -814,6 +846,8 @@ void KeyboardScreen::selectEncoderAction(int8_t offset) {
 
 void KeyboardScreen::exitAuditionMode() {
 	memset(&pressedPads, 0, sizeof(pressedPads));
+	physicalNotePressOrder.fill(0);
+	nextPhysicalNotePressOrder = 0;
 	evaluateActiveNotes();
 	updateActiveNotes();
 

@@ -3315,17 +3315,19 @@ void SessionView::gridRenderActionModes(int32_t y, RGB image[][kDisplayWidth + k
 bool SessionView::gridRenderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
                                      uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) {
 
-	// Clear just the main pads
+	// Render a dim structural base for visible existing track columns. Clip rendering below replaces this colour.
+	auto trackCount = gridTrackCount();
+
 	for (int32_t xDisplay = 0; xDisplay < kDisplayWidth; xDisplay++) {
+		bool hasTrack = trackCount && gridTrackIndexFromX(xDisplay, trackCount) >= 0;
+
 		for (int32_t yDisplay = 0; yDisplay < kDisplayHeight; yDisplay++) {
-			image[yDisplay][xDisplay] = {0, 0, 0};
+			image[yDisplay][xDisplay] = hasTrack ? colours::grey : colours::black;
 			occupancyMask[yDisplay][xDisplay] = 0;
 		}
 	}
 
 	// Iterate over all clips and render them where they are
-	auto trackCount = gridTrackCount();
-
 	PadLEDs::renderingLock = true;
 
 	for (int32_t idxClip = 0; idxClip < currentSong->sessionClips.getNumElements(); ++idxClip) {

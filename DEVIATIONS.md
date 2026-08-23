@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains eleven deviations:
+The local stack currently contains twelve deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -17,6 +17,7 @@ The local stack currently contains eleven deviations:
 9. Provide a global Panic action for immediate silence.
 10. Copy, paste, and reorder a Kit Sound Drum row.
 11. Add optional incoming MIDI sustain-pedal support for internal Synth tracks.
+12. Show existing Song Grid track columns with a faint neutral base.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -325,6 +326,32 @@ Let a standard sustain pedal control the live release of notes played from an ex
 
 - A local Release build and the configured host test suite pass.
 - A physical Deluge check with a CC64 controller verifies the setting defaults Off; pedal-down and pedal-up behavior for a single note, chord, repeated pitch, and a still-held pitch; DX7 behavior; normal MIDI Learn and unlearn; a learned CC64 mapping; target change; Stop; Panic; and save/reload. No flashing is implied by this check.
+
+## 12. Song Grid existing-track column glow
+
+### Intent
+
+Make the Song Grid's existing track columns visible before a clip is launched or selected, while preserving the established color and brightness language for clip state.
+
+### Required behavior
+
+- In the Grid layout of Song View, every visible main-grid column that represents an existing track has a neutral-white base in its otherwise empty cells.
+- The base is monochrome at brightness 7 on the 0 through 255 LED scale. It is a structural cue, deliberately much dimmer than ordinary clip colors.
+- A column that does not represent an existing visible track remains black.
+- An actual clip cell continues to render its existing color and brightness over the base. Inactive, active, playing, selected, armed, solo, record, MIDI-learn, and pulse feedback retain their existing appearance and precedence.
+- Scrolling changes which track columns receive the base according to the existing visible Grid mapping.
+
+### Compatibility and boundaries
+
+- Do not add a setting, animation, color theme, persistent state, or a new clip state.
+- Do not change clip launch, selection, creation, duplication, deletion, scrolling, zooming, section behavior, track order, session data, MIDI, audio, or existing side-column controls.
+- The base applies only to the Song Grid's main pads. Other session layouts and unrelated views retain their current appearance.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- A local Release build and the configured host test suite pass.
+- A physical Deluge check compares an empty existing-track column, an empty non-track column, inactive clip cells, active or playing clip cells, and a scrolled Grid. It confirms that the structural base is visible but subordinate to every established clip-state color and brightness. No flashing is implied by this check.
 
 ## Maintaining this document
 

@@ -35,6 +35,10 @@ void WaveformBasicNavigator::opened(SampleHolder* holder) {
 	// Only if range is provided, grabs navigation from that if possible
 
 	renderData.xScroll = -1;
+	oledRenderSample = nullptr;
+	oledRenderDataComplete = false;
+	oledPadRenderDataCurrent = false;
+	oledRenderData.xScroll = -1;
 
 	// If want to use saved pos and sample already has peak info stored...
 	if (holder && holder->waveformViewZoom) {
@@ -59,7 +63,7 @@ int64_t WaveformBasicNavigator::getMaxZoom() {
 }
 
 bool WaveformBasicNavigator::zoom(int32_t offset, bool shouldAllowExtraScrollRight, MarkerColumn* cols,
-                                  MarkerType markerType) {
+                                  MarkerType markerType, bool useOledWaveformCache) {
 	int64_t oldScroll = xScroll;
 	int64_t oldZoom = xZoom;
 
@@ -202,7 +206,13 @@ bestYet:
 	                                  // where tick squares would
 	// appear when zooming into waveform in SampleBrowser
 
-	waveformRenderer.renderFullScreen(sample, xScroll, xZoom, &PadLEDs::imageStore[storeOffset], &renderData);
+	if (useOledWaveformCache) {
+		prepareOledWaveformForPadRendering();
+		waveformRenderer.renderFullScreenFromData(sample, &PadLEDs::imageStore[storeOffset], &renderData);
+	}
+	else {
+		waveformRenderer.renderFullScreen(sample, xScroll, xZoom, &PadLEDs::imageStore[storeOffset], &renderData);
+	}
 
 	PadLEDs::zoomingIn = (offset > 0);
 	PadLEDs::zoomMagnitude = PadLEDs::zoomingIn ? offset : -offset;
@@ -276,4 +286,56 @@ void WaveformBasicNavigator::potentiallyAdjustScrollPosition(bool shouldAllowExt
 			}
 		}
 	}
+}
+
+deluge::gui::waveform::OledWaveformPrepareResult WaveformBasicNavigator::prepareOledWaveformForPadRendering() {
+	if (isOledWaveformCacheComplete()) {
+		if (!oledPadRenderDataCurrent) {
+			deluge::gui::waveform::aggregateOledWaveformToPadColumns(oledRenderData, renderData);
+			oledPadRenderDataCurrent = true;
+		}
+		return {true, false};
+	}
+
+	const bool cacheWasCurrent = isOledWaveformCacheCurrent();
+	const size_t investigatedBefore =
+	    cacheWasCurrent ? deluge::gui::waveform::oledWaveformInvestigatedBucketCount(oledRenderData) : 0;
+	if (!cacheWasCurrent) {
+		if (oledRenderSample != sample) {
+			oledRenderData.xScroll = -1;
+		}
+		oledRenderSample = sample;
+		oledRenderDataComplete = false;
+	}
+	oledRenderDataComplete =
+	    waveformRenderer.findPeaksPerOledBucket(sample, xScroll, static_cast<uint64_t>(xZoom), &oledRenderData);
+	deluge::gui::waveform::aggregateOledWaveformToPadColumns(oledRenderData, renderData);
+	oledPadRenderDataCurrent = true;
+	const size_t investigatedAfter = deluge::gui::waveform::oledWaveformInvestigatedBucketCount(oledRenderData);
+	return deluge::gui::waveform::oledWaveformPrepareResult(cacheWasCurrent, investigatedBefore, investigatedAfter,
+	                                                        oledRenderDataComplete);
+}
+
+bool WaveformBasicNavigator::isOledWaveformCacheCurrent() const {
+	return oledRenderSample == sample && oledRenderData.xScroll == xScroll && oledRenderData.xZoom == xZoom;
+}
+
+bool WaveformBasicNavigator::isOledWaveformCacheComplete() const {
+	return isOledWaveformCacheCurrent() && oledRenderDataComplete;
+}
+
+bool WaveformBasicNavigator::hasAnyCurrentOledWaveformPeak() const {
+	if (!isOledWaveformCacheCurrent()) {
+		return false;
+	}
+	for (size_t bucket = 0; bucket < deluge::gui::waveform::kOledWaveformBucketCount; bucket++) {
+		if (oledRenderData.colStatus[bucket] == COL_STATUS_INVESTIGATED) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool WaveformBasicNavigator::isPadWaveformCacheCurrent() const {
+	return renderData.xScroll == xScroll && renderData.xZoom == xZoom;
 }

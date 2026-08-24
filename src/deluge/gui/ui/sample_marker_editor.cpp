@@ -24,6 +24,7 @@
 #include "gui/ui/sound_editor.h"
 #include "gui/ui_timer_manager.h"
 #include "gui/views/instrument_clip_view.h"
+#include "gui/waveform/oled_waveform_renderer.h"
 #include "gui/waveform/waveform_basic_navigator.h"
 #include "gui/waveform/waveform_renderer.h"
 #include "hid/buttons.h"
@@ -53,6 +54,27 @@ using namespace deluge::gui;
 const uint8_t zeroes[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 SampleMarkerEditor sampleMarkerEditor{};
+
+namespace {
+
+constexpr int32_t kOledWaveformTop = OLED_MAIN_TOPMOST_PIXEL + kTextSpacingY + 2;
+constexpr int32_t kOledWaveformBottom = OLED_MAIN_HEIGHT_PIXELS - 1;
+
+void drawOledMarker(deluge::hid::display::oled_canvas::Canvas& canvas, int32_t x, bool selected) {
+	if (x < 0 || x >= OLED_MAIN_WIDTH_PIXELS) {
+		return;
+	}
+
+	if (selected) {
+		canvas.drawVerticalLine(x, kOledWaveformTop, kOledWaveformBottom);
+	}
+	else {
+		canvas.drawVerticalLine(x, kOledWaveformTop, kOledWaveformTop + 2);
+		canvas.drawVerticalLine(x, kOledWaveformBottom - 2, kOledWaveformBottom);
+	}
+}
+
+} // namespace
 
 MultisampleRange& getCurrentMultisampleRange() {
 	return *static_cast<MultisampleRange*>(soundEditor.currentMultiRange);
@@ -287,6 +309,7 @@ void SampleMarkerEditor::selectEncoderAction(int8_t offset) {
 
 	int32_t oldCol = cols[util::to_underlying(markerType)].colOnScreen;
 	int32_t oldPos = cols[util::to_underlying(markerType)].pos;
+	int64_t oldScroll = waveformBasicNavigator.xScroll;
 	int32_t newCol = oldCol + offset;
 
 	// Make sure we don't drive one marker into the other
@@ -346,7 +369,10 @@ void SampleMarkerEditor::selectEncoderAction(int8_t offset) {
 
 	uiNeedsRendering(this, 0xFFFFFFFF, 0);
 	if (display->haveOLED()) {
-		renderUIsForOled();
+		getColsOnScreen(cols);
+		if (cols[util::to_underlying(markerType)].pos != oldPos || waveformBasicNavigator.xScroll != oldScroll) {
+			renderUIsForOled();
+		}
 	}
 	else {
 		displayText();
@@ -746,6 +772,9 @@ ActionResult SampleMarkerEditor::horizontalEncoderAction(int32_t offset) {
 		sampleHolder.loopLocked = true;
 
 		uiNeedsRendering(this, 0xFFFFFFFF, 0);
+		if (display->haveOLED()) {
+			renderUIsForOled();
+		}
 
 		return ActionResult::DEALT_WITH;
 	}
@@ -763,11 +792,14 @@ ActionResult SampleMarkerEditor::horizontalEncoderAction(int32_t offset) {
 	}
 
 	bool success = false;
+	bool oledPreparedByZoom = false;
 
 	// Zoom
 	if (isUIModeActive(UI_MODE_HOLDING_HORIZONTAL_ENCODER_BUTTON)) {
 		if (isUIModeWithinRange(zoomUIModes)) {
-			success = waveformBasicNavigator.zoom(offset, shouldAllowExtraScrollRight(), colsToSend, markerType);
+			oledPreparedByZoom = display->haveOLED();
+			success = waveformBasicNavigator.zoom(offset, shouldAllowExtraScrollRight(), colsToSend, markerType,
+			                                      oledPreparedByZoom);
 			if (success) {
 				uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
 			}
@@ -786,6 +818,15 @@ ActionResult SampleMarkerEditor::horizontalEncoderAction(int32_t offset) {
 	if (success) {
 		recordScrollAndZoom();
 		blinkPhase = 0;
+		if (display->haveOLED()) {
+			if (!oledPreparedByZoom) {
+				waveformBasicNavigator.prepareOledWaveformForPadRendering();
+			}
+			if (!waveformBasicNavigator.isOledWaveformCacheComplete()) {
+				uiNeedsRendering(this, 0xFFFFFFFF, 0);
+			}
+			renderUIsForOled();
+		}
 	}
 	return ActionResult::DEALT_WITH;
 }
@@ -1129,120 +1170,64 @@ void SampleMarkerEditor::renderOLED(deluge::hid::display::oled_canvas::Canvas& c
 	char const* markerTypeText;
 	switch (reverseRemap(markerType)) {
 	case MarkerType::START:
-		markerTypeText = "Start point";
+		markerTypeText = "Start";
 		break;
 
 	case MarkerType::END:
-		markerTypeText = "End point";
+		markerTypeText = "End";
 		break;
 
 	case MarkerType::LOOP_START:
-		markerTypeText = "Loop start";
+		markerTypeText = "Loop S";
 		break;
 
 	case MarkerType::LOOP_END:
-		markerTypeText = "Loop end";
+		markerTypeText = "Loop E";
 		break;
 
 	default:
 		__builtin_unreachable();
 	}
 
-	canvas.drawScreenTitle(markerTypeText);
+	canvas.drawString(markerTypeText, 0, OLED_MAIN_TOPMOST_PIXEL, kTextSpacingX, kTextSpacingY);
+
+	char positionBuffer[12];
+	intToString(markerPosSamples, positionBuffer);
+	canvas.drawStringAlignRight(positionBuffer, OLED_MAIN_TOPMOST_PIXEL, kTextSpacingX, kTextSpacingY);
 
 	if (isLoopLocked()) {
-		canvas.drawGraphicMultiLine(OLED::lockIcon, OLED_MAIN_WIDTH_PIXELS - 10, OLED_MAIN_TOPMOST_PIXEL + 1, 7);
-		canvas.invertArea(OLED_MAIN_WIDTH_PIXELS - 10, 7, OLED_MAIN_TOPMOST_PIXEL + 9, OLED_MAIN_TOPMOST_PIXEL + 9);
+		int32_t labelWidth = strlen(markerTypeText) * kTextSpacingX;
+		canvas.drawGraphicMultiLine(OLED::lockIcon, labelWidth + 2, OLED_MAIN_TOPMOST_PIXEL + 1, 7);
 	}
 
-	int32_t smallTextSpacingX = kTextSpacingX;
-	int32_t smallTextSizeY = kTextSpacingY;
-	int32_t yPixel = OLED_MAIN_TOPMOST_PIXEL + 17;
-	int32_t xPixel = 1;
-
-	uint32_t hours = 0;
-	uint32_t minutes = 0;
-	uint64_t hundredmilliseconds =
-	    (uint64_t)markerPosSamples * 100000 / waveformBasicNavigator.sample->sampleRate; // mSec
-
-	if (hundredmilliseconds >= 6000000) {
-		minutes = hundredmilliseconds / 6000000;
-		hundredmilliseconds -= (uint64_t)minutes * 6000000;
-
-		if (minutes >= 60) {
-			hours = minutes / 60;
-			minutes -= hours * 60;
-
-			char buffer[12];
-			intToString(hours, buffer);
-			canvas.drawString(buffer, xPixel, yPixel, smallTextSpacingX, smallTextSizeY);
-			xPixel += strlen(buffer) * smallTextSpacingX;
-
-			canvas.drawChar('h', smallTextSpacingX, yPixel, smallTextSpacingX, smallTextSizeY);
-			xPixel += smallTextSpacingX * 2;
-		}
-
-		char buffer[12];
-		intToString(minutes, buffer);
-		canvas.drawString(buffer, xPixel, yPixel, smallTextSpacingX, smallTextSizeY);
-		xPixel += strlen(buffer) * smallTextSpacingX;
-
-		canvas.drawChar('m', smallTextSpacingX, yPixel, smallTextSpacingX, smallTextSizeY);
-		xPixel += smallTextSpacingX * 2;
-	}
-	else {
-		goto printSeconds;
+	Sample* sample = waveformBasicNavigator.sample;
+	if (!sample) {
+		return;
 	}
 
-	if (hundredmilliseconds) {
-printSeconds:
-		int32_t numDecimalPlaces;
-
-		// Maybe we just want to display->millisecond resolution (that's S with 3 decimal places)...
-		if (hours || minutes || hundredmilliseconds >= 100000) {
-			hundredmilliseconds /= 100;
-			numDecimalPlaces = 3;
-		}
-
-		// Or, display milliseconds with 2 decimal places - very fine resolution.
-		else {
-			numDecimalPlaces = 2;
-		}
-
-		char buffer[13];
-		intToString(hundredmilliseconds, buffer, numDecimalPlaces + 1);
-		int32_t length = strlen(buffer);
-		memmove(&buffer[length - numDecimalPlaces + 1], &buffer[length - numDecimalPlaces], numDecimalPlaces + 1);
-		buffer[length - numDecimalPlaces] = '.';
-
-		canvas.drawString(buffer, xPixel, yPixel, smallTextSpacingX, smallTextSizeY);
-		xPixel += (length + 1) * smallTextSpacingX;
-
-		if (hours || minutes) {
-			canvas.drawChar('s', xPixel, yPixel, smallTextSpacingX, smallTextSizeY);
-		}
-		else {
-			xPixel += smallTextSpacingX;
-			char const* secString = (numDecimalPlaces == 2) ? "msec" : "sec";
-			canvas.drawString(secString, xPixel, yPixel, smallTextSpacingX, smallTextSizeY);
-		}
+	if (waveformBasicNavigator.hasAnyCurrentOledWaveformPeak()) {
+		deluge::gui::waveform::renderOledWaveformContour(canvas, waveformBasicNavigator.oledRenderData,
+		                                                 sample->minValueFound, sample->maxValueFound, kOledWaveformTop,
+		                                                 kOledWaveformBottom);
 	}
+	else if (waveformBasicNavigator.isPadWaveformCacheCurrent()) {
+		deluge::gui::waveform::renderOledWaveformContour(canvas, waveformBasicNavigator.renderData,
+		                                                 sample->minValueFound, sample->maxValueFound, kOledWaveformTop,
+		                                                 kOledWaveformBottom);
+	}
+	deluge::gui::waveform::OledWaveformViewport viewport{waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom};
 
-	yPixel += 11;
+	for (int32_t marker = util::to_underlying(MarkerType::START); marker <= util::to_underlying(MarkerType::END);
+	     marker++) {
+		MarkerType type = static_cast<MarkerType>(marker);
+		if ((type == MarkerType::LOOP_START || type == MarkerType::LOOP_END) && cols[marker].pos == 0) {
+			continue;
+		}
 
-	// Sample count
-	xPixel = 1;
-
-	canvas.drawChar('(', xPixel, yPixel, smallTextSpacingX, smallTextSizeY);
-	xPixel += smallTextSpacingX;
-
-	char buffer[12];
-	intToString(markerPosSamples, buffer);
-	canvas.drawString(buffer, xPixel, yPixel, smallTextSpacingX, smallTextSizeY);
-	xPixel += smallTextSpacingX * (strlen(buffer) + 1);
-
-	canvas.drawString("smpl)", xPixel, yPixel, smallTextSpacingX, smallTextSizeY);
-	xPixel += smallTextSpacingX * 6;
+		bool endBoundary = type >= MarkerType::LOOP_END;
+		int32_t x = viewport.samplePositionToX(cols[marker].pos, endBoundary);
+		drawOledMarker(canvas, x, type == markerType);
+	}
 }
 
 void SampleMarkerEditor::loopUnlock() {
@@ -1391,8 +1376,24 @@ bool SampleMarkerEditor::renderMainPads(uint32_t whichRows, RGB image[][kDisplay
 		return true;
 	}
 
-	waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-	                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData);
+	if (display->haveOLED() && image == PadLEDs::image) {
+		const auto oledWaveform = waveformBasicNavigator.prepareOledWaveformForPadRendering();
+		waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, image,
+		                                          &waveformBasicNavigator.renderData);
+		if (!oledWaveform.complete) {
+			uiNeedsRendering(this, 0xFFFFFFFF, 0);
+		}
+		if (oledWaveform.cacheChanged) {
+			renderUIsForOled();
+		}
+	}
+	else {
+		if (display->haveOLED()) {
+			waveformBasicNavigator.invalidateOledPadRenderData();
+		}
+		waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+		                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData);
+	}
 
 	if (markerType != MarkerType::NONE) {
 		MarkerColumn cols[kNumMarkerTypes];

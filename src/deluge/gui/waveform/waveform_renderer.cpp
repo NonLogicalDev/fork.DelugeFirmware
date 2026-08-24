@@ -18,6 +18,7 @@
 #include "gui/waveform/waveform_renderer.h"
 #include "definitions_cxx.hpp"
 #include "gui/colour/colour.h"
+#include "gui/waveform/oled_waveform_render_data.h"
 #include "gui/waveform/waveform_render_data.h"
 #include "io/debug/log.h"
 #include "model/sample/sample.h"
@@ -52,6 +53,13 @@ bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64
 	if (!completeSuccess) {
 		return false;
 	}
+	renderFullScreenFromData(sample, thisImage, data, rgb, reversed, xEnd);
+	return true;
+}
+
+void WaveformRenderer::renderFullScreenFromData(Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth],
+                                                WaveformRenderData* data, std::optional<RGB> rgb, bool reversed,
+                                                int32_t xEnd) {
 
 	// Clear display
 	for (int32_t y = 0; y < kDisplayHeight; y++) {
@@ -61,8 +69,6 @@ bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64
 	for (int32_t xDisplay = 0; xDisplay < xEnd; xDisplay++) {
 		renderOneCol(sample, xDisplay, thisImage, data, reversed, rgb);
 	}
-
-	return true;
 }
 
 // Returns false if had trouble loading some (will often not be all) Clusters
@@ -624,6 +630,69 @@ cantReadData:
 	}
 
 	return !hadAnyTroubleLoading;
+}
+
+bool WaveformRenderer::findPeaksPerOledBucket(Sample* sample, int64_t xScroll, uint64_t xZoom,
+                                              deluge::gui::waveform::OledWaveformRenderData* data) {
+	using namespace deluge::gui::waveform;
+
+	if (xZoom > static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+		return false;
+	}
+	updateOledWaveformCacheViewport(*data, xScroll, static_cast<int64_t>(xZoom));
+
+	WaveformRenderData scratch{};
+	scratch.xScroll = -1;
+	bool complete = true;
+	WaveformSampleRange previousRange{};
+	size_t previousBucket = 0;
+	for (size_t bucket = 0; bucket < kOledWaveformBucketCount; bucket++) {
+		if (data->colStatus[bucket] != 0) {
+			previousRange = oledWaveformBucketSampleRange(xScroll, xZoom, bucket, kOledWaveformBucketCount);
+			previousBucket = bucket;
+			continue;
+		}
+
+		const WaveformSampleRange range =
+		    oledWaveformBucketSampleRange(xScroll, xZoom, bucket, kOledWaveformBucketCount);
+		if (!range.valid || range.end <= range.start) {
+			data->colStatus[bucket] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
+			previousRange = range;
+			previousBucket = bucket;
+			continue;
+		}
+
+		if (bucket > 0 && previousRange.valid && range.start == previousRange.start && range.end == previousRange.end) {
+			data->colStatus[bucket] = data->colStatus[previousBucket];
+			if (data->colStatus[previousBucket] == COL_STATUS_INVESTIGATED) {
+				data->minPerCol[bucket] = data->minPerCol[previousBucket];
+				data->maxPerCol[bucket] = data->maxPerCol[previousBucket];
+			}
+			if (data->colStatus[bucket] == 0) {
+				complete = false;
+			}
+			previousRange = range;
+			previousBucket = bucket;
+			continue;
+		}
+
+		scratch.xScroll = -1;
+		const uint64_t bucketZoom = static_cast<uint64_t>(range.end - range.start);
+		const bool loaded = findPeaksPerCol(sample, range.start, bucketZoom, &scratch, nullptr, 0, 1);
+		data->colStatus[bucket] = scratch.colStatus[0];
+		if (scratch.colStatus[0] == COL_STATUS_INVESTIGATED) {
+			data->minPerCol[bucket] = scratch.minPerCol[0];
+			data->maxPerCol[bucket] = scratch.maxPerCol[0];
+		}
+		if (!loaded || data->colStatus[bucket] == 0) {
+			complete = false;
+		}
+
+		previousRange = range;
+		previousBucket = bucket;
+	}
+
+	return complete;
 }
 
 void WaveformRenderer::getColBarPositions(int32_t xDisplay, WaveformRenderData* data, int32_t* min24, int32_t* max24,

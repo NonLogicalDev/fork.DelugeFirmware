@@ -23,6 +23,7 @@
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/views/instrument_clip_view.h"
+#include "gui/waveform/oled_waveform_renderer.h"
 #include "gui/waveform/waveform_basic_navigator.h"
 #include "gui/waveform/waveform_renderer.h"
 #include "hid/buttons.h"
@@ -60,6 +61,29 @@ Slicer slicer{};
 namespace params = deluge::modulation::params;
 
 namespace {
+
+constexpr int32_t kOledWaveformTop = OLED_MAIN_TOPMOST_PIXEL + kTextSpacingY + 2;
+constexpr int32_t kOledWaveformBottom = OLED_MAIN_HEIGHT_PIXELS - 1;
+constexpr uint64_t kMaxOledRegionBoundaries = OLED_MAIN_WIDTH_PIXELS / 2;
+
+uint64_t divideRoundUp(uint64_t numerator, uint64_t denominator) {
+	const uint64_t quotient = numerator / denominator;
+	return quotient + (quotient * denominator != numerator);
+}
+
+void drawOledBoundary(deluge::hid::display::oled_canvas::Canvas& canvas, int32_t x, bool selected) {
+	if (x < 0 || x >= OLED_MAIN_WIDTH_PIXELS) {
+		return;
+	}
+
+	if (selected) {
+		canvas.drawVerticalLine(x, kOledWaveformTop, kOledWaveformBottom);
+	}
+	else {
+		canvas.drawVerticalLine(x, kOledWaveformTop, kOledWaveformTop + 2);
+		canvas.drawVerticalLine(x, kOledWaveformBottom - 2, kOledWaveformBottom);
+	}
+}
 
 int32_t getNextGeneratedSliceSeriesIndex(Kit* kit, SoundDrum* anchorDrum) {
 	int32_t highestSeriesIndex = -1;
@@ -112,29 +136,91 @@ void Slicer::focusRegained() {
 }
 
 void Slicer::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+	Sample* sample = waveformBasicNavigator.sample;
+	char valueBuffer[24];
 
-	int32_t windowWidth = 100;
-	int32_t windowHeight = 31;
-	int32_t horizontalShift = 6;
+	if (slicerMode == SLICER_MODE_REGION) {
+		canvas.drawString("Region", 0, OLED_MAIN_TOPMOST_PIXEL, kTextSpacingX, kTextSpacingY);
+		intToString(numClips, valueBuffer);
+	}
+	else {
+		canvas.drawString("Slice", 0, OLED_MAIN_TOPMOST_PIXEL, kTextSpacingX, kTextSpacingY);
+		snprintf(valueBuffer, sizeof(valueBuffer), "%d/%d %d", currentSlice + 1, numManualSlice,
+		         manualSlicePoints[currentSlice].startPos);
+	}
+	canvas.drawStringAlignRight(valueBuffer, OLED_MAIN_TOPMOST_PIXEL, kTextSpacingX, kTextSpacingY);
 
-	int32_t windowMinX = (OLED_MAIN_WIDTH_PIXELS - windowWidth) >> 1;
-	windowMinX += horizontalShift;
-	int32_t windowMaxX = windowMinX + windowWidth;
+	if (!sample) {
+		return;
+	}
 
-	int32_t windowMinY = (OLED_MAIN_HEIGHT_PIXELS - windowHeight) >> 1;
-	windowMinY += 2;
-	int32_t windowMaxY = windowMinY + windowHeight;
+	if (waveformBasicNavigator.hasAnyCurrentOledWaveformPeak()) {
+		deluge::gui::waveform::renderOledWaveformContour(canvas, waveformBasicNavigator.oledRenderData,
+		                                                 sample->minValueFound, sample->maxValueFound, kOledWaveformTop,
+		                                                 kOledWaveformBottom);
+	}
+	else if (waveformBasicNavigator.isPadWaveformCacheCurrent()) {
+		deluge::gui::waveform::renderOledWaveformContour(canvas, waveformBasicNavigator.renderData,
+		                                                 sample->minValueFound, sample->maxValueFound, kOledWaveformTop,
+		                                                 kOledWaveformBottom);
+	}
+	deluge::gui::waveform::OledWaveformViewport viewport{waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom};
 
-	canvas.clearAreaExact(windowMinX + 1, windowMinY + 1, windowMaxX - 1, windowMaxY - 1);
+	if (slicerMode == SLICER_MODE_REGION) {
+		const uint64_t sampleLength = sample->lengthInSamples;
+		const uint64_t regionCount = numClips;
+		if (sampleLength == 0 || regionCount < 2 || viewport.span() == 0) {
+			return;
+		}
 
-	canvas.drawRectangle(windowMinX, windowMinY, windowMaxX, windowMaxY);
-	canvas.drawHorizontalLine(windowMinY + 15, 26, OLED_MAIN_WIDTH_PIXELS - 22);
-	canvas.drawString("Num. slices", 30, windowMinY + 6, kTextSpacingX, kTextSpacingY);
+		const uint64_t viewStart = std::max<int64_t>(waveformBasicNavigator.renderData.xScroll, 0);
+		const uint64_t firstBoundary = std::max<uint64_t>(1, divideRoundUp(viewStart * regionCount, sampleLength));
+		if (firstBoundary >= regionCount) {
+			return;
+		}
+		const uint64_t boundaryStride = std::max<uint64_t>(
+		    1, divideRoundUp(2 * regionCount * viewport.span(), sampleLength * OLED_MAIN_WIDTH_PIXELS));
 
-	char buffer[12];
-	intToString(slicerMode == SLICER_MODE_REGION ? numClips : numManualSlice, buffer);
-	canvas.drawStringCentred(buffer, windowMinY + 18, kTextSpacingX, kTextSpacingY,
-	                         (OLED_MAIN_WIDTH_PIXELS >> 1) + horizontalShift);
+		const uint64_t firstProduct = sampleLength * firstBoundary;
+		uint64_t boundary = firstProduct / regionCount;
+		uint64_t phase = firstProduct - boundary * regionCount;
+		const uint64_t stepProduct = sampleLength * boundaryStride;
+		const uint64_t boundaryStep = stepProduct / regionCount;
+		const uint64_t phaseStep = stepProduct - boundaryStep * regionCount;
+		const uint64_t viewEnd = viewStart + viewport.span();
+		int32_t previousX = -2;
+		uint64_t iterations = 0;
+		for (uint64_t i = firstBoundary; i < regionCount && iterations < kMaxOledRegionBoundaries;
+		     i += boundaryStride, iterations++) {
+			if (boundary >= viewEnd) {
+				break;
+			}
+
+			int32_t x = viewport.samplePositionToX(boundary);
+			if (x >= 0 && x - previousX >= 2) {
+				drawOledBoundary(canvas, x, false);
+				previousX = x;
+			}
+
+			boundary += boundaryStep;
+			phase += phaseStep;
+			if (phase >= regionCount) {
+				boundary++;
+				phase -= regionCount;
+			}
+		}
+	}
+	else {
+		for (int32_t i = 0; i < numManualSlice; i++) {
+			int32_t x = viewport.samplePositionToX(manualSlicePoints[i].startPos);
+			drawOledBoundary(canvas, x, i == currentSlice);
+		}
+
+		int64_t currentEnd = (currentSlice + 1 < numManualSlice) ? manualSlicePoints[currentSlice + 1].startPos
+		                                                         : sample->lengthInSamples;
+		int32_t endX = viewport.samplePositionToX(currentEnd, true);
+		drawOledBoundary(canvas, endX, true);
+	}
 }
 
 void Slicer::redraw() {
@@ -143,17 +229,40 @@ void Slicer::redraw() {
 
 bool Slicer::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
                             uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) {
+	const bool useOledWaveformData = display->haveOLED() && image == PadLEDs::image;
+	deluge::gui::waveform::OledWaveformPrepareResult oledWaveform{true, false};
+	if (useOledWaveformData) {
+		oledWaveform = waveformBasicNavigator.prepareOledWaveformForPadRendering();
+	}
 
 	if (slicerMode == SLICER_MODE_REGION) {
-		RGB myImage[kDisplayHeight][kDisplayWidth + kSideBarWidth];
-		waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-		                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData);
+		if (useOledWaveformData) {
+			waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, image,
+			                                          &waveformBasicNavigator.renderData);
+		}
+		else {
+			if (display->haveOLED()) {
+				waveformBasicNavigator.invalidateOledPadRenderData();
+			}
+			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+			                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData);
+		}
 	}
 	else if (slicerMode == SLICER_MODE_MANUAL) {
 
 		RGB myImage[kDisplayHeight][kDisplayWidth + kSideBarWidth];
-		waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-		                                  waveformBasicNavigator.xZoom, myImage, &waveformBasicNavigator.renderData);
+		if (useOledWaveformData) {
+			waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, myImage,
+			                                          &waveformBasicNavigator.renderData);
+		}
+		else {
+			if (display->haveOLED()) {
+				waveformBasicNavigator.invalidateOledPadRenderData();
+			}
+			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+			                                  waveformBasicNavigator.xZoom, myImage,
+			                                  &waveformBasicNavigator.renderData);
+		}
 
 		for (int32_t xx = 0; xx < kDisplayWidth; xx++) {
 			for (int32_t yy = 0; yy < kDisplayHeight / 2; yy++) {
@@ -188,6 +297,12 @@ bool Slicer::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSid
 
 			image[yy][xx] = colour;
 		}
+	}
+	if (!oledWaveform.complete) {
+		uiNeedsRendering(this, 0xFFFFFFFF, 0);
+	}
+	if (oledWaveform.cacheChanged) {
+		renderUIsForOled();
 	}
 	return true;
 }
@@ -276,7 +391,8 @@ ActionResult Slicer::horizontalEncoderAction(int32_t offset) {
 	}
 
 	if (slicerMode == SLICER_MODE_MANUAL) {
-		int32_t newPos = manualSlicePoints[currentSlice].startPos;
+		const int32_t oldPos = manualSlicePoints[currentSlice].startPos;
+		int32_t newPos = oldPos;
 		newPos += (horizontalEncoderPressed ? 1000 : 100) * offset;
 
 		if (currentSlice > 0 && newPos <= manualSlicePoints[currentSlice - 1].startPos + 1)
@@ -288,13 +404,13 @@ ActionResult Slicer::horizontalEncoderAction(int32_t offset) {
 			newPos = 0;
 		if (newPos > waveformBasicNavigator.sample->lengthInSamples)
 			newPos = waveformBasicNavigator.sample->lengthInSamples;
+		if (newPos == oldPos) {
+			return ActionResult::DEALT_WITH;
+		}
 		manualSlicePoints[currentSlice].startPos = newPos;
 
 		if (display->haveOLED()) {
-			char buffer[24];
-			strcpy(buffer, "Start: ");
-			intToString(manualSlicePoints[currentSlice].startPos, buffer + strlen(buffer));
-			display->popupTextTemporary(buffer);
+			renderUIsForOled();
 		}
 		else {
 			char buffer[12];
@@ -331,7 +447,9 @@ ActionResult Slicer::verticalEncoderAction(int32_t offset, bool inCardRoutine) {
 }
 
 void Slicer::selectEncoderAction(int8_t offset) {
+	bool changed = false;
 	if (slicerMode == SLICER_MODE_REGION) {
+		const int32_t oldNumClips = numClips;
 		numClips += offset;
 		if (numClips == 257) {
 			numClips = 2;
@@ -339,8 +457,12 @@ void Slicer::selectEncoderAction(int8_t offset) {
 		else if (numClips == 1) {
 			numClips = 256;
 		}
+		changed = numClips != oldNumClips;
 	}
 	else { // SLICER_MODE_MANUAL
+		const int32_t oldNumManualSlices = numManualSlice;
+		const int32_t oldCurrentSlice = currentSlice;
+		const int32_t oldFirstStart = manualSlicePoints[0].startPos;
 		if (offset < 0) {
 			numManualSlice += offset;
 			if (numManualSlice <= 0) {
@@ -352,7 +474,15 @@ void Slicer::selectEncoderAction(int8_t offset) {
 		if (currentSlice >= numManualSlice - 1) {
 			currentSlice = numManualSlice - 1;
 		}
-		uiNeedsRendering(this, 0xFFFFFFFF, 0xFFFFFFFF);
+		changed = numManualSlice != oldNumManualSlices || currentSlice != oldCurrentSlice
+		          || manualSlicePoints[0].startPos != oldFirstStart;
+		if (changed) {
+			uiNeedsRendering(this, 0xFFFFFFFF, 0xFFFFFFFF);
+		}
+	}
+
+	if (!changed) {
+		return;
 	}
 
 	if (display->haveOLED()) {
@@ -495,10 +625,16 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 		}
 		restoreManualPreviewRepeatMode();
 		if (slicerMode == SLICER_MODE_MANUAL) {
-			RGB myImage[kDisplayHeight][kDisplayWidth + kSideBarWidth];
-			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-			                                  waveformBasicNavigator.xZoom, PadLEDs::image,
-			                                  &waveformBasicNavigator.renderData);
+			if (display->haveOLED()) {
+				waveformBasicNavigator.prepareOledWaveformForPadRendering();
+				waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, PadLEDs::image,
+				                                          &waveformBasicNavigator.renderData);
+			}
+			else {
+				waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+				                                  waveformBasicNavigator.xZoom, PadLEDs::image,
+				                                  &waveformBasicNavigator.renderData);
+			}
 			SoundDrum* soundDrum = (SoundDrum*)soundEditor.currentSound;
 			soundDrum->killAllVoices(); // stop
 			MultisampleRange* range = (MultisampleRange*)soundDrum->sources[0].getOrCreateFirstRange();
@@ -656,11 +792,13 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
 	}
 
 	if (on && x < kDisplayWidth && y < kDisplayHeight / 2 && slicerMode == SLICER_MODE_MANUAL) { // pad on
+		bool oledStateChanged = false;
 
 		int32_t slicePadIndex = (x % 4 + (x / 4) * 16) + ((y % 4) * 4); //
 
 		if (slicePadIndex < numManualSlice) { // play slice
 			bool closePopup = (currentSlice != slicePadIndex);
+			oledStateChanged = closePopup;
 			currentSlice = slicePadIndex;
 			if (slicePadIndex + 1 < numManualSlice) {
 				preview(manualSlicePoints[slicePadIndex].startPos, manualSlicePoints[slicePadIndex + 1].startPos,
@@ -707,6 +845,7 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
 					manualSlicePoints[numManualSlice].transpose = 0;
 
 					numManualSlice++;
+					oledStateChanged = true;
 					display->cancelPopup();
 
 					SliceItem tmp;
@@ -724,7 +863,9 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
 		}
 
 		if (display->haveOLED()) {
-			renderUIsForOled();
+			if (oledStateChanged) {
+				renderUIsForOled();
+			}
 		}
 		else {
 			redraw();

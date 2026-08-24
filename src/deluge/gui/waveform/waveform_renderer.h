@@ -26,6 +26,9 @@ class Sample;
 class MultisampleRange;
 class SampleRecorder;
 struct WaveformRenderData;
+namespace deluge::gui::waveform {
+struct OledWaveformRenderData;
+}
 
 struct MarkerColumn {
 	int32_t pos; // Unscrolled
@@ -42,6 +45,9 @@ public:
 	                      RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
 	                      SampleRecorder* recorder = nullptr, std::optional<RGB> rgb = std::nullopt,
 	                      bool reversed = false, int32_t xEnd = kDisplayWidth);
+	void renderFullScreenFromData(Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth],
+	                              WaveformRenderData* data, std::optional<RGB> rgb = std::nullopt,
+	                              bool reversed = false, int32_t xEnd = kDisplayWidth);
 	bool renderAsSingleRow(Sample* sample, int64_t xScroll, uint64_t xZoom, RGB* thisImage, WaveformRenderData* data,
 	                       SampleRecorder* recorder, RGB rgb, bool reversed, int32_t xStart, int32_t xEnd);
 	void renderOneCol(Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth],
@@ -57,6 +63,8 @@ public:
 	                                               int32_t valueCentrePoint, int32_t valueSpan);
 	bool findPeaksPerCol(Sample* sample, int64_t xScroll, uint64_t xZoom, WaveformRenderData* data,
 	                     SampleRecorder* recorder = nullptr, int32_t xStart = 0, int32_t xEnd = kDisplayWidth);
+	bool findPeaksPerOledBucket(Sample* sample, int64_t xScroll, uint64_t xZoom,
+	                            deluge::gui::waveform::OledWaveformRenderData* data);
 
 	int8_t collapseAnimationToWhichRow;
 

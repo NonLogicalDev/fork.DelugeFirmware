@@ -18,6 +18,7 @@
 #pragma once
 
 #include "definitions_cxx.hpp"
+#include "gui/waveform/oled_waveform_render_data.h"
 #include "gui/waveform/waveform_render_data.h"
 #include <cstdint>
 
@@ -37,9 +38,15 @@ public:
 	bool isZoomedIn();
 
 	bool zoom(int32_t offset, bool shouldAllowExtraScrollRight = false, MarkerColumn* cols = nullptr,
-	          MarkerType markerType = MarkerType::NONE);
+	          MarkerType markerType = MarkerType::NONE, bool useOledWaveformCache = false);
 	bool scroll(int32_t offset, bool shouldAllowExtraScrollRight = false, MarkerColumn* cols = nullptr);
 	void potentiallyAdjustScrollPosition(bool shouldAllowExtraScrollRight = false);
+	deluge::gui::waveform::OledWaveformPrepareResult prepareOledWaveformForPadRendering();
+	void invalidateOledPadRenderData() { oledPadRenderDataCurrent = false; }
+	[[nodiscard]] bool isOledWaveformCacheCurrent() const;
+	[[nodiscard]] bool isOledWaveformCacheComplete() const;
+	[[nodiscard]] bool hasAnyCurrentOledWaveformPeak() const;
+	[[nodiscard]] bool isPadWaveformCacheCurrent() const;
 
 	Sample* sample;
 
@@ -47,6 +54,12 @@ public:
 	int64_t xScroll;
 
 	WaveformRenderData renderData;
+	deluge::gui::waveform::OledWaveformRenderData oledRenderData;
+
+private:
+	Sample* oledRenderSample = nullptr;
+	bool oledRenderDataComplete = false;
+	bool oledPadRenderDataCurrent = false;
 };
 
 extern WaveformBasicNavigator waveformBasicNavigator;

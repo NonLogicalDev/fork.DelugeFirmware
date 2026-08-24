@@ -35,7 +35,7 @@ struct SliceItem {
 
 class Slicer final : public UI {
 public:
-	Slicer() { oledShowsUIUnderneath = true; }
+	Slicer() = default;
 
 	bool opened() override;
 	void focusRegained() override;

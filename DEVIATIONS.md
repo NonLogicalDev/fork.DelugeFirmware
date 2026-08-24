@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains fourteen deviations:
+The local stack currently contains seventeen deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -20,6 +20,9 @@ The local stack currently contains fourteen deviations:
 12. Show existing Song Grid track columns with a faint neutral base.
 13. Protect repeated recording into one Audio Clip in `Looper/FX` mode.
 14. Make Audio Clip waveforms follow their Song Grid track color.
+15. Keep waveform peak addressing valid throughout the supported long-file range.
+16. Keep reversed single-row waveform ranges inside their half-open display bounds.
+17. Show efficient OLED waveform companions while editing sample bounds and slices.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -131,6 +134,7 @@ Let a player add a folder, region slices, or manual slices safely to the top of 
 - Each existing-Kit Slicer entry remains in the mode chosen from the menu. Its mode-switch control does not change modes during that reuse session, so the selected anchor and sample source stay valid.
 - Choosing Manual slice retains the selected file as the selected anchor's playable source, stops the separate browser preview, and opens the existing Slicer directly in its established Manual mode. Its waveform and slice-pad audition work without depending on the browser preview. It otherwise retains the same initial one-slice state, pad editing, slice count, transpose, save, confirm, and cancel behavior that Manual mode already provides.
 - Choosing regular Slice from a valid existing-Kit anchor retains its established region-slicing behavior while placing every new row above that anchor. Before either Slice mode opens on an existing Kit, the selected file becomes that anchor's source and the Slicer waveform comes from that source, not a previous browser preview. Load all retains filename-based row naming and applies the same anchor-and-above placement rule.
+- Confirming two or more slices in a brand-new or existing Kit creates exactly one playable Sound Drum per requested slice. Every generated row retains its assigned sample bounds, transpose, mode, and batch name; no later slice may be omitted because its row object was not retained during confirmation.
 - A confirmed Slice or Manual slice longer than two seconds uses the configured default sample mode. A slice shorter than two seconds uses Once so very short fragments do not choke later hits. Temporary Manual Slicer audition may also use Once while the player is editing.
 - The top three pads in Slicer's far-right status column choose the pending batch mode in vertical order: Default, All Cut, All Once. The selected pad is visibly brighter and gives immediate display feedback. The main slice grid and the far-right audition column keep their existing roles.
 - Default retains the normal duration-based behavior. All Cut makes every newly confirmed slice in that batch use Cut, including short slices. All Once makes every newly confirmed slice in that batch use Once. These choices never change the stored device default or existing Kit rows.
@@ -218,6 +222,8 @@ Keep the local change stack understandable by grouping related revisions under o
 ### Required behavior
 
 - Local user-facing revisions use bookmarks named `nl/patch-<group>-<NN>`, where `NN` starts at `01` within that group.
+- A confirmed defect that predates the local feature stack uses its own bookmark named `ns/bug-<component>-<NN>`. Related defects reuse the component slug and increment `NN` within that component.
+- A defect introduced by a local feature does not receive a later bug bookmark. Its correction replaces or folds into the originating `nl/patch-*` revision so the stack contains only the intended final implementation.
 - Related Manual Slicer work uses the `sample-slicer` group in stack order: direct Manual entry, editing controls, then direct-entry preview stopping.
 - Related Keyboard View chord-display work uses the `kb-chords` group.
 - Related Kit Sound Drum row-copy work uses the `kit-rows` group.
@@ -229,7 +235,7 @@ Keep the local change stack understandable by grouping related revisions under o
 ### Compatibility and verification
 
 - This convention changes local revision names and organization only. It does not change firmware behavior, build outputs, installation, flashing, or upstream state.
-- A local Jujutsu bookmark listing shows one sequential series for each firmware area or core capability, with no duplicate feature-specific group for the same area.
+- A local Jujutsu bookmark listing shows one sequential series for each feature area, core capability, or pre-existing bug component, with no duplicate feature-specific group for the same area.
 - The stack tip and this document contain only active local behavior. Superseded local behavior is absent rather than preserved as a follow-up cancellation.
 
 ## 9. Panic action
@@ -316,6 +322,7 @@ Let a standard sustain pedal control the live release of notes played from an ex
 - The feature applies through the ordinary internal Synth input path, so DX7 sounds gain the same pedal behavior without a DX7-only setting, sound-file field, or preset conversion.
 - MIDI Learn receives CC64 before this behavior. A player can still learn or unlearn CC64 normally, and a normal learned CC64 mapping may continue to receive its value.
 - Turning the setting Off releases any notes already held by the pedal. Stopping or replacing the receiving Synth, and Panic, also clear the pedal-held state so it cannot leave a later note sounding.
+- Pedal-held note-off handling for all 128 MIDI pitches requires no new memory allocation on the live event path. Low-memory conditions cannot throw, reset, or turn a released pitch into a stuck note; disabling the feature and every target-cleanup path retain the same guarantee.
 - Clip recording retains the physical note-off timing. This deviation does not record pedal events or change saved song, synth, or automation data.
 
 ### Compatibility and boundaries
@@ -413,6 +420,94 @@ Give each Audio track one recognizable color across Song Grid and Audio Clip wav
 - Focused host checks cover positive and negative color stepping, hue-range wraparound, accelerated steps, and crossing the reserved unassigned value. The complete configured host test suite and a local Release firmware build pass.
 - A physical Deluge check covers a fresh Audio track, a second clip in the same Grid column, Grid fine and coarse color changes, both Audio color gestures, multiple visible Row clips sharing one Output, an in-place overdub, an overdub-created Output, save and reload, and an older project whose Audio Output color is unassigned.
 - The physical check confirms the waveform stays in the same hue family as its Grid column while remaining visibly pastel, and that every excluded color and brightness system remains unchanged. No flashing is implied by this check.
+
+## 15. Long-file waveform peak addressing
+
+### Intent
+
+Keep waveform navigation and peak lookup correct across the recorder's supported file range instead of allowing signed 32-bit sample, byte, or cluster arithmetic to wrap and hide the waveform or select unrelated data.
+
+### Required behavior
+
+- Waveform peak collection accepts visible sample positions beyond `INT32_MAX` and derives non-negative byte and cluster positions without signed wrap, including positions around the 2 GiB and 4 GiB byte boundaries.
+- Loaded samples use their recorded audio-data byte length when determining the valid end of the waveform. A live recorder derives its valid byte length from the captured sample count and complete sample-frame width without overflowing the conversion.
+- Each visible column retains a signed sample interval and an unsigned file interval until the code has proved that a narrower index is valid. A request that overflows, precedes the sample, exceeds the valid audio range, or cannot address the sample's cluster collection is treated as unavailable or beyond the waveform; it must not index a negative or wrapped column, byte, or cluster.
+- Zooming, scrolling, pinning a marker, and calculating the rightmost legal viewport remain stable throughout the supported sample length. Zero-length samples open at a valid minimum zoom instead of underflowing.
+- Existing project fields for a saved sample-editor viewport remain signed 32-bit values. Save a viewport only when both values are representable and the zoom is positive; otherwise save the established unset values so reopening uses the full view instead of a wrapped or invisible view.
+
+### Compatibility and boundaries
+
+- Preserve waveform shape, extrema, short-file navigation, marker pinning, sample playback, recording, project format, and the established behavior of representable saved viewports.
+- Do not expand the supported media format, recorder size limit, cluster container, or persistent viewport fields as part of this deviation.
+- Do not allocate memory, load extra clusters, or add background work merely to handle wide positions. Existing failures to make sample data available remain retryable through the established renderer path.
+- Reversed row mapping is governed separately by deviation 16. OLED presentation is governed separately by deviation 17.
+
+### Verification contract
+
+- Focused host checks cover signed addition with negative, zero-crossing, maximum, and overflowing positions; byte positions immediately below and at 2 GiB and 4 GiB; sample positions above `INT32_MAX`; invalid frame widths; byte multiplication overflow; and invalid cluster-size magnitudes.
+- Source review confirms that loaded and live-recorded lengths take their respective checked paths, all narrowing occurs after explicit bounds checks, and a final-cluster byte limit is calculated from the full valid audio byte position.
+- Compile the waveform renderer, basic navigator, and sample-marker editor with the target ARM Release toolchain, then complete the configured host suite and a local Release firmware build.
+
+## 16. Reversed half-open waveform row ranges
+
+### Intent
+
+Make a reversed single-row waveform mirror the requested display interval without producing a negative source column, dropping an edge column, or reading outside the fixed peak arrays.
+
+### Required behavior
+
+- Treat every row request as a half-open interval `[start, end)`. Mirroring within a display of width `W` maps it to `[W - end, W - start)`.
+- Reversing the full 16-column pad interval therefore remains `[0, 16)`. Reversing either one-column edge interval stays one column wide and inside the display. Partial intervals retain their width and mirror to the opposite side.
+- Reject a peak-collection request before touching cached column state when its start is negative, its end precedes its start, or its end exceeds the display width.
+- After a valid reversed lookup, output columns continue to read the corresponding mirrored source peaks and retain the established amplitude and color treatment.
+
+### Compatibility and boundaries
+
+- Preserve all forward waveform rendering, peak analysis, sample and recorder access, display width, Audio Clip color, collapse animation, and row ownership.
+- Do not clamp or silently reshape an invalid caller range. Report failure through the renderer's established incomplete-result path so the caller cannot mistake invalid cached data for a finished waveform.
+- This contract applies to the generic single-row pad renderer. OLED marker and contour presentation remains a separate deviation.
+
+### Verification contract
+
+- Focused host checks cover the full display, both one-column edges, and several partial half-open intervals, asserting width preservation and in-bounds mirrored endpoints.
+- Source review confirms that range validation precedes every `colStatus`, minimum, or maximum array access and that reversed output columns use the matching mirrored source column.
+- Compile the affected waveform renderer with the target ARM Release toolchain, run the focused host checks together with the long-file regression, and complete the configured host suite and local Release build.
+
+## 17. OLED sample-editing waveform companions
+
+### Intent
+
+Show sample shape and the edited region on an OLED Deluge without adding sample analysis, storage traffic, audio work, background animation, or repeated display transfers while the view is unchanged.
+
+### Required behavior
+
+- `SampleMarkerEditor` shows a monochrome outline of the currently visible sample region beneath a compact marker header. This applies to instrument Sample start, end, loop-start, and loop-end editing and to Audio Clip start and end editing.
+- The selected sample marker is a clear full-height bound. Other relevant start, loop, and end markers remain visible as smaller ticks without covering the waveform.
+- Horizontal scrolling and zooming update the OLED waveform and marker positions only after the visible region changes. Reversed samples preserve the same left-to-right relationship as the pad waveform.
+- The Slicer owns its OLED page in both Region and Manual/Lazy modes instead of appearing as a small overlay on the sample browser.
+- Region mode shows a compact region-count header, the sample outline, and equal-region divisions only when they remain far enough apart to read as distinct marks.
+- Manual/Lazy mode shows the selected slice number, slice count, and current start value with the sample outline. All slice starts remain visible as small ticks, while the selected slice start and end are clear full-height bounds.
+- Adjusting a Manual/Lazy start keeps the waveform visible; temporary text feedback must not cover the waveform. Slice selection, creation, deletion, count, mode, boundary, and successful viewport changes update the OLED when their displayed state changes.
+- The OLED outline defaults to 128 independently measured peak ranges across its 128 columns, mapping one range to each physical column and providing eight times the 16-pad horizontal resolution. A build-time setting may select 16, 32, 64, or 128 equal display ranges without changing the visible editing behavior outside waveform detail and analysis cost.
+- Each group of adjacent OLED ranges that occupies one pad column covers exactly the same half-open sample interval as that pad column, including when the visible sample count does not divide evenly into display ranges. When enough distinct source samples are visible to address every range independently, each sample is measured by the same range that its horizontal display projection occupies. At tighter zooms, adjacent ranges deliberately share sample ownership rather than implying detail that does not exist. Ranges with identical half-open sample ownership reuse one collected peak result instead of repeating sample analysis.
+- If cached waveform amplitude is unavailable for part of the view, every successfully measured part remains visible while the unavailable part stays blank and can be retried by the normal editing redraw path. OLED rendering must not initiate sample analysis, decoding, cluster loading, storage access, memory allocation, or audio-engine servicing to fill it.
+- The companion consumes the generic renderer behavior from deviations 15 and 16: valid long recordings remain visible when zoomed out, and reversed views remain inside the same visible half-open range as the pad waveform.
+- A static editor schedules no waveform-driven display refreshes after its current state has been drawn. Playback, audition, marker blinking, and periodic graphics routines do not animate or refresh the OLED waveform.
+
+### Compatibility and boundaries
+
+- Preserve the pad waveform's viewport, layout, colors, markers, and navigation, plus marker limits, slice calculations, playback, audition, saving, audio processing, control gestures, and project format. On the two OLED editing surfaces, each pad column may show more precise extrema from the same visible region; this refinement must not trigger a second sample-analysis pass.
+- Preserve all 7SEG behavior. Do not add an OLED waveform to Sample Browser, idle Audio Clip View, Session, Arranger, recording screens, or other unrelated views.
+- Do not add a playback cursor, stereo lanes, filled amplitude bars, inverted selection, a project-persistent or Audio-Clip-wide waveform cache, a timer, or a background waveform task.
+- OLED waveform rendering remains display-only and must never run from an audio-rendering path. A physical power comparison is required before claiming a battery-life improvement.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused host checks cover the supported display-range counts, exact viewport and pad-column boundary equivalence at remainder-heavy zooms, intentional shared ownership at tight zooms, one-column default range placement, silence, full-scale and asymmetric peaks, reversed views, partial availability and retry, beyond-waveform columns, first and last columns, vertical amplitude bounds, and deterministic fixed work for the cached input width. The generic long-address and reversed-range checks remain owned by deviations 15 and 16.
+- Source review confirms that OLED rendering consumes only already-available peak data, allocates no memory, performs no sample or storage work, adds no graphics or playhead timer, and invalidates OLED only after relevant editor state changes.
+- Compare the baseline and changed Release ELF sizes, run the complete configured host test suite, and complete a local Release firmware build.
+- On a physical OLED Deluge, check instrument Sample start, end, loop-start, and loop-end; Audio Clip start and end; zoomed, scrolled, and reversed views; Slicer Region divisions; and Manual/Lazy slice selection and boundary movement. Leave each editor idle while audio, storage streaming, CV output, and optional OLED mirroring are active, and confirm the waveform remains readable without visible display churn or new audio interruption. This check does not authorize flashing.
 
 ## Maintaining this document
 

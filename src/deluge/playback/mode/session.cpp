@@ -2179,6 +2179,9 @@ bool Session::wantsToDoTempolessRecord(int32_t newPos) {
 			if (clip->type != ClipType::AUDIO) {
 				return false; // Cos there's a non-audio clip playing or recording
 			}
+			if (!clip->isEmpty(false)) {
+				return false;
+			}
 
 			if (!clip->wantsToBeginLinearRecording(currentSong)) {
 				return false;

@@ -193,10 +193,12 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
 	if (!recorder) {
 		return; // Shouldn't ever happen?
 	}
+	SampleRecorder* completedRecorder = recorder;
 
 	// Got to check reachedMaxFileSize here, cos that'll go true a bit before cardRoutine() sets status to ERROR
 	// also check if we haven't captured any samples (which can happen with threshold recording)
-	if (recorder->status == RecorderStatus::ABORTED || recorder->reachedMaxFileSize || !recorder->numSamplesCaptured) {
+	if (completedRecorder->status == RecorderStatus::ABORTED || completedRecorder->reachedMaxFileSize
+	    || !completedRecorder->numSamplesCaptured) {
 		abortRecording();
 		return;
 	}
@@ -212,10 +214,10 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
 		}
 	}
 
-	recorder->pointerHeldElsewhere = false;
+	completedRecorder->pointerHeldElsewhere = false;
 
-	recorder->endSyncedRecording(buttonLatencyForTempolessRecord); // Must call before setSample(), cos it sets up
-	                                                               // important stuff like the sample length
+	// Must call before setSample(), cos it sets up important stuff like the sample length.
+	completedRecorder->endSyncedRecording(buttonLatencyForTempolessRecord);
 
 	// SampleRecorder will also call sampleNeedsReRendering() when "capturing" is finished, but in plenty of cases, that
 	// will have happened in the above call to endSyncedRecording(), and our sample hasn't been set yet, so that won't
@@ -224,6 +226,9 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
 		getRootUI()->clipNeedsReRendering(this);
 	}
 
+	// clear() aborts the Clip's active recorder when no clock is running. Finalization still needs the completed
+	// recorder below, so release the Clip's recording-state pointer before replacing an existing sample.
+	recorder = nullptr;
 	if (!isEmpty()) {
 		clear(nullptr, modelStack, true, true);
 	}
@@ -233,20 +238,18 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
 	// 	ao->mode = AudioOutputMode::player;
 	// }
 	originalLength = loopLength;
-	sampleHolder.filePath.set(&recorder->sample->filePath);
-	sampleHolder.setAudioFile(recorder->sample, sampleControls.isCurrentlyReversed(), true,
+	sampleHolder.filePath.set(&completedRecorder->sample->filePath);
+	sampleHolder.setAudioFile(completedRecorder->sample, sampleControls.isCurrentlyReversed(), true,
 	                          CLUSTER_DONT_LOAD); // Adds a reason to the first Cluster(s). Must call this after
 	                                              // endSyncedRecording(), which puts some final values in the Sample
 
 	renderData.xScroll = -1; // Force re-render - though this would surely happen anyway
 
-	if (recorder->recordingExtraMargins) {
+	if (completedRecorder->recordingExtraMargins) {
 		attack = kAudioClipDefaultAttackIfPreMargin; // TODO: make these undoable?
 	}
 
 	isUnfinishedAutoOverdub = false;
-
-	recorder = nullptr;
 
 	name.set(sampleHolder.filePath.get());
 }

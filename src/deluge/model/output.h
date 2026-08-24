@@ -206,20 +206,20 @@ public:
 		outputRecordingThisOutput = output;
 	}
 	bool addRecorder(SampleRecorder* newRecorder) {
-		if (recorder) {
+		if (!newRecorder || recorder) {
 			return false;
 		}
 		recorder = newRecorder;
 		return true;
 	}
-	// returns whether a recorder was removed
-	bool removeRecorder() {
-		if (recorder) {
-			recorder->removeFromOutput();
-			recorder = nullptr;
-			return true;
+	// Removes expectedRecorder only if it is still the recorder attached to this output.
+	bool removeRecorder(SampleRecorder* expectedRecorder) {
+		if (!expectedRecorder || recorder != expectedRecorder) {
+			return false;
 		}
-		return false;
+		recorder->removeFromOutput();
+		recorder = nullptr;
+		return true;
 	}
 	Output* getOutputRecordingThis() { return outputRecordingThisOutput; }
 	// only for audio outputs, will be used for instruments when I implement routing notes between clips

@@ -353,6 +353,36 @@ Make the Song Grid's existing track columns visible before a clip is launched or
 - A local Release build and the configured host test suite pass.
 - A physical Deluge check compares an empty existing-track column, an empty non-track column, inactive clip cells, active or playing clip cells, and a scrolled Grid. It confirms that the structural base is visible but subordinate to every established clip-state color and brightness. No flashing is implied by this check.
 
+## 13. Repeated Audio Looper recording safety
+
+### Intent
+
+Let a player record repeatedly into the same Audio Clip in `Looper/FX` mode without emptying the Clip, corrupting the active recorder, or crashing on a later pass.
+
+### Required behavior
+
+- An empty Audio Clip may use the established first-take recording flow in which Record followed by Play starts without the project clock and stopping the take derives the project tempo.
+- After that Audio Clip contains a sample, another recording pass into the same `Looper/FX` Clip uses the established project clock. A populated Clip must never re-enter the first-take tempo-establishing flow.
+- Stopping a valid later pass replaces the Clip's prior sample with the completed recording. The Clip remains present in the same song location, retains its activation and `Looper/FX` monitoring role, and is immediately usable for playback or another recording pass.
+- The prior sample remains assigned until the replacement has completed far enough to be installed. Cancelling a pass, capturing no samples, reaching the file-size limit, or rejecting the recorder before completion must leave the prior sample assigned and the Clip usable.
+- Recorder attachment and detachment are exact-owner operations. A recorder may detach only itself from the Output that currently owns it. A failed attempt to attach a second recorder must not detach, abort, or replace the recorder already attached to that Output.
+- Recorder detachment is safe when repeated and safe after the recorder has already finished or detached. Destroying an unattached or stale recorder must not change another recorder or its Output.
+
+### Compatibility and boundaries
+
+- Preserve continuous microphone or line-input monitoring in `Looper/FX`, the existing first-take tempo calculation, normal Clip playback, Clip naming after a successful recording, and the established recording controls.
+- Preserve ordinary Audio Clip cloning and overdub behavior outside `Looper/FX`, including non-Looper inputs, Arrangement recording, and recordings into a newly created Clip.
+- Do not delete, move, deactivate, or recreate the destination Clip as part of a successful replacement. Do not clear other Clips, their samples or automation, unrelated project data, or prior undo history.
+- This deviation does not change the separate cloned-overdub path, redesign Song Grid or Row looping, make late storage failures transactional, add a recording mode, change audio routing or file formats, repair unrelated held-Clip cancellation gestures, flash firmware, publish a build, or submit an upstream change.
+
+### Verification contract
+
+- Focused host checks cover empty-versus-populated first-take eligibility and exact-recorder Output detachment where the host harness can represent those objects. The complete configured host test suite and a local Release firmware build pass.
+- On a physical Deluge, create a new Audio Clip, select microphone or line input with Audio Output set to `Looper/FX`, and complete the first Record + Play + Play-stop take. Confirm that it establishes tempo and remains playable.
+- In that same Clip, complete at least ten further Record + Play + Play-stop passes. After every pass, confirm that the Clip remains present, contains the latest completed take, continues monitoring as before, and can immediately begin the next pass without freezing or crashing.
+- During separate later passes, cancel before completion and stop once without captured audio. Confirm that the previous completed take remains assigned and playable.
+- Physical verification remains a human-controlled step and does not authorize flashing or installation.
+
 ## Maintaining this document
 
 Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.

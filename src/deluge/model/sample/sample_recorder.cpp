@@ -57,7 +57,9 @@ SampleRecorder::~SampleRecorder() {
 	if (sample != nullptr) {
 		detachSample();
 	}
-	outputRecordingFrom->removeRecorder();
+	if (outputRecordingFrom) {
+		outputRecordingFrom->removeRecorder(this);
+	}
 }
 
 // This can be called when this SampleRecorder is destructed routinely - or earlier if we've aborted and the sample file
@@ -905,7 +907,7 @@ void SampleRecorder::finishCapturing() {
 		getRootUI()->sampleNeedsReRendering(sample);
 	}
 	if (outputRecordingFrom) {
-		outputRecordingFrom->removeRecorder();
+		outputRecordingFrom->removeRecorder(this);
 	}
 }
 

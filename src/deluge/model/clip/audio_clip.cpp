@@ -27,6 +27,7 @@
 #include "model/clip/clip_instance.h"
 #include "model/consequence/consequence_output_existence.h"
 #include "model/model_stack.h"
+#include "model/output_colour.h"
 #include "model/sample/sample.h"
 #include "model/sample/sample_recorder.h"
 #include "model/song/song.h"
@@ -1261,7 +1262,19 @@ Error AudioClip::setOutput(ModelStackWithTimelineCounter* modelStack, Output* ne
 }
 
 RGB AudioClip::getColour() {
-	return RGB::fromHuePastel(colourOffset * -8 / 3);
+	if (!output) {
+		return RGB::fromHuePastel(colourOffset * -8 / 3);
+	}
+
+	return RGB::fromHuePastel(output->getOrAssignColour());
+}
+
+void AudioClip::changeColour(int32_t offset) {
+	// Retain the legacy per-clip value so an older firmware can still read a meaningful fallback colour.
+	colourOffset += offset;
+	if (output) {
+		output->changeColour(deluge::output_colour::audioClipHueOffset(offset));
+	}
 }
 
 void AudioClip::quantizeLengthForArrangementRecording(ModelStackWithTimelineCounter* modelStack,

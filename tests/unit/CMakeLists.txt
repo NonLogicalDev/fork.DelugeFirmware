@@ -66,6 +66,8 @@ file(GLOB_RECURSE deluge_SOURCES
         ../../src/deluge/gui/ui/browser/default_name.cpp
         # For generated slice-name tests
         ../../src/deluge/model/drum/generated_slice_name.cpp
+        # For Output colour stepping tests
+        ../../src/deluge/model/output_colour.cpp
 )
 
 add_executable(UnitTests
@@ -83,6 +85,7 @@ add_executable(UnitTests
         name_compare_tests.cpp
         default_name_tests.cpp
         generated_slice_name_tests.cpp
+        output_colour_tests.cpp
         rgb_tests.cpp
         notes_state_tests.cpp
 )

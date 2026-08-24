@@ -71,6 +71,7 @@ public:
 	Error setOutput(ModelStackWithTimelineCounter* modelStack, Output* newOutput,
 	                AudioClip* favourClipForCloningParamManager = nullptr);
 	RGB getColour();
+	void changeColour(int32_t offset);
 	bool currentlyScrollableAndZoomable() override;
 	void getScrollAndZoomInSamples(int32_t xScroll, int32_t xZoom, int64_t* xScrollSamples, int64_t* xZoomSamples);
 	void clear(Action* action, ModelStackWithTimelineCounter* modelStack, bool clearAutomation,

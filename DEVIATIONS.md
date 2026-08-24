@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains twelve deviations:
+The local stack currently contains fourteen deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -18,6 +18,8 @@ The local stack currently contains twelve deviations:
 10. Copy, paste, and reorder a Kit Sound Drum row.
 11. Add optional incoming MIDI sustain-pedal support for internal Synth tracks.
 12. Show existing Song Grid track columns with a faint neutral base.
+13. Protect repeated recording into one Audio Clip in `Looper/FX` mode.
+14. Make Audio Clip waveforms follow their Song Grid track color.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -382,6 +384,35 @@ Let a player record repeatedly into the same Audio Clip in `Looper/FX` mode with
 - In that same Clip, complete at least ten further Record + Play + Play-stop passes. After every pass, confirm that the Clip remains present, contains the latest completed take, continues monitoring as before, and can immediately begin the next pass without freezing or crashing.
 - During separate later passes, cancel before completion and stop once without captured audio. Confirm that the previous completed take remains assigned and playable.
 - Physical verification remains a human-controlled step and does not authorize flashing or installation.
+
+## 14. Song Grid and Audio Clip track color
+
+### Intent
+
+Give each Audio track one recognizable color across Song Grid and Audio Clip waveforms instead of maintaining unrelated track and clip colors.
+
+### Required behavior
+
+- The Song Grid track color is the authoritative hue for every Audio Clip attached to that Audio Output.
+- Every full-screen and single-row Audio Clip waveform renders a pastel form of that hue while retaining its established sample-shape and amplitude brightness.
+- A newly created Audio Clip uses its track color on its first render. A new clip in an existing Grid column immediately matches that column, and multiple Audio Clips attached to one Audio Output always share one waveform hue.
+- Changing an Audio track's color through the Song Grid updates every waveform attached to that track on its next render. Fine and coarse Grid color changes never leave the track in the reserved unassigned-color state.
+- The established Shift plus Vertical Encoder color gesture in Audio Clip View changes the shared Audio track color. The equivalent Shift plus held-clip gesture in Row Song View does the same and redraws every visible Audio Clip on that Output.
+- An in-place overdub keeps the existing Output color. An overdub that creates a new Audio Output receives and then follows that new Grid column's color.
+- The shared Output color survives save and reload through the established project format. Legacy per-clip color data remains readable and writable for compatibility, but it is only a fallback while an Audio Clip is temporarily unattached from an Output.
+
+### Compatibility and boundaries
+
+- Do not change Instrument Clip note colors, Kit-row colors, section colors, Arranger clip-instance colors, or the Song Grid's active, inactive, playing, selected, armed, solo, recording, MIDI-learn, and pulse brightness behavior.
+- Do not change waveform shape, amplitude analysis, sample data, audio playback, recording, overdub routing, track order, clip placement, or undo history.
+- A project whose Audio Output has no assigned color acquires one nonzero track color before its waveform is shown. The reserved unassigned value must never appear as a temporary visible red waveform or cause a later Grid render to choose a different hue.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused host checks cover positive and negative color stepping, hue-range wraparound, accelerated steps, and crossing the reserved unassigned value. The complete configured host test suite and a local Release firmware build pass.
+- A physical Deluge check covers a fresh Audio track, a second clip in the same Grid column, Grid fine and coarse color changes, both Audio color gestures, multiple visible Row clips sharing one Output, an in-place overdub, an overdub-created Output, save and reload, and an older project whose Audio Output color is unassigned.
+- The physical check confirms the waveform stays in the same hue family as its Grid column while remaining visibly pastel, and that every excluded color and brightness system remains unchanged. No flashing is implied by this check.
 
 ## Maintaining this document
 

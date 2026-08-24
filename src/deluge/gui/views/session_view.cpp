@@ -82,6 +82,7 @@
 #include "util/functions.h"
 #include "util/try.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <new>
 
@@ -1442,12 +1443,19 @@ ActionResult SessionView::verticalEncoderAction(int32_t offset, bool inCardRouti
 		    && (Buttons::isShiftButtonPressed() || clipWasSelectedWithShift)) {
 
 			Clip* clip = getClipOnScreen(selectedClipYDisplay);
-			if (!clip)
+			if (!clip) {
 				return ActionResult::NOT_DEALT_WITH;
+			}
 
-			clip->colourOffset += offset;
-
-			requestRendering(this, 1 << selectedClipYDisplay, 0);
+			if (clip->type == ClipType::AUDIO) {
+				static_cast<AudioClip*>(clip)->changeColour(offset);
+				// Traditional Row overdubs may share one Audio Output, so every visible sibling must redraw.
+				requestRendering(this, 0xFFFFFFFF, 0);
+			}
+			else {
+				clip->colourOffset += offset;
+				requestRendering(this, 1 << selectedClipYDisplay, 0);
+			}
 
 			return ActionResult::DEALT_WITH;
 		}
@@ -1671,7 +1679,6 @@ Error setPresetOrNextUnlaunchedOne(InstrumentClip* clip, OutputType outputType, 
 }
 
 constexpr float colourStep = 22.5882352941;
-static float lastColour = 192 - colourStep + 1;
 
 Clip* SessionView::createNewClip(OutputType outputType, int32_t yDisplay) {
 	Clip* clip = nullptr;
@@ -3409,13 +3416,7 @@ RGB SessionView::gridRenderClipColor(Clip* clip, int32_t x, int32_t y, bool rend
 		}
 	}
 
-	// Set a random colour if unset and convert to result colour
-	if (clip->output->colour == 0) {
-		lastColour = std::fmod(lastColour + colourStep + 192, 192);
-		clip->output->colour = lastColour;
-	}
-
-	RGB resultColour = RGB::fromHue(clip->output->colour);
+	RGB resultColour = RGB::fromHue(clip->output->getOrAssignColour());
 
 	// Black phase of arm flashing
 	if (view.clipArmFlashOn && clip->armState != ArmState::OFF) {
@@ -4489,13 +4490,10 @@ ActionResult SessionView::gridHandleScroll(int32_t offsetX, int32_t offsetY) {
 		auto track = gridTrackFromX(gridFirstPressedX, gridTrackCount());
 		if (track != nullptr) {
 			if (Buttons::isButtonPressed(hid::button::Y_ENC)) {
-				track->colour += offsetY;
-				if (track->colour == 0) {
-					track->colour += offsetY;
-				}
+				track->changeColour(offsetY);
 			}
 			else {
-				track->colour = static_cast<int16_t>(track->colour + (colourStep * offsetY) + 192) % 192;
+				track->changeColour(static_cast<int32_t>(std::floor(colourStep * offsetY)));
 			}
 			requestRendering(this);
 		}

@@ -24,10 +24,17 @@
 #include "model/clip/instrument_clip.h"
 #include "model/consequence/consequence_clip_existence.h"
 #include "model/model_stack.h"
+#include "model/output_colour.h"
 #include "model/song/clip_iterators.h"
 #include "model/song/song.h"
 #include "processing/engines/audio_engine.h"
 #include "storage/storage_manager.h"
+#include <cmath>
+
+namespace {
+constexpr float kDefaultColourStep = 22.5882352941;
+float lastAssignedColour = 192 - kDefaultColourStep + 1;
+} // namespace
 
 Output::Output(OutputType newType) : type(newType) {
 	mutedInArrangementMode = false;
@@ -42,6 +49,22 @@ Output::Output(OutputType newType) : type(newType) {
 	armedForRecording = false;
 
 	modKnobMode = 1;
+}
+
+int16_t Output::getOrAssignColour() {
+	if (colour == 0) {
+		lastAssignedColour = std::fmod(lastAssignedColour + kDefaultColourStep + 192, 192);
+		colour = static_cast<int16_t>(lastAssignedColour);
+		if (colour == 0) {
+			colour = 1;
+		}
+	}
+
+	return colour;
+}
+
+void Output::changeColour(int32_t offset) {
+	colour = deluge::output_colour::step(getOrAssignColour(), offset);
 }
 
 Output::~Output() {

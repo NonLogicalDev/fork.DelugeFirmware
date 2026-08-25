@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains eighteen deviations:
+The local stack currently contains nineteen deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -24,6 +24,7 @@ The local stack currently contains eighteen deviations:
 16. Keep reversed single-row waveform ranges inside their half-open display bounds.
 17. Show efficient OLED waveform companions while editing sample bounds and slices.
 18. Show a compact OLED Clip timeline ruler.
+19. Audition the exact Kit row being edited in Waveform Editor.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -547,6 +548,45 @@ Give a player a compact visual reference for progress through the complete Clip 
 - Source review confirms that normal Instrument and Audio Clip views and non-Arranger Clip Automation own the ruler, Automation repaints it after replacing the OLED canvas, inactive delegated Clip views do not invalidate Automation's shared cached frame, existing musical and viewport sources remain authoritative, all mapping work is fixed and bounded, and OLED animation adds no timer, allocation, storage or sample access, audio-path work, direct display transfer, or unchanged redraw.
 - Compare baseline and changed Release ELF sizes, run the complete configured host test suite, and complete a local Release firmware build.
 - On a physical OLED Deluge, check Synth, Kit, MIDI Out, CV, and Audio Clips in their normal Clip views and in non-Arranger Automation Overview, parameter automation, and note Velocity editing while stopped, playing, recording, wrapping, reversing, zooming, and scrolling. Confirm Arranger Automation, Keyboard and Chord layouts remain unchanged; titles and popups remain clear; movement is readable without dominating the screen; and simultaneous CV output, audio playback, recording, and storage streaming show no new interruption. This check does not authorize flashing.
+
+## 19. Waveform Editor exact Kit-row audition
+
+### Intent
+
+Let a player hear the exact Kit Sound Drum whose sample bounds they are editing without leaving Waveform Editor or finding that row's current screen position.
+
+### Required behavior
+
+- In a Kit Sound Drum's Waveform Editor, pressing and holding the Select Encoder auditions the Sound Drum being edited. Releasing Select ends that held audition through the Sound Drum's established playback behavior. Modes that track a held note receive their matching note-off; Once and other no-tail behavior retain their established completion semantics.
+- The audition uses the Sound Drum's current sample Start, End, loop bounds, reverse, transpose, and Cut, Once, or Loop playback settings. The waveform's visible scroll and zoom range do not become playback bounds.
+- The audition remains attached to the Sound Drum that started it. Vertical Kit scrolling, waveform navigation, marker editing, or a later change to the selected Kit row must not redirect its release to another row.
+- The dedicated preview intentionally stays outside the Clip-level Kit arpeggiator. It enters the edited Sound Drum directly through that Drum's normal note path, including its own arpeggiator, sample playback, effects, and the parameter state of the row that began the preview. This prevents the Kit arpeggiator from treating the preview as a numbered Clip row.
+- A Kit active-Clip change ends and resets the dedicated preview before the new Clip becomes active, including Once and other no-tail playback. Releasing the earlier Select hold afterward is harmless and must not affect the new Clip.
+- Select does not start or layer a dedicated preview while that same Sound Drum still has any active voice, including a Once or Cut voice playing to completion and an envelope release tail. Once the Sound Drum has become silent, Select can start the preview normally. This makes a later active-Clip hard stop exclusive to voices created by the dedicated preview.
+- If the original Clip's rows are reordered or its preview row disappears while that Clip remains active, release still targets the original Sound Drum and uses only that Clip's row parameter state. It must not release the row now occupying the old position, leave the Sound Drum's own arpeggiator input held, or borrow parameter state from another Clip. If the original parameter state no longer exists, the preview is stopped and reset rather than released through unrelated state.
+- While Select remains held, the dedicated preview receives the same choke protection as an established held row audition. Other choke-group activity must not silence it. Once the preview ends, is replaced, or is hard-cancelled, that protection ends immediately and normal choke behavior resumes.
+- Select Encoder rotation retains its existing marker-editing behavior while Select is held.
+- Pressing a normal row Audition pad while the dedicated preview is sounding stops the dedicated preview before the row Audition action begins. If a normal row audition is already active, Select must not start a competing preview.
+- A later sequenced note, normal row audition, or MIDI audition of the same Sound Drum replaces the dedicated preview before the new note begins. Releasing the earlier Select hold after that replacement is harmless and must not stop the newer note.
+- The preview follows the Kit's actual active Clip. If the edited Clip cannot become active, Select may audition the same Sound Drum through another active Clip only when that active Clip contains a row assigned to it. While the project clock is active, an active row that is sequenced remains silent so the preview cannot override sequenced playback.
+- Leaving Waveform Editor, including through Back, stops any dedicated preview. Repeated release or exit handling is safe and cannot leave preview ownership latched.
+- Panic or another external all-stop invalidates the dedicated preview. Releasing the earlier Select hold afterward must not send a stale note-off that cuts a later MIDI or row retrigger of the same Sound Drum.
+- If storage work defers the Select action, no preview begins until the deferred press is actually handled, and its deferred release remains able to stop it.
+
+### Compatibility and boundaries
+
+- Preserve normal row Audition pads, Sound Drum selection, marker movement, waveform scroll and zoom, recording, MIDI input, saved project data, and song transport.
+- Do not use the visible Kit row position to identify the preview target and do not record a note merely because the dedicated preview is used.
+- The action applies only to a Kit Sound Drum's Waveform Editor. Sampled Synth and Audio Clip Waveform Editors retain their established playback controls, and modified Select gestures retain their existing behavior.
+- The preview must preserve the Sound Drum's own arpeggiator, choke, effects, sample bounds, and playback-mode behavior. Only the Clip-level Kit arpeggiator is bypassed; unrelated sequenced voices must not be cut.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Compile the affected Waveform Editor source with the target ARM Release toolchain, run the configured formatting checks and host test suite, and complete a local Release firmware build.
+- On a physical Deluge, enter Waveform Editor from a sampled Kit row, scroll the Kit so that row is no longer at its former screen position, and confirm that Select still auditions and releases the edited Sound Drum.
+- Check marker changes while holding Select, Start and End bounds, reverse, transpose, Cut, Once, and Loop, the Sound Drum's own arpeggiator, choke groups and effects, a pre-existing row audition, switching to a normal row Audition pad, repeated Select presses and releases, Back while sounding, and a storage-busy deferred press and release. Start the same Sound Drum normally in Once and Cut modes, and during an audible release tail, then press Select: no dedicated preview may layer over the existing sound. After the Drum becomes silent, Select must preview it normally. While the dedicated preview is held, trigger another choke-group Sound Drum and confirm the preview remains protected; after releasing or replacing it, confirm normal choke behavior resumes. With the clock running, confirm a sequenced active row remains silent. When the edited Clip cannot become active, confirm the same Sound Drum is previewed only if the actual active Clip owns a row for it. Schedule another Clip on the same Kit to launch while Select is held, including Cut, Once, and Loop previews and a destination Clip where that Sound Drum occupies another row index and plays a note. The preview must stop before the active Clip changes, the destination note must start normally, and the later Select release must not target or cut it. Repeat after reordering the original Clip's rows, and remove the original preview row while keeping the Clip active to verify exact-Clip release or the hard-stop fallback without borrowing another Clip's parameters. While Select is held, retrigger the same Sound Drum from a row pad and from MIDI; each new audition must replace the dedicated preview, and the later Select release must not cut it. After Panic, retrigger the same row from MIDI before releasing Select and confirm the stale release does not cut that retrigger. Confirm that no note is recorded and no preview remains stuck.
+- Confirm that sampled Synth and Audio Clip Waveform Editors, modified Select gestures, row audition, recording, and transport remain unchanged. Physical verification remains a human-controlled step and does not authorize flashing or installation.
 
 ## Maintaining this document
 

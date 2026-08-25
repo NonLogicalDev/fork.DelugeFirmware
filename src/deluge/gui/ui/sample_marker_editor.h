@@ -24,6 +24,8 @@
 
 class Sample;
 class MultisampleRange;
+class Kit;
+class SoundDrum;
 struct MarkerColumn;
 
 // This is just for when we're editing a Sample's loop points etc. It mostly makes use of WaveformBasicNavigator,
@@ -95,6 +97,12 @@ private:
 
 	/// Swap a marker to its inverse, if the sample is currently reversed.
 	[[nodiscard]] MarkerType reverseRemap(MarkerType type) const;
+	void beginKitRowAudition();
+	void endKitRowAudition();
+
+	SoundDrum* auditionedKitDrum = nullptr;
+	Kit* auditionedKit = nullptr;
+	bool kitRowAuditionStarted = false;
 };
 
 extern SampleMarkerEditor sampleMarkerEditor;

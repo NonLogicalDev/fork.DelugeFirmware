@@ -34,7 +34,10 @@
 #include "hid/matrix/matrix_driver.h"
 #include "model/clip/audio_clip.h"
 #include "model/clip/clip.h"
+#include "model/clip/instrument_clip.h"
+#include "model/clip/instrument_clip_minder.h"
 #include "model/instrument/instrument.h"
+#include "model/instrument/kit.h"
 #include "model/model_stack.h"
 #include "model/sample/sample.h"
 #include "model/song/song.h"
@@ -43,6 +46,7 @@
 #include "playback/playback_handler.h"
 #include "processing/engines/audio_engine.h"
 #include "processing/sound/sound.h"
+#include "processing/sound/sound_drum.h"
 #include "processing/source.h"
 #include "storage/multi_range/multisample_range.h"
 #include "util/cfunctions.h"
@@ -130,6 +134,7 @@ bool SampleMarkerEditor::getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) {
 }
 
 bool SampleMarkerEditor::opened() {
+	endKitRowAudition();
 
 	if (getRootUI() == &keyboardScreen) {
 		PadLEDs::skipGreyoutFade();
@@ -395,6 +400,9 @@ ActionResult SampleMarkerEditor::padAction(int32_t x, int32_t y, int32_t on) {
 	// Audition pads - pass to UI beneath
 	if (x == kDisplayWidth + 1) {
 		if (getCurrentClip()->type == ClipType::INSTRUMENT) {
+			if (on) {
+				endKitRowAudition();
+			}
 			instrumentClipView.padAction(x, y, on);
 		}
 		return ActionResult::DEALT_WITH;
@@ -695,8 +703,26 @@ doRender:
 ActionResult SampleMarkerEditor::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	using namespace deluge::hid::button;
 
+	if (b == SELECT_ENC
+	    && (kitRowAuditionStarted
+	        || (!Buttons::isShiftButtonPressed() && getCurrentClip()->type == ClipType::INSTRUMENT
+	            && getCurrentOutputType() == OutputType::KIT && soundEditor.currentSound))) {
+		Buttons::selectButtonPressUsedUp = true;
+		if (inCardRoutine) {
+			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+		}
+
+		if (on) {
+			beginKitRowAudition();
+		}
+		else {
+			endKitRowAudition();
+		}
+		return ActionResult::DEALT_WITH;
+	}
+
 	// Back button
-	if (b == BACK) {
+	else if (b == BACK) {
 		if (on && !currentUIMode) {
 			if (inCardRoutine) {
 				return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
@@ -726,9 +752,69 @@ ActionResult SampleMarkerEditor::buttonAction(deluge::hid::Button b, bool on, bo
 }
 
 ActionResult SampleMarkerEditor::exitUI() {
+	endKitRowAudition();
 	display->setNextTransitionDirection(-1);
 	close();
 	return ActionResult::ACTIONED_AND_CAUSED_CHANGE;
+}
+
+void SampleMarkerEditor::beginKitRowAudition() {
+	if (kitRowAuditionStarted || isUIModeActive(UI_MODE_AUDITIONING)) {
+		return;
+	}
+
+	InstrumentClip* clip = getCurrentInstrumentClip();
+	Kit* kit = getCurrentKit();
+	SoundDrum* drum = static_cast<SoundDrum*>(soundEditor.currentSound);
+	if (!clip || !kit || !drum || drum->kit != kit || kit->isAnyAuditioningHappening()) {
+		return;
+	}
+
+	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+	InstrumentClipMinder::makeCurrentClipActiveOnInstrumentIfPossible(modelStack);
+
+	Clip* activeClip = kit->getActiveClip();
+	if (!activeClip || activeClip->type != ClipType::INSTRUMENT || activeClip->output != kit) {
+		return;
+	}
+	auto* activeInstrumentClip = static_cast<InstrumentClip*>(activeClip);
+
+	int32_t noteRowIndex;
+	NoteRow* noteRow = activeInstrumentClip->getNoteRowForDrum(drum, &noteRowIndex);
+	if (!noteRow) {
+		return;
+	}
+
+	auto* modelStackWithNoteRow =
+	    modelStack->addTimelineCounter(activeInstrumentClip)->addNoteRow(noteRowIndex, noteRow);
+	if ((playbackHandler.isEitherClockActive() && noteRow->sequenced)
+	    || (noteRow->sequenced && noteRow->isDroning(modelStackWithNoteRow->getLoopLength()))) {
+		return;
+	}
+
+	if (!kit->beginDirectSoundDrumAudition(modelStackWithNoteRow, drum, kit->defaultVelocity, zeroMPEValues)) {
+		return;
+	}
+
+	auditionedKitDrum = drum;
+	auditionedKit = kit;
+	kitRowAuditionStarted = true;
+}
+
+void SampleMarkerEditor::endKitRowAudition() {
+	SoundDrum* drum = auditionedKitDrum;
+	Kit* kit = auditionedKit;
+	bool started = kitRowAuditionStarted;
+	auditionedKitDrum = nullptr;
+	auditionedKit = nullptr;
+	kitRowAuditionStarted = false;
+
+	if (!started || !drum || !kit) {
+		return;
+	}
+
+	kit->endDirectSoundDrumAudition(currentSong, drum);
 }
 
 static const uint32_t zoomUIModes[] = {UI_MODE_HOLDING_HORIZONTAL_ENCODER_BUTTON, UI_MODE_AUDITIONING, 0};

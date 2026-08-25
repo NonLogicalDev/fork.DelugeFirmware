@@ -134,6 +134,10 @@ public:
 	void beginAuditioningforDrum(ModelStackWithNoteRow* modelStack, Drum* drum, int32_t velocity,
 	                             int16_t const* mpeValues, int32_t fromMIDIChannel = MIDI_CHANNEL_NONE);
 	void endAuditioningForDrum(ModelStackWithNoteRow* modelStack, Drum* drum, int32_t velocity = kDefaultLiftValue);
+	bool beginDirectSoundDrumAudition(ModelStackWithNoteRow* modelStack, SoundDrum* drum, int32_t velocity,
+	                                  int16_t const* mpeValues);
+	void endDirectSoundDrumAudition(Song* song, SoundDrum* expectedDrum = nullptr);
+	bool isDirectSoundDrumAuditionActive(const SoundDrum* drum) const { return directlyAuditionedSoundDrum == drum; }
 	void offerBendRangeUpdate(ModelStack* modelStack, MIDICable& cable, int32_t channelOrZone, int32_t whichBendRange,
 	                          int32_t bendSemitones) override;
 
@@ -185,4 +189,7 @@ private:
 	                                ParamManager* paramManager, std::span<StereoSample> output);
 	ArpeggiatorSettings* getArpSettings(InstrumentClip* clip = nullptr);
 	void renderNonAudioArpPostOutput(std::span<StereoSample> output);
+
+	SoundDrum* directlyAuditionedSoundDrum = nullptr;
+	InstrumentClip* directSoundDrumAuditionClip = nullptr;
 };

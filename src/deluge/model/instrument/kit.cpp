@@ -1039,6 +1039,14 @@ void Kit::setupPatching(ModelStackWithTimelineCounter* modelStack) {
 }
 
 bool Kit::setActiveClip(ModelStackWithTimelineCounter* modelStack, PgmChangeSend maySendMIDIPGMs) {
+	Clip* newClip = modelStack ? (Clip*)modelStack->getTimelineCounter() : nullptr;
+	if (directlyAuditionedSoundDrum && newClip != activeClip) {
+		SoundDrum* drum = directlyAuditionedSoundDrum;
+		directlyAuditionedSoundDrum = nullptr;
+		directSoundDrumAuditionClip = nullptr;
+		drum->killAllVoices();
+	}
+
 	bool clipChanged = Instrument::setActiveClip(modelStack, maySendMIDIPGMs);
 
 	if (clipChanged) {
@@ -1284,6 +1292,10 @@ int32_t Kit::doTickForwardForArp(ModelStack* modelStack, int32_t currentPos) {
 void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum, uint8_t velocity,
                           int16_t const* mpeValues, int32_t fromMIDIChannel, uint32_t sampleSyncLength,
                           int32_t ticksLate, uint32_t samplesLate) {
+	if (drum == directlyAuditionedSoundDrum) {
+		endDirectSoundDrumAudition(modelStack->song, static_cast<SoundDrum*>(drum));
+	}
+
 	ArpeggiatorSettings* arpSettings = getArpSettings();
 	ArpReturnInstruction kitInstruction;
 	// Run everything by the Kit Arp...
@@ -1886,6 +1898,7 @@ bool Kit::isNoteRowStillAuditioningAsLinearRecordingEnded(NoteRow* noteRow) {
 }
 
 void Kit::stopAnyAuditioning(ModelStack* modelStack) {
+	endDirectSoundDrumAudition(modelStack->song);
 
 	ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(activeClip);
 
@@ -1901,12 +1914,89 @@ void Kit::stopAnyAuditioning(ModelStack* modelStack) {
 }
 
 bool Kit::isAnyAuditioningHappening() {
+	if (directlyAuditionedSoundDrum) {
+		return true;
+	}
+
 	for (Drum* thisDrum = firstDrum; thisDrum; thisDrum = thisDrum->next) {
 		if (thisDrum->auditioned) {
 			return true;
 		}
 	}
 	return false;
+}
+
+bool Kit::beginDirectSoundDrumAudition(ModelStackWithNoteRow* modelStack, SoundDrum* drum, int32_t velocity,
+                                       int16_t const* mpeValues) {
+	if (!modelStack || !drum || drum->kit != this) {
+		return false;
+	}
+
+	auto* clip = static_cast<InstrumentClip*>(modelStack->getTimelineCounterAllowNull());
+	NoteRow* noteRow = modelStack->getNoteRowAllowNull();
+	if (!clip || clip->output != this || !noteRow || noteRow->drum != drum) {
+		return false;
+	}
+
+	if ((playbackHandler.isEitherClockActive() && noteRow->sequenced)
+	    || (noteRow->sequenced && noteRow->isDroning(modelStack->getLoopLength()))) {
+		return false;
+	}
+	if (drum->hasActiveVoices()) {
+		return false;
+	}
+
+	if (directlyAuditionedSoundDrum) {
+		endDirectSoundDrumAudition(modelStack->song);
+	}
+	if (isAnyAuditioningHappening()) {
+		return false;
+	}
+
+	ParamManager* paramManagerForDrum = &noteRow->paramManager;
+	if (!paramManagerForDrum->containsAnyMainParamCollections()) {
+		FREEZE_WITH_ERROR("E313");
+	}
+
+	ModelStackWithThreeMainThings* modelStackWithThreeMainThings =
+	    modelStack->addOtherTwoThings(drum, paramManagerForDrum);
+	drum->noteOn(modelStackWithThreeMainThings, velocity, mpeValues);
+
+	directlyAuditionedSoundDrum = drum;
+	directSoundDrumAuditionClip = clip;
+	return true;
+}
+
+void Kit::endDirectSoundDrumAudition(Song* song, SoundDrum* expectedDrum) {
+	SoundDrum* drum = directlyAuditionedSoundDrum;
+	if (!drum || (expectedDrum && expectedDrum != drum)) {
+		return;
+	}
+
+	InstrumentClip* clip = directSoundDrumAuditionClip;
+	directlyAuditionedSoundDrum = nullptr;
+	directSoundDrumAuditionClip = nullptr;
+
+	if (!song || drum->kit != this) {
+		drum->killAllVoices();
+		return;
+	}
+
+	int32_t noteRowIndex = 0;
+	NoteRow* noteRow = clip ? clip->getNoteRowForDrum(drum, &noteRowIndex) : nullptr;
+	ParamManager* paramManagerForDrum =
+	    noteRow ? &noteRow->paramManager : song->getBackedUpParamManagerForExactClip(drum, clip);
+	if (!paramManagerForDrum) {
+		drum->killAllVoices();
+		return;
+	}
+
+	char endModelStackMemory[MODEL_STACK_MAX_SIZE];
+	ModelStackWithThreeMainThings* endModelStack = setupModelStackWithSong(endModelStackMemory, song)
+	                                                   ->addTimelineCounter(clip)
+	                                                   ->addNoteRow(noteRow ? noteRowIndex : 0, noteRow)
+	                                                   ->addOtherTwoThings(drum, paramManagerForDrum);
+	drum->noteOff(endModelStack);
 }
 
 // You must supply noteRow if there is an activeClip with a NoteRow for that Drum. The TimelineCounter should be the

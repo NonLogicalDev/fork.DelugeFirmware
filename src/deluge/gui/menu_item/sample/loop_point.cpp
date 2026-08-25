@@ -18,10 +18,12 @@
 #include "loop_point.h"
 
 #include "gui/menu_item/menu_item.h"
+#include "gui/menu_item/multi_range.h"
 #include "gui/ui/keyboard/keyboard_screen.h"
 #include "gui/ui/sample_marker_editor.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/ui_timer_manager.h"
+#include "hid/buttons.h"
 #include "processing/sound/sound.h"
 #include "storage/audio/audio_file_holder.h"
 #include "storage/multi_range/multi_range.h"
@@ -36,7 +38,7 @@ bool LoopPoint::isRelevant(ModControllableAudio* modControllable, int32_t) const
 }
 
 MenuPermission LoopPoint::checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t,
-                                                        MultiRange** currentRange) {
+                                                        ::MultiRange** currentRange) {
 
 	if (!isRelevant(modControllable, sourceId_)) {
 		return MenuPermission::NO;
@@ -57,21 +59,31 @@ MenuPermission LoopPoint::checkPermissionToBeginSession(ModControllableAudio* mo
 	return permission;
 }
 
-void LoopPoint::beginSession(MenuItem* navigatedBackwardFrom) {
+MenuItem* LoopPoint::selectButtonPress() {
+	if (Buttons::isShiftButtonPressed()) {
+		return NO_NAVIGATION;
+	}
+
 	if (getRootUI() == &keyboardScreen) {
 		if (currentUIMode == UI_MODE_AUDITIONING) {
 			keyboardScreen.exitAuditionMode();
 		}
 	}
 
-	soundEditor.shouldGoUpOneLevelOnBegin = true;
 	soundEditor.setCurrentSource(sourceId_);
-	sampleMarkerEditor.markerType = markerType;
 
 	if (const bool success = openUI(&sampleMarkerEditor); !success) {
 		uiTimerManager.unsetTimer(TimerName::SHORTCUT_BLINK);
 	}
+	return NO_NAVIGATION;
 }
+
+bool LoopPoint::shouldEnterSubmenu() {
+	// Range selection is part of shortcut setup, not the user's request to open the graph. Let SoundEditor resolve the
+	// selected range back to its Source menu; later Select presses on that menu invoke selectButtonPress() directly.
+	return soundEditor.getCurrentMenuItem() == &multiRangeMenu;
+}
+
 void LoopPoint::renderInHorizontalMenu(const SlotPosition& slot) {
 	using namespace hid::display;
 	oled_canvas::Canvas& image = OLED::main;

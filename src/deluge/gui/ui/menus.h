@@ -34,6 +34,9 @@ namespace deluge::gui::menu_item {
 class HorizontalMenu;
 class HorizontalMenuGroup;
 class HorizontalMenuContainer;
+namespace submenu {
+class ActualSource;
+}
 } // namespace deluge::gui::menu_item
 
 extern gui::menu_item::patched_param::IntegerNonFM noiseMenu;
@@ -45,10 +48,11 @@ extern gui::menu_item::sample::Start sample0StartMenu;
 extern gui::menu_item::sample::Start sample1StartMenu;
 extern gui::menu_item::sample::End sample0EndMenu;
 extern gui::menu_item::sample::End sample1EndMenu;
+extern gui::menu_item::submenu::ActualSource source0Menu;
+extern gui::menu_item::submenu::ActualSource source1Menu;
 extern gui::menu_item::osc::AudioRecorder sample0RecorderMenu;
 extern gui::menu_item::osc::AudioRecorder sample1RecorderMenu;
-extern gui::menu_item::audio_clip::SampleMarkerEditor audioClipSampleMarkerEditorMenuStart;
-extern gui::menu_item::audio_clip::SampleMarkerEditor audioClipSampleMarkerEditorMenuEnd;
+extern gui::menu_item::audio_clip::SampleMarkerEditor audioClipSampleMarkerEditorMenu;
 extern gui::menu_item::EditName nameEditMenu;
 extern gui::menu_item::EditName drumNameEditMenu;
 extern gui::menu_item::Submenu editNameMenu;

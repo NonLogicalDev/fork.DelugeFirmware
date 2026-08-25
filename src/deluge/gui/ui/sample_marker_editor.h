@@ -97,9 +97,13 @@ private:
 
 	/// Swap a marker to its inverse, if the sample is currently reversed.
 	[[nodiscard]] MarkerType reverseRemap(MarkerType type) const;
+	void switchPlaybackBound();
 	void beginKitRowAudition();
 	void endKitRowAudition();
 
+	Sample* boundSelectionSample = nullptr;
+	MarkerType selectedPlaybackBound = MarkerType::START;
+	bool boundSwitchPressActive = false;
 	SoundDrum* auditionedKitDrum = nullptr;
 	Kit* auditionedKit = nullptr;
 	bool kitRowAuditionStarted = false;

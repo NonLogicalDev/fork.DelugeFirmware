@@ -25,17 +25,13 @@ namespace deluge::gui::menu_item::audio_clip {
 
 class SampleMarkerEditor final : public MenuItem {
 public:
-	SampleMarkerEditor(l10n::String newName, MarkerType newWhichMarker = MarkerType::START)
-	    : MenuItem(newName), whichMarker(newWhichMarker) {}
+	using MenuItem::MenuItem;
 
 	MenuPermission checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
 	                                             ::MultiRange** currentRange) override;
-	void beginSession(MenuItem* navigatedBackwardFrom) override;
-	[[nodiscard]] bool allowToBeginSessionFromHorizontalMenu() override { return true; }
+	MenuItem* selectButtonPress() override;
+	bool shouldEnterSubmenu() override { return false; }
 	void renderInHorizontalMenu(const SlotPosition& slot) override;
-	void getColumnLabel(StringBuf& label) override;
-
-	MarkerType whichMarker;
 };
 
 } // namespace deluge::gui::menu_item::audio_clip

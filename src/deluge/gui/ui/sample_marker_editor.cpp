@@ -135,6 +135,7 @@ bool SampleMarkerEditor::getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) {
 
 bool SampleMarkerEditor::opened() {
 	endKitRowAudition();
+	boundSwitchPressActive = false;
 
 	if (getRootUI() == &keyboardScreen) {
 		PadLEDs::skipGreyoutFade();
@@ -148,6 +149,12 @@ bool SampleMarkerEditor::opened() {
 		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_NO_SAMPLE));
 		return false;
 	}
+
+	if (waveformBasicNavigator.sample != boundSelectionSample) {
+		boundSelectionSample = waveformBasicNavigator.sample;
+		selectedPlaybackBound = MarkerType::START;
+	}
+	markerType = reverseRemap(selectedPlaybackBound);
 
 	waveformBasicNavigator.opened(&getCurrentSampleHolder());
 
@@ -586,6 +593,9 @@ exitAfterRemovingLoopMarker:
 				if (markerPressed >= MarkerType::START) {
 					blinkPhase = (markerType == markerPressed) ? 0 : 1;
 					markerType = markerPressed;
+					if (markerPressed == MarkerType::START || markerPressed == MarkerType::END) {
+						selectedPlaybackBound = reverseRemap(markerPressed);
+					}
 					currentUIMode = UI_MODE_HOLDING_SAMPLE_MARKER;
 					pressX = x;
 					pressY = y;
@@ -703,7 +713,7 @@ doRender:
 ActionResult SampleMarkerEditor::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	using namespace deluge::hid::button;
 
-	if (b == SELECT_ENC
+	if (b == SELECT_ENC && !boundSwitchPressActive
 	    && (kitRowAuditionStarted
 	        || (!Buttons::isShiftButtonPressed() && getCurrentClip()->type == ClipType::INSTRUMENT
 	            && getCurrentOutputType() == OutputType::KIT && soundEditor.currentSound))) {
@@ -717,6 +727,29 @@ ActionResult SampleMarkerEditor::buttonAction(deluge::hid::Button b, bool on, bo
 		}
 		else {
 			endKitRowAudition();
+		}
+		return ActionResult::DEALT_WITH;
+	}
+	else if (b == SELECT_ENC && boundSwitchPressActive) {
+		Buttons::selectButtonPressUsedUp = true;
+		if (inCardRoutine) {
+			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+		}
+
+		if (!on) {
+			boundSwitchPressActive = false;
+		}
+		return ActionResult::DEALT_WITH;
+	}
+	else if (b == SELECT_ENC && on && Buttons::isShiftButtonPressed()) {
+		Buttons::selectButtonPressUsedUp = true;
+		if (inCardRoutine) {
+			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+		}
+
+		boundSwitchPressActive = true;
+		if (currentUIMode == UI_MODE_NONE) {
+			switchPlaybackBound();
 		}
 		return ActionResult::DEALT_WITH;
 	}
@@ -753,9 +786,28 @@ ActionResult SampleMarkerEditor::buttonAction(deluge::hid::Button b, bool on, bo
 
 ActionResult SampleMarkerEditor::exitUI() {
 	endKitRowAudition();
+	boundSwitchPressActive = false;
+	if (markerType == MarkerType::START || markerType == MarkerType::END) {
+		selectedPlaybackBound = reverseRemap(markerType);
+	}
 	display->setNextTransitionDirection(-1);
 	close();
 	return ActionResult::ACTIONED_AND_CAUSED_CHANGE;
+}
+
+void SampleMarkerEditor::switchPlaybackBound() {
+	selectedPlaybackBound = selectedPlaybackBound == MarkerType::START ? MarkerType::END : MarkerType::START;
+	markerType = reverseRemap(selectedPlaybackBound);
+	blinkPhase = 0;
+
+	uiNeedsRendering(this, 0xFFFFFFFF, 0);
+	if (display->haveOLED()) {
+		renderUIsForOled();
+	}
+	else {
+		displayText();
+		display->displayPopup(selectedPlaybackBound == MarkerType::START ? "STRT" : "END", 1);
+	}
 }
 
 void SampleMarkerEditor::beginKitRowAudition() {

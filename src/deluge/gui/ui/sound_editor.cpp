@@ -10,6 +10,7 @@
 #include "gui/menu_item/menu_item.h"
 #include "gui/menu_item/mpe/zone_num_member_channels.h"
 #include "gui/menu_item/multi_range.h"
+#include "gui/menu_item/submenu/actual_source.h"
 #include "gui/ui/audio_recorder.h"
 #include "gui/ui/browser/sample_browser.h"
 #include "gui/ui/keyboard/keyboard_screen.h"
@@ -279,11 +280,11 @@ void SoundEditor::setShortcutsVersion(int32_t newVersion) {
 
 	case SHORTCUTS_VERSION_1:
 
-		paramShortcutsForAudioClips[0][7] = &audioClipSampleMarkerEditorMenuStart;
-		paramShortcutsForAudioClips[1][7] = &audioClipSampleMarkerEditorMenuStart;
+		paramShortcutsForAudioClips[0][7] = &audioClipSampleMarkerEditorMenu;
+		paramShortcutsForAudioClips[1][7] = &audioClipSampleMarkerEditorMenu;
 
-		paramShortcutsForAudioClips[0][6] = &audioClipSampleMarkerEditorMenuEnd;
-		paramShortcutsForAudioClips[1][6] = &audioClipSampleMarkerEditorMenuEnd;
+		paramShortcutsForAudioClips[0][6] = &audioClipSampleMarkerEditorMenu;
+		paramShortcutsForAudioClips[1][6] = &audioClipSampleMarkerEditorMenu;
 
 		paramShortcutsForSounds[0][6] = &sample0EndMenu;
 		paramShortcutsForSounds[1][6] = &sample1EndMenu;
@@ -306,6 +307,24 @@ void SoundEditor::setShortcutsVersion(int32_t newVersion) {
 }
 
 SoundEditor soundEditor{};
+
+namespace {
+
+bool isSampleMarkerEditorLauncher(MenuItem* item) {
+	return util::one_of<MenuItem*>(item, {&audioClipSampleMarkerEditorMenu, &sample0StartMenu, &sample0EndMenu,
+	                                      &sample1StartMenu, &sample1EndMenu});
+}
+
+MenuItem* getSelectedMenuItem(MenuItem* item) {
+	// These are HorizontalMenu objects even when the OLED setting or 7SEG display asks them to render vertically.
+	if (util::one_of<MenuItem*>(item, {&audioClipSampleMenu, &source0Menu, &source1Menu})) {
+		return static_cast<HorizontalMenu*>(item)->getCurrentItem();
+	}
+
+	return item;
+}
+
+} // namespace
 
 SoundEditor::SoundEditor() {
 	currentParamShortcutX = kNoSelection;
@@ -538,6 +557,13 @@ ActionResult SoundEditor::buttonAction(deluge::hid::Button b, bool on, bool inCa
 		if (currentUIMode == UI_MODE_NONE || currentUIMode == UI_MODE_AUDITIONING
 		    || currentUIMode == UI_MODE_NOTES_PRESSED || currentUIMode == UI_MODE_HOLDING_AFFECT_ENTIRE_IN_SOUND_EDITOR
 		    || currentUIMode == UI_MODE_STUTTERING) {
+			// A shifted press on a waveform launcher belongs to the graphical editor, where it switches bounds. Consume
+			// it here so releasing Shift before Select cannot accidentally open the editor from the information screen.
+			if (on && Buttons::isShiftButtonPressed()
+			    && isSampleMarkerEditorLauncher(getSelectedMenuItem(getCurrentMenuItem()))) {
+				Buttons::selectButtonPressUsedUp = true;
+			}
+
 			if (!on && !Buttons::selectButtonPressUsedUp) {
 				if (inCardRoutine) {
 					return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
@@ -997,10 +1023,9 @@ void SoundEditor::updatePadLightsFor(MenuItem* currentItem) {
 	uiTimerManager.unsetTimer(TimerName::SHORTCUT_BLINK);
 
 	if (!inSettingsMenu()
-	    && !util::one_of<MenuItem*>(currentItem,
-	                                {&sample0StartMenu, &sample1StartMenu, &sample0EndMenu, &sample1EndMenu,
-	                                 &audioClipSampleMarkerEditorMenuStart, &audioClipSampleMarkerEditorMenuEnd,
-	                                 &nameEditMenu, &editNameMenu, &drumNameEditMenu})) {
+	    && !util::one_of<MenuItem*>(currentItem, {&sample0StartMenu, &sample1StartMenu, &sample0EndMenu,
+	                                              &sample1EndMenu, &audioClipSampleMarkerEditorMenu, &nameEditMenu,
+	                                              &editNameMenu, &drumNameEditMenu})) {
 
 		memset(sourceShortcutBlinkFrequencies, 255, sizeof(sourceShortcutBlinkFrequencies));
 		memset(sourceShortcutBlinkColours, 0, sizeof(sourceShortcutBlinkColours));
@@ -2284,19 +2309,26 @@ void SoundEditor::mpeZonesPotentiallyUpdated() {
 }
 
 HorizontalMenu* SoundEditor::maybeGetParentMenu(MenuItem* item) {
-	if (util::one_of<MenuItem*>(item, {&sample0StartMenu, &sample1StartMenu, &audioClipSampleMarkerEditorMenuEnd})) {
-		// for sample start/end points we go straight to waveform editor UI
-		return nullptr;
+	if (item == &audioClipSampleMarkerEditorMenu) {
+		return &audioClipSampleMenu;
+	}
+
+	HorizontalMenu* sampleParent = nullptr;
+	if (util::one_of<MenuItem*>(item, {&sample0StartMenu, &sample0EndMenu})) {
+		sampleParent = &source0Menu;
+	}
+	else if (util::one_of<MenuItem*>(item, {&sample1StartMenu, &sample1EndMenu})) {
+		sampleParent = &source1Menu;
 	}
 
 	const auto chain = getCurrentHorizontalMenusChain(false);
 	if (!chain.has_value()) {
-		return nullptr;
+		return sampleParent;
 	}
 
 	const auto it = std::ranges::find_if(chain.value(), [&](HorizontalMenu* menu) { return menu->hasItem(item); });
 	if (it == chain->end()) {
-		return nullptr;
+		return sampleParent;
 	}
 
 	if (util::one_of<MenuItem*>(item, {&file0SelectorMenu, &file1SelectorMenu})) {

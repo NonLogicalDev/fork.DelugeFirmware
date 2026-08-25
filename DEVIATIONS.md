@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains nineteen deviations:
+The local stack currently contains twenty-one deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -25,6 +25,8 @@ The local stack currently contains nineteen deviations:
 17. Show efficient OLED waveform companions while editing sample bounds and slices.
 18. Show a compact OLED Clip timeline ruler.
 19. Audition the exact Kit row being edited in Waveform Editor.
+20. Make Audio Clip Start editing reversible from Audio Clip View.
+21. Make Waveform Editor entry and bound selection explicit.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -522,32 +524,32 @@ Give a player a compact visual reference for progress through the complete Clip 
 
 ### Required behavior
 
-- Normal Instrument Clip View for Synth, Kit, MIDI Out, and CV Clips, normal Audio Clip View, and every non-Arranger Clip Automation surface show a monochrome ruler in the three display rows at the OLED's top visible edge. Supported Automation surfaces include Automation Overview, parameter automation, and note Velocity editing for Instrument and Audio Clips where those modes apply.
+- Normal Instrument Clip View for Synth, Kit, MIDI Out, and CV Clips, normal Audio Clip View, every non-Arranger Clip Automation surface, and every Keyboard View layout show a monochrome ruler in the three display rows at the OLED's top visible edge. Supported Automation surfaces include Automation Overview, parameter automation, and note Velocity editing for Instrument and Audio Clips where those modes apply. Supported Keyboard layouts are Isomorphic, In Key, Piano, Chord, Chord Library, Velocity Drums, and Norns.
 - The ruler's 128 columns always span the complete Clip loop from time zero through its exclusive end. Horizontal scroll, zoom, and Triplet layout changes must not rescale this whole-Clip domain or reset the playhead when it leaves the 16-pad view.
-- A separate clipped span shows the part of the Clip visible on the 16 main pad columns. Horizontal scroll moves that span, zoom changes its width, and a view covering the complete Clip fills the ruler. A pad view entirely outside the Clip shows no false selection.
-- The top row shows played progress, the middle row shows the visible pad range, and the bottom row shows musical marks. Quarter-note marks are one pixel wide. Bar marks are two adjacent pixels wide; a bar at the right edge shifts inward instead of being clipped to one pixel. Clip start and end caps and the live playhead cross all three rows and are drawn over those lanes.
+- In timeline Clip and Automation views, a separate clipped span shows the part of the Clip visible on the 16 main pad columns. Horizontal scroll moves that span, zoom changes its width, and a view covering the complete Clip fills the ruler. A pad view entirely outside the Clip shows no false selection. Keyboard View never shows this span because its pad columns represent playable notes, chords, or drums rather than Clip time.
+- The top row shows played progress and the bottom row shows musical marks. In timeline Clip and Automation views, the middle row shows the visible pad range; in Keyboard View it remains empty except where the Clip caps or live playhead cross it. Quarter-note marks are one pixel wide. Bar marks are two adjacent pixels wide; a bar at the right edge shifts inward instead of being clipped to one pixel. Clip start and end caps and the live playhead cross all three rows and are drawn over those lanes.
 - Quarter-note marks appear when they remain at least four pixels apart across the complete loop. At greater density the ruler uses bar marks and then evenly coarser bar intervals. Marks remain bounded and never merge into a solid block.
 - While the current Clip is actively playing or recording, a three-pixel playhead crosses the ruler and a one-pixel progress segment reaches from Clip time zero to that position. The indicator follows forward, Reverse, and Ping-Pong motion, continues beyond the visible pad range, traverses the OLED once per complete loop, and wraps only at the Clip boundary.
 - A stopped Clip retains its whole-Clip caps, musical marks, and visible-range selection but does not show moving progress. Count-in and an inactive Clip likewise show no false live position.
 - A cloned overdub shown against its source Clip follows the same repeated-position and direction behavior as the established pad playhead.
 - During clocked linear Arrangement Audio recording, the ruler uses the growing live recording extent as its provisional whole-Clip length instead of the maximum-length sentinel, while the playhead remains at the growing right edge. A tempoless first-loop recording has no settled musical length, so it shows an explicit full-width progress and right-edge playhead state without beat marks or a false viewport selection until the musical length is established.
 - Kit Clips with independently looping rows show the master Clip timeline. The single OLED ruler must not imply that all independently looping rows share another row's position.
-- Normal OLED notifications and popups remain visually authoritative over the ruler. Entering Arranger Automation, Keyboard or Chord layouts, a menu, Sound Editor, Song or Arranger View, Sample Browser, Slicer, Sample Marker Editor, stem export, or a view transition removes or suppresses the live ruler update.
+- Normal OLED notifications and popups remain visually authoritative over the ruler. Entering Performance View, Arranger Automation, a menu, Sound Editor, Song or Arranger View, Audio Recorder, Sample Browser, Slicer, Sample Marker Editor, stem export, or a view transition removes or suppresses the live ruler update.
 - Static ruler changes appear immediately after Clip change, scroll, zoom, transport state change, or recording-state change. Moving playback and growing-recording projections occur no more than 20 times per second and only when the visible result changes, including when unrelated OLED content causes a full display redraw between cadence checkpoints.
 
 ### Compatibility and boundaries
 
-- Preserve every existing Clip title, parameter value, icon, popup, side scroller, stem-export display, pad playhead, pad color, navigation gesture, Clip timing rule, recording rule, and project format.
-- Preserve 7SEG behavior and every OLED surface outside normal Instrument and Audio Clip views and non-Arranger Clip Automation.
+- Preserve every existing Clip title, parameter value, icon, popup, side scroller, stem-export display, pad playhead, pad color, navigation gesture, Clip timing rule, recording rule, and project format. In Keyboard View, preserve every layout, playable-pad behavior, recording tick, chord name, latest physical note, layout feedback, and temporary popup.
+- Preserve 7SEG behavior and every OLED surface outside normal Instrument and Audio Clip views, non-Arranger Clip Automation, and Keyboard View.
 - The ruler is display-only. It must not add a separate timer, allocate memory while updating, read samples or storage, scan a Clip's events, run from an audio-rendering path, send an unchanged display frame, or increase per-Clip saved or runtime state.
 - Do not add a Song-level transport ruler, waveform, per-row Kit ruler, playhead trail, animation outside active playback or recording, user setting, color option, flashing, installation, publication, or upstream submission.
 
 ### Verification contract
 
 - Focused host checks cover complete-loop mapping; ordinary, scrolled, zoomed, clipped, and Triplet-derived viewport ranges; quarter, two-pixel bar, right-edge bar, and coarsened marks; maximum supported timeline positions; forward, Reverse, Ping-Pong, wrapped, stopped, playing, and recording positions beyond the pad view; cloned overdubs; clocked Arrangement growth; tempoless first-loop state; exact three-row bounds and lane separation; unchanged-state suppression; full-render cache reuse; and the 20 Hz moving-update ceiling.
-- Source review confirms that normal Instrument and Audio Clip views and non-Arranger Clip Automation own the ruler, Automation repaints it after replacing the OLED canvas, inactive delegated Clip views do not invalidate Automation's shared cached frame, existing musical and viewport sources remain authoritative, all mapping work is fixed and bounded, and OLED animation adds no timer, allocation, storage or sample access, audio-path work, direct display transfer, or unchanged redraw.
+- Source review confirms that normal Instrument and Audio Clip views, non-Arranger Clip Automation, and Keyboard View own the ruler; Automation and Keyboard repaint it after replacing the OLED canvas; Keyboard uses no timeline viewport selection; inactive delegated Clip views do not invalidate another supported surface's shared cached frame; existing musical and viewport sources remain authoritative; all mapping work is fixed and bounded; and OLED animation adds no timer, allocation, storage or sample access, audio-path work, direct display transfer, or unchanged redraw.
 - Compare baseline and changed Release ELF sizes, run the complete configured host test suite, and complete a local Release firmware build.
-- On a physical OLED Deluge, check Synth, Kit, MIDI Out, CV, and Audio Clips in their normal Clip views and in non-Arranger Automation Overview, parameter automation, and note Velocity editing while stopped, playing, recording, wrapping, reversing, zooming, and scrolling. Confirm Arranger Automation, Keyboard and Chord layouts remain unchanged; titles and popups remain clear; movement is readable without dominating the screen; and simultaneous CV output, audio playback, recording, and storage streaming show no new interruption. This check does not authorize flashing.
+- On a physical OLED Deluge, check Synth, Kit, MIDI Out, CV, and Audio Clips in their normal Clip views and in non-Arranger Automation Overview, parameter automation, and note Velocity editing while stopped, playing, recording, wrapping, reversing, zooming, and scrolling. Check all seven Keyboard View layouts while stopped, playing, recording, counting in, switching layouts, showing chord and latest-note feedback, opening and closing a menu, and returning to Instrument Clip View during playback. Confirm Keyboard has no viewport-selection span, Performance View and Arranger Automation remain unchanged, titles and popups remain clear, movement is readable without dominating the screen, and simultaneous CV output, audio playback, recording, and storage streaming show no new interruption. This check does not authorize flashing.
 
 ## 19. Waveform Editor exact Kit-row audition
 
@@ -587,6 +589,77 @@ Let a player hear the exact Kit Sound Drum whose sample bounds they are editing 
 - On a physical Deluge, enter Waveform Editor from a sampled Kit row, scroll the Kit so that row is no longer at its former screen position, and confirm that Select still auditions and releases the edited Sound Drum.
 - Check marker changes while holding Select, Start and End bounds, reverse, transpose, Cut, Once, and Loop, the Sound Drum's own arpeggiator, choke groups and effects, a pre-existing row audition, switching to a normal row Audition pad, repeated Select presses and releases, Back while sounding, and a storage-busy deferred press and release. Start the same Sound Drum normally in Once and Cut modes, and during an audible release tail, then press Select: no dedicated preview may layer over the existing sound. After the Drum becomes silent, Select must preview it normally. While the dedicated preview is held, trigger another choke-group Sound Drum and confirm the preview remains protected; after releasing or replacing it, confirm normal choke behavior resumes. With the clock running, confirm a sequenced active row remains silent. When the edited Clip cannot become active, confirm the same Sound Drum is previewed only if the actual active Clip owns a row for it. Schedule another Clip on the same Kit to launch while Select is held, including Cut, Once, and Loop previews and a destination Clip where that Sound Drum occupies another row index and plays a note. The preview must stop before the active Clip changes, the destination note must start normally, and the later Select release must not target or cut it. Repeat after reordering the original Clip's rows, and remove the original preview row while keeping the Clip active to verify exact-Clip release or the hard-stop fallback without borrowing another Clip's parameters. While Select is held, retrigger the same Sound Drum from a row pad and from MIDI; each new audition must replace the dedicated preview, and the later Select release must not cut it. After Panic, retrigger the same row from MIDI before releasing Select and confirm the stale release does not cut that retrigger. Confirm that no note is recorded and no preview remains stuck.
 - Confirm that sampled Synth and Audio Clip Waveform Editors, modified Select gestures, row audition, recording, and transport remain unchanged. Physical verification remains a human-controlled step and does not authorize flashing or installation.
+
+## 20. Recoverable Audio Clip Start editing
+
+### Intent
+
+Let a player trim an Audio Clip from its playback Start and later recover source material from the original audio file without relying on Undo or leaving Audio Clip View.
+
+### Required behavior
+
+- When the existing `Trim From Start Of Audio Clips` Community Feature is On, Audio Clip View shows the playback Start as a faint green boundary and End as a faint red boundary. Material before playback Start is visibly dimmer than material inside the Clip.
+- If the source file contains audio before playback Start, ordinary Horizontal scrolling can reveal that material as negative Clip-time editing space. The space contains only real source audio and ends exactly at the recoverable source boundary. It is not silence and does not play until Start is moved into it.
+- Every other timeline surface retains a zero-or-later minimum scroll position. Entering Session, another Clip type, or another view from negative Audio Clip space restores a legal position for that surface.
+- Tapping the green Start or red End pad selects that playback boundary. The selected boundary blinks in its own color. Turning Select without Shift moves only the selected boundary at the current horizontal zoom resolution.
+- If Start and End occupy the same pad column, the shared boundary is shown as a dim yellow marker when neither is selected. Pressing that column selects Start first and then alternates Start and End. When the column immediately to its right exists, pressing it selects End directly.
+- With no boundary selected, Select retains Audio Output mode selection. Shift plus Select retains Audio Output assignment. Ordinary Horizontal rotation always scrolls and pressed-Horizontal rotation always zooms, even while a boundary is selected.
+- Clockwise movement advances a boundary later in playback time and counterclockwise movement moves it earlier. Forward and reversed Clips therefore behave the same to the player even though playback Start and End correspond to opposite raw file boundaries when reversed.
+- Moving either boundary changes the Clip's musical length by the same anchored source-to-tick ratio. One encoder gesture is calculated from the values present when that gesture began, so repeated detents do not compound rounding drift.
+- Start can expand only into recoverable source audio and can trim only until one source sample and one musical tick remain. End retains its established ability to trim or expand into source material. Neither boundary can cross the other or exceed the maximum supported Clip length.
+- A fast turn that reaches a raw source edge or sequence-length edge lands on the exact legal boundary. The first reverse detent must move back toward the interior without requiring the acceleration overshoot to be unwound.
+- Moving Start keeps the visible source position anchored as the Clip rebases to musical tick zero. Moving End retains its established visible-space behavior.
+- One uninterrupted run of Select detents on one boundary is one Undo action. Undo and Redo exchange the exact raw boundary and musical Clip length together. Switching boundaries, using another control, changing Clip or view, or otherwise ending the gesture closes that action.
+- A boundary edit is rejected before changing either value when recording or count-in is active, storage owns the data path, reversible history cannot be allocated, the Clip or source state is invalid, or the result would be illegal. A rejected edit neither creates an empty Undo action nor destroys existing Redo history.
+- During ordinary playback, accepted edits leave the raw boundary, Clip length, automation, Arrangement instances, and resumed playback mutually consistent. Repeated Undo and Redo must not destructively trim automation before its saved state is restored.
+- When `Trim From Start Of Audio Clips` is Off, Audio Clip View does not expose negative pre-Start space or a Start-selection affordance. Existing End selection, relocation, scrolling, zooming, and output controls remain available without allowing a Start-pad press to collapse the Clip.
+
+### Compatibility and boundaries
+
+- Preserve the audio file, sample data, recording, monitoring, launch behavior, time-stretch choice, Output assignment, Output mode selection, existing End relocation gesture, Clip color, waveform analysis, and project format.
+- Do not add stored negative time, prepend silence, modify Waveform Editor, or expose pre-Start space in Instrument, Kit, MIDI, CV, Automation, Session, Song, or Arranger views.
+- Marker colors and directions are playback-relative. Reversal must not expose the wrong source edge or swap the meaning presented to the player.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused host checks cover forward and reversed Start and End movement, exact raw-edge saturation, sequence-length saturation, minimum length, wide source positions, half-tick rounding, cumulative gesture ratios, fast-boundary reversal, source-backed negative-scroll limits, and signed scroll and zoom navigation.
+- Source review confirms explicit Start or End selection, modifier ownership, feature-Off compatibility, coincident-marker selection, gesture-closing boundaries, recording and storage guards, allocation-safe history creation, exact coupled Undo and Redo, automation consequence ordering, and non-Audio scroll clamping.
+- Compile every affected Audio Clip, timeline, waveform, action-history, and consequence source with the target ARM Release toolchain; run the complete configured host suite and a local Release firmware build.
+- On a physical Deluge, check forward and reversed Clips; source-backed scrolling; Start and End trim and recovery; fast turns into each edge followed by immediate reversal; one-tick and same-column markers; Shift and both encoders; active playback; normal recording, count-in, and storage-busy rejection; repeated Undo and Redo with automation; feature On and Off; and navigation into Session and other Clip types. Physical verification remains human-controlled and does not authorize flashing.
+
+## 21. Explicit Waveform Editor entry and bound selection
+
+### Intent
+
+Keep whole-sample information and the graphical Waveform Editor as two predictable layers: show sample information first, enter the graph deliberately, and return without losing the selected sample boundary.
+
+### Required behavior
+
+- Every supported Waveform, Sample Start, and Sample End launcher for Audio Clips, sampled Synths, and Kit Sound Drums opens its existing sample-information or sample-settings screen first. It does not draw the graphical Waveform Editor during entry.
+- The relevant Waveform or boundary item is focused on that information screen. Pressing Select without Shift opens the graph. Pressing Shift plus Select on the information screen does not open it.
+- Back from the graphical editor returns to the exact parent information screen and focused item. A subsequent Back follows the established menu path.
+- The graph renders every active sample boundary that falls inside the visible source range. Sample Start and Sample End remain visible together; loop boundaries remain governed by their established availability. The controlled boundary is visually dominant and the others remain distinguishable.
+- Sample Start is the initial controlled playback boundary. Leaving with Back and reopening the same sample preserves the chosen Start or End boundary. Editing a different sample resets the selection predictably to Start.
+- One Shift plus Select press in the graph switches the controlled playback boundary between Start and End. The action toggles once on the press and consumes the matching release even when Shift is released before Select. It never selects a loop boundary.
+- Boundary names, colors, and switching remain playback-relative for reversed samples.
+- Turning Select retains the established movement rules for the controlled boundary. Ordinary Horizontal rotation scrolls and pressed-Horizontal rotation zooms. Marker-pad selection and loop-boundary behavior remain available.
+- In a Kit Sound Drum's Waveform Editor, unmodified held Select retains its dedicated momentary audition behavior. Shift plus Select changes the controlled boundary without starting, stopping, or latching that audition.
+- Invalid or missing samples and storage-busy entry retain their established refusal or deferral behavior. A rejected entry or switch leaves no stale selection and cannot consume a later unrelated Select press.
+- OLED and seven-segment displays both identify the controlled boundary using their established display capabilities. Returning to information and reopening must not change sample data, bounds, playback, or the visible waveform range.
+
+### Compatibility and boundaries
+
+- Preserve raw sample-bound semantics, loop-point creation and removal, marker movement limits, waveform resolution and caching, scrolling, zooming, reverse playback, transpose, playback mode, audition, recording, Kit row ownership, Slicer behavior, project data, and audio processing.
+- This contract does not change Audio Clip View, its Clip-time Start and End controls, negative pre-Start navigation, or Clip musical length. Those belong to deviation 20.
+- Do not create a second information screen, merge the two editors, force offscreen bounds into view, add persistent edge indicators, or change sampled Synth and Kit playback behavior.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Source review covers every supported launcher and parent-menu shape, Audio Clip and sampled Synth or Kit context, multi-range samples, reverse playback, same-sample re-entry, different-sample reset, storage deferral, modifier release order, loop-boundary preservation, and Kit audition ownership.
+- Compile every affected menu and graphical editor source with the target ARM Release toolchain, run formatting checks, run the complete configured host suite, and complete a local Release firmware build.
+- On a physical OLED and seven-segment Deluge, check each launcher, information-to-graph Select, graph-to-information Back, the next Back, both visible bounds, Shift plus Select in both release orders, Start and End movement, loop markers, forward and reverse playback, same-sample re-entry, a different sample, Kit held-Select audition, and storage-busy behavior. Physical verification remains human-controlled and does not authorize flashing.
 
 ## Maintaining this document
 

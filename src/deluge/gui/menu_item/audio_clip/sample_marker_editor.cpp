@@ -19,9 +19,8 @@
 #include "gui/ui/sample_marker_editor.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/ui_timer_manager.h"
+#include "hid/buttons.h"
 #include "model/clip/audio_clip.h"
-#include "model/song/song.h"
-#include "processing/sound/sound.h"
 
 namespace deluge::gui::menu_item::audio_clip {
 
@@ -40,14 +39,15 @@ MenuPermission SampleMarkerEditor::checkPermissionToBeginSession(ModControllable
 	return MenuPermission::YES;
 }
 
-void SampleMarkerEditor::beginSession(MenuItem* navigatedBackwardFrom) {
+MenuItem* SampleMarkerEditor::selectButtonPress() {
+	if (Buttons::isShiftButtonPressed()) {
+		return NO_NAVIGATION;
+	}
 
-	soundEditor.shouldGoUpOneLevelOnBegin = true;
-	sampleMarkerEditor.markerType = whichMarker;
-	bool success = openUI(&sampleMarkerEditor); // Shouldn't be able to fail anymore
-	if (!success) {
+	if (!openUI(&sampleMarkerEditor)) {
 		uiTimerManager.unsetTimer(TimerName::SHORTCUT_BLINK);
 	}
+	return NO_NAVIGATION;
 }
 
 void SampleMarkerEditor::renderInHorizontalMenu(const SlotPosition& slot) {
@@ -61,10 +61,4 @@ void SampleMarkerEditor::renderInHorizontalMenu(const SlotPosition& slot) {
 
 	image.drawIcon(OLED::loopPointIcon, slot.start_x + 5, slot.start_y + kHorizontalMenuSlotYOffset, true);
 }
-
-void SampleMarkerEditor::getColumnLabel(StringBuf& label) {
-	label.append(l10n::get(l10n::String::STRING_FOR_END_POINT));
-	label.truncate(3);
-}
-
 } // namespace deluge::gui::menu_item::audio_clip

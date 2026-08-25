@@ -930,8 +930,7 @@ PLACE_SDRAM_BSS Submenu audioClipFXMenu{
 
 // Sample Menu
 PLACE_SDRAM_BSS audio_clip::Reverse audioClipReverseMenu{STRING_FOR_REVERSE};
-PLACE_SDRAM_BSS audio_clip::SampleMarkerEditor audioClipSampleMarkerEditorMenuStart{EMPTY_STRING, MarkerType::START};
-PLACE_SDRAM_BSS audio_clip::SampleMarkerEditor audioClipSampleMarkerEditorMenuEnd{STRING_FOR_WAVEFORM, MarkerType::END};
+PLACE_SDRAM_BSS audio_clip::SampleMarkerEditor audioClipSampleMarkerEditorMenu{STRING_FOR_WAVEFORM};
 PLACE_SDRAM_BSS AudioInterpolation audioClipInterpolationMenu{STRING_FOR_INTERPOLATION, STRING_FOR_AUDIO_INTERPOLATION};
 
 PLACE_SDRAM_BSS HorizontalMenu audioClipSampleMenu{
@@ -941,7 +940,7 @@ PLACE_SDRAM_BSS HorizontalMenu audioClipSampleMenu{
         &audioClipTransposeMenu,
         &audioClipReverseMenu,
         &sample0PitchSpeedMenu,
-        &audioClipSampleMarkerEditorMenuEnd,
+        &audioClipSampleMarkerEditorMenu,
         &audioClipInterpolationMenu,
     },
 };
@@ -1960,8 +1959,8 @@ PLACE_SDRAM_DATA MenuItem* paramShortcutsForSoundsSecondLayer[][kDisplayHeight] 
 };
 
 PLACE_SDRAM_DATA MenuItem* paramShortcutsForAudioClips[kDisplayWidth][kDisplayHeight] = {
-    {nullptr,                 &audioClipReverseMenu,   nullptr,                    &sample0PitchSpeedMenu,       nullptr,             &file0SelectorMenu,  &audioClipInterpolationMenu,&audioClipSampleMarkerEditorMenuEnd},
-    {nullptr,                 &audioClipReverseMenu,   nullptr,                    &sample0PitchSpeedMenu,       nullptr,             &file0SelectorMenu,  &audioClipInterpolationMenu,&audioClipSampleMarkerEditorMenuEnd},
+    {nullptr,                 &audioClipReverseMenu,   nullptr,                    &sample0PitchSpeedMenu,       nullptr,             &file0SelectorMenu,  &audioClipInterpolationMenu,&audioClipSampleMarkerEditorMenu},
+    {nullptr,                 &audioClipReverseMenu,   nullptr,                    &sample0PitchSpeedMenu,       nullptr,             &file0SelectorMenu,  &audioClipInterpolationMenu,&audioClipSampleMarkerEditorMenu},
     {nullptr,                 &audioClipTransposeMenu, nullptr,                    nullptr,                     nullptr,              nullptr,            nullptr,                  nullptr                            },
     {nullptr,                 &audioClipTransposeMenu, nullptr,                    nullptr,                     nullptr,              nullptr,            nullptr,                  nullptr                            },
     {nullptr,                 nullptr,                 nullptr,                    nullptr,                     nullptr,              nullptr,            nullptr,                  nullptr                            },

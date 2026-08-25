@@ -45,6 +45,15 @@ struct WaveformClusterPosition {
 	bool valid = false;
 };
 
+struct WaveformColumnRange {
+	int32_t start;
+	int32_t end;
+};
+
+[[nodiscard]] constexpr WaveformColumnRange reverseWaveformColumnRange(int32_t start, int32_t end, int32_t width) {
+	return {width - end, width - start};
+}
+
 namespace detail {
 
 struct CheckedSamplePosition {

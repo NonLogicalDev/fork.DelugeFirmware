@@ -73,8 +73,9 @@ bool WaveformRenderer::renderAsSingleRow(Sample* sample, int64_t xScroll, uint64
 	int32_t xStartSource = xStart;
 	int32_t xEndSource = xEnd;
 	if (reversed) {
-		xStartSource = kDisplayWidth - 1 - xEnd;
-		xEndSource = kDisplayWidth - 1 - xStart;
+		const auto sourceRange = deluge::gui::waveform::reverseWaveformColumnRange(xStart, xEnd, kDisplayWidth);
+		xStartSource = sourceRange.start;
+		xEndSource = sourceRange.end;
 	}
 
 	bool completeSuccess = findPeaksPerCol(sample, xScroll, xZoom, data, recorder, xStartSource, xEndSource);
@@ -227,6 +228,9 @@ void WaveformRenderer::renderOneColForCollapseAnimationInterpolation(int32_t xDi
 bool WaveformRenderer::findPeaksPerCol(Sample* sample, int64_t xScrollSamples, uint64_t xZoomSamples,
                                        WaveformRenderData* data, SampleRecorder* recorder, int32_t xStart,
                                        int32_t xEnd) {
+	if (xStart < 0 || xStart > xEnd || xEnd > kDisplayWidth) {
+		return false;
+	}
 
 	if (xScrollSamples != data->xScroll || xZoomSamples != data->xZoom) {
 		memset(data->colStatus, 0, sizeof(data->colStatus));

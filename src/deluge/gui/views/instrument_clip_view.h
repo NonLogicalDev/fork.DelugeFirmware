@@ -235,9 +235,9 @@ public:
 	void pasteAutomation(int32_t whichModEncoder, int32_t navSysId = NAVIGATION_CLIP);
 	// made these public so they can be accessed by the automation clip view
 
-	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override {
-		InstrumentClipMinder::renderOLED(canvas);
-	}
+	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
+	void renderKeyboardClipProgressRuler(deluge::hid::display::oled_canvas::Canvas& canvas, UI const& activeSurface);
+	void refreshKeyboardClipProgressRuler(UI const& activeSurface);
 
 	CopiedParamAutomation copiedParamAutomation{};
 	// Sometimes the user will want to hold an audition pad without actually sounding the note, by holding an encoder

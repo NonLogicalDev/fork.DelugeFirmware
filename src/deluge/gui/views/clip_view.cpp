@@ -19,18 +19,117 @@
 #include "definitions_cxx.hpp"
 #include "extern.h"
 #include "gui/l10n/l10n.h"
+#include "gui/ui/ui.h"
 #include "gui/views/automation_view.h"
+#include "gui/views/clip_progress_ruler.h"
 #include "gui/views/view.h"
 #include "hid/buttons.h"
 #include "hid/display/display.h"
+#include "hid/display/oled.h"
+#include "hid/display/screensaver.h"
 #include "memory/general_memory_allocator.h"
 #include "model/action/action_logger.h"
 #include "model/clip/clip.h"
 #include "model/consequence/consequence_clip_horizontal_shift.h"
 #include "model/song/song.h"
+#include "playback/mode/arrangement.h"
 #include "playback/mode/playback_mode.h"
 #include "playback/mode/session.h"
 #include "playback/playback_handler.h"
+#include "processing/engines/audio_engine.h"
+#include "processing/stem_export/stem_export.h"
+
+namespace ruler = deluge::gui::views::clip_progress_ruler;
+
+enum class ClipProgressRulerDomain : uint8_t {
+	LOOP,
+	GROWING_RECORDING,
+	INDETERMINATE_RECORDING,
+};
+
+struct ClipView::ClipProgressRulerCache {
+	ClipView const* owner{};
+	// KeyboardScreen projects the Instrument Clip through instrumentClipView, so the visible surface and its
+	// viewport policy must remain separate from the data/render owner.
+	UI const* activeSurface{};
+	Clip const* clip{};
+	int32_t xScroll{};
+	uint32_t xZoom{};
+	uint32_t tripletsLevel{};
+	uint32_t loopLength{};
+	uint32_t quarterNoteLength{};
+	uint32_t barLength{};
+	ClipProgressRulerDomain domain{};
+	ruler::ViewportPolicy viewportPolicy{};
+	ruler::Viewport viewport{};
+	ruler::StaticGeometry staticGeometry{};
+	uint32_t staticGeometryRevision{};
+	ruler::RefreshState displayed{};
+};
+
+struct ClipView::ClipProgressRulerInput {
+	Clip* clip{};
+	Clip* recordTarget{};
+	UI const* activeSurface{};
+	int32_t xScroll{};
+	uint32_t xZoom{};
+	uint32_t tripletsLevel{};
+	uint32_t loopLength{};
+	uint32_t quarterNoteLength{};
+	uint32_t barLength{};
+	ClipProgressRulerDomain domain{};
+	ruler::ViewportPolicy viewportPolicy{};
+	bool transportMoving{};
+	bool pinToRightEdge{};
+	bool recordingLinearly{};
+};
+
+struct ClipView::ClipProgressRulerChanges {
+	bool structural{};
+	bool length{};
+};
+
+struct ClipView::ClipProgressRulerUpdate {
+	ruler::MovingGeometry movingGeometry{};
+	bool transportMoving{};
+	bool pinToRightEdge{};
+};
+
+PLACE_SDRAM_BSS ClipView::ClipProgressRulerCache ClipView::clipProgressRulerCache_{};
+
+namespace {
+
+constexpr uint32_t kClipProgressRulerRefreshInterval = kSampleRate / 20;
+
+bool clipProgressRulerTransitionActive() {
+	return isUIModeActive(UI_MODE_INSTRUMENT_CLIP_COLLAPSING) || isUIModeActive(UI_MODE_INSTRUMENT_CLIP_EXPANDING)
+	       || isUIModeActive(UI_MODE_AUDIO_CLIP_COLLAPSING) || isUIModeActive(UI_MODE_AUDIO_CLIP_EXPANDING)
+	       || isUIModeActive(UI_MODE_EXPLODE_ANIMATION) || isUIModeActive(UI_MODE_IMPLODE_ANIMATION)
+	       || isUIModeActive(UI_MODE_ANIMATION_FADE) || isUIModeActive(UI_MODE_STEM_EXPORT);
+}
+
+bool clipProgressRulerSuppressed() {
+	using deluge::hid::display::OLED;
+	using deluge::hid::display::Screensaver;
+
+	return stemExport.processStarted || clipProgressRulerTransitionActive() || OLED::isPermanentPopupPresent()
+	       || OLED::isWorkingAnimationPresent() || Screensaver::isActive();
+}
+
+ruler::RepeatedDirection repeatedDirectionForClip(Clip const& clip) {
+	switch (clip.sequenceDirectionMode) {
+	case SequenceDirection::REVERSE:
+		return ruler::RepeatedDirection::REVERSE;
+	case SequenceDirection::PINGPONG:
+		return ruler::RepeatedDirection::PINGPONG;
+	case SequenceDirection::FORWARD:
+	case SequenceDirection::OBEY_PARENT:
+		return ruler::RepeatedDirection::FORWARD;
+	}
+	return ruler::RepeatedDirection::FORWARD;
+}
+
+} // namespace
 
 uint32_t ClipView::getMaxZoom() {
 	return getCurrentClip()->getMaxZoom();
@@ -42,6 +141,256 @@ uint32_t ClipView::getMaxLength() {
 
 void ClipView::focusRegained() {
 	ClipNavigationTimelineView::focusRegained();
+	invalidateClipProgressRuler();
+}
+
+void ClipView::invalidateClipProgressRuler() {
+	clipProgressRulerCache_.displayed.valid = false;
+}
+
+void ClipView::collectClipProgressRulerInput(ClipProgressRulerKind kind, UI const* activeSurface,
+                                             ruler::ViewportPolicy viewportPolicy, ClipProgressRulerInput& input) {
+	input = {};
+	input.activeSurface = activeSurface ? activeSurface : this;
+	input.viewportPolicy = viewportPolicy;
+	if (!currentSong) {
+		return;
+	}
+
+	Clip* clip = getCurrentClip();
+	if (!clip || clip->loopLength <= 0) {
+		return;
+	}
+
+	input.clip = clip;
+	input.xScroll = currentSong->xScroll[NAVIGATION_CLIP];
+	input.xZoom = currentSong->xZoom[NAVIGATION_CLIP];
+	input.tripletsLevel = inTripletsView() ? currentSong->tripletsLevel : 0;
+	input.loopLength = static_cast<uint32_t>(clip->loopLength);
+	input.quarterNoteLength = currentSong->getQuarterNoteLength();
+	input.barLength = currentSong->getBarLength();
+	input.recordingLinearly = clip->getCurrentlyRecordingLinearly();
+
+	const bool clipActive = currentSong->isClipActive(clip);
+	const bool countInActive = playbackHandler.ticksLeftInCountIn != 0;
+	const bool clockActive = playbackHandler.isEitherClockActive();
+	if (kind == ClipProgressRulerKind::AUDIO) {
+		input.transportMoving = playbackHandler.playbackState && clipActive && !countInActive;
+		input.pinToRightEdge =
+		    input.transportMoving && (!clockActive || (currentPlaybackMode == &arrangement && input.recordingLinearly));
+	}
+	else {
+		input.transportMoving = playbackHandler.isEitherClockActive() && clipActive && !countInActive;
+	}
+
+	if (input.transportMoving) {
+		input.recordTarget = clip->getClipToRecordTo();
+		if (!input.recordTarget) {
+			input.transportMoving = false;
+			input.pinToRightEdge = false;
+		}
+	}
+
+	if (kind == ClipProgressRulerKind::AUDIO && input.transportMoving && input.recordingLinearly) {
+		if (!clockActive) {
+			input.domain = ClipProgressRulerDomain::INDETERMINATE_RECORDING;
+			input.quarterNoteLength = 0;
+			input.barLength = 0;
+		}
+		else if (currentPlaybackMode == &arrangement) {
+			input.domain = ClipProgressRulerDomain::GROWING_RECORDING;
+		}
+	}
+}
+
+ClipView::ClipProgressRulerChanges ClipView::getClipProgressRulerChanges(ClipProgressRulerInput const& input) const {
+	ClipProgressRulerCache const& cache = clipProgressRulerCache_;
+	if (!input.clip) {
+		return {.structural = cache.owner != nullptr};
+	}
+
+	return {
+	    .structural = cache.owner != this || cache.activeSurface != input.activeSurface || cache.clip != input.clip
+	                  || cache.xScroll != input.xScroll || cache.xZoom != input.xZoom
+	                  || cache.tripletsLevel != input.tripletsLevel
+	                  || cache.quarterNoteLength != input.quarterNoteLength || cache.barLength != input.barLength
+	                  || cache.domain != input.domain || cache.viewportPolicy != input.viewportPolicy,
+	    .length = cache.owner != this || cache.loopLength != input.loopLength
+	              || input.domain == ClipProgressRulerDomain::GROWING_RECORDING,
+	};
+}
+
+ClipView::ClipProgressRulerUpdate ClipView::prepareClipProgressRuler(ClipProgressRulerInput const& input,
+                                                                     ClipProgressRulerChanges changes) {
+	ClipProgressRulerUpdate update{
+	    .transportMoving = input.transportMoving,
+	    .pinToRightEdge = input.pinToRightEdge,
+	};
+	ClipProgressRulerCache& cache = clipProgressRulerCache_;
+	if (!input.clip) {
+		if (cache.owner) {
+			cache.owner = nullptr;
+			cache.clip = nullptr;
+			cache.staticGeometry = {};
+			++cache.staticGeometryRevision;
+		}
+		return update;
+	}
+
+	uint32_t playPosition = 0;
+	if (input.transportMoving && input.domain != ClipProgressRulerDomain::INDETERMINATE_RECORDING) {
+		playPosition = input.recordTarget->getLivePos();
+		if (!input.pinToRightEdge && input.recordTarget != input.clip) {
+			playPosition =
+			    ruler::mapRepeatedPosition(playPosition, input.loopLength, repeatedDirectionForClip(*input.clip));
+		}
+	}
+	const uint32_t effectiveLoopLength = input.domain == ClipProgressRulerDomain::GROWING_RECORDING
+	                                         ? ruler::growingLoopLength(playPosition)
+	                                         : input.loopLength;
+	const bool effectiveLengthChanged = cache.owner != this || cache.loopLength != effectiveLoopLength;
+
+	if (changes.structural) {
+		// Keyboard columns represent notes and controls rather than Clip time, so they must not inherit the timeline
+		// view's selection span.
+		const ruler::Viewport timelineViewport =
+		    input.domain == ClipProgressRulerDomain::INDETERMINATE_RECORDING
+		        ? ruler::Viewport{}
+		        : ruler::Viewport{
+		              .start = getPosFromSquare(0, input.xScroll, input.xZoom),
+		              .end = getPosFromSquare(kDisplayWidth, input.xScroll, input.xZoom),
+		          };
+		cache.viewport = ruler::viewportForPolicy(input.viewportPolicy, timelineViewport);
+	}
+	if (changes.structural || effectiveLengthChanged) {
+		const ruler::StaticGeometry geometry = ruler::calculateStaticGeometry(cache.viewport, effectiveLoopLength,
+		                                                                      input.quarterNoteLength, input.barLength);
+		if (cache.staticGeometry != geometry) {
+			cache.staticGeometry = geometry;
+			++cache.staticGeometryRevision;
+		}
+	}
+
+	cache.owner = this;
+	cache.activeSurface = input.activeSurface;
+	cache.clip = input.clip;
+	cache.xScroll = input.xScroll;
+	cache.xZoom = input.xZoom;
+	cache.tripletsLevel = input.tripletsLevel;
+	cache.loopLength = effectiveLoopLength;
+	cache.quarterNoteLength = input.quarterNoteLength;
+	cache.barLength = input.barLength;
+	cache.domain = input.domain;
+	cache.viewportPolicy = input.viewportPolicy;
+
+	update.movingGeometry = ruler::calculateMovingGeometry(cache.staticGeometry, effectiveLoopLength,
+	                                                       input.transportMoving, playPosition, input.pinToRightEdge);
+	return update;
+}
+
+void ClipView::recordClipProgressRulerDisplay(ClipProgressRulerUpdate const& update, uint32_t mainImageGeneration,
+                                              uint32_t now) {
+	ClipProgressRulerCache& cache = clipProgressRulerCache_;
+	cache.displayed.frame = {
+	    .movingGeometry = update.movingGeometry,
+	    .staticGeometryRevision = cache.staticGeometryRevision,
+	    .mainImageGeneration = mainImageGeneration,
+	};
+	cache.displayed.lastRefreshTime = now;
+	cache.displayed.valid = true;
+	cache.displayed.transportMoving = update.transportMoving;
+	cache.displayed.pinToRightEdge = update.pinToRightEdge;
+}
+
+void ClipView::renderClipProgressRuler(deluge::hid::display::oled_canvas::Canvas& canvas, ClipProgressRulerKind kind,
+                                       UI const* activeSurface, ruler::ViewportPolicy viewportPolicy) {
+	using deluge::hid::display::OLED;
+
+	if (clipProgressRulerSuppressed()) {
+		invalidateClipProgressRuler();
+		return;
+	}
+
+	ClipProgressRulerInput input{};
+	collectClipProgressRulerInput(kind, activeSurface, viewportPolicy, input);
+	ClipProgressRulerCache& cache = clipProgressRulerCache_;
+	const ClipProgressRulerChanges changes = getClipProgressRulerChanges(input);
+	const bool transportChange = !cache.displayed.valid || cache.displayed.transportMoving != input.transportMoving
+	                             || cache.displayed.pinToRightEdge != input.pinToRightEdge;
+	const bool urgent = changes.structural || transportChange || (changes.length && !input.recordingLinearly);
+	const uint32_t now = AudioEngine::audioSampleTimer;
+	const uint32_t mainImageGeneration = OLED::getMainImageGeneration();
+	if (!ruler::fullRenderProjectionDue(cache.displayed, now, kClipProgressRulerRefreshInterval, urgent)) {
+		ruler::render(canvas, cache.staticGeometry, cache.displayed.frame.movingGeometry);
+		cache.displayed.frame.mainImageGeneration = mainImageGeneration;
+		return;
+	}
+
+	ClipProgressRulerUpdate update = prepareClipProgressRuler(input, changes);
+	ruler::render(canvas, cache.staticGeometry, update.movingGeometry);
+	recordClipProgressRulerDisplay(update, mainImageGeneration, now);
+}
+
+void ClipView::refreshClipProgressRuler(ClipProgressRulerKind kind, UI const* activeSurface,
+                                        ruler::ViewportPolicy viewportPolicy) {
+	using deluge::hid::display::OLED;
+
+	if (!display->haveOLED() || clipProgressRulerSuppressed()) {
+		invalidateClipProgressRuler();
+		return;
+	}
+	UI const* expectedSurface = activeSurface ? activeSurface : this;
+	if (getCurrentUI() != expectedSurface) {
+		// Automation delegates its pad-playhead work to the underlying Clip view. That inactive view must not
+		// invalidate the ruler frame owned and refreshed by Automation itself.
+		if (expectedSurface == this && getCurrentUI() == &automationView) {
+			return;
+		}
+		invalidateClipProgressRuler();
+		return;
+	}
+
+	ClipProgressRulerCache& cache = clipProgressRulerCache_;
+	ClipProgressRulerInput input{};
+	collectClipProgressRulerInput(kind, expectedSurface, viewportPolicy, input);
+	const ClipProgressRulerChanges changes = getClipProgressRulerChanges(input);
+	const bool transportChange = !cache.displayed.valid || cache.displayed.transportMoving != input.transportMoving
+	                             || cache.displayed.pinToRightEdge != input.pinToRightEdge;
+	const bool urgent = changes.structural || transportChange || (changes.length && !input.recordingLinearly);
+	const uint32_t now = AudioEngine::audioSampleTimer;
+	const uint32_t mainImageGeneration = OLED::getMainImageGeneration();
+	const bool mainImageReplaced =
+	    cache.displayed.valid && cache.displayed.frame.mainImageGeneration != mainImageGeneration;
+	if (!urgent && !mainImageReplaced
+	    && !ruler::refreshDue(now, cache.displayed.lastRefreshTime, kClipProgressRulerRefreshInterval, false)) {
+		return;
+	}
+
+	ClipProgressRulerUpdate update = prepareClipProgressRuler(input, changes);
+	const ruler::RefreshFrame frame{
+	    .movingGeometry = update.movingGeometry,
+	    .staticGeometryRevision = cache.staticGeometryRevision,
+	    .mainImageGeneration = mainImageGeneration,
+	};
+	const bool topStripCovered = OLED::isPopupPresentOfType(PopupType::NOTIFICATION);
+	const ruler::RefreshDecision decision =
+	    ruler::decideRefresh(cache.displayed, frame, now, kClipProgressRulerRefreshInterval, urgent, topStripCovered);
+	if (decision.checkpointCadence) {
+		cache.displayed.lastRefreshTime = now;
+	}
+	cache.displayed.transportMoving = update.transportMoving;
+	cache.displayed.pinToRightEdge = update.pinToRightEdge;
+	if (!decision.draw) {
+		return;
+	}
+
+	constexpr int32_t top = OLED_MAIN_TOPMOST_PIXEL;
+	OLED::main.clearAreaExact(0, top, OLED_MAIN_WIDTH_PIXELS - 1, top + ruler::kStripHeight - 1);
+	ruler::render(OLED::main, cache.staticGeometry, update.movingGeometry, top);
+	if (decision.markDirty) {
+		OLED::markChanged();
+	}
+	recordClipProgressRulerDisplay(update, mainImageGeneration, now);
 }
 
 ActionResult ClipView::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {

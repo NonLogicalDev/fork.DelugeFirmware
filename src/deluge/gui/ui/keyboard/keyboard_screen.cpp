@@ -81,6 +81,11 @@ KeyboardScreen::KeyboardScreen() {
 	lastNotesState = {0};
 }
 
+void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+	InstrumentClipMinder::renderOLED(canvas);
+	instrumentClipView.renderKeyboardClipProgressRuler(canvas, *this);
+}
+
 static const uint32_t padActionUIModes[] = {UI_MODE_AUDITIONING, UI_MODE_RECORD_COUNT_IN,
                                             0}; // Careful - this is referenced in two places // I'm always careful ;)
 
@@ -1011,6 +1016,8 @@ const uint8_t keyboardTickColoursBasicRecording[kDisplayHeight] = {0, 0, 0, 0, 0
 const uint8_t keyboardTickColoursLinearRecording[kDisplayHeight] = {0, 0, 0, 0, 0, 0, 0, 2};
 
 void KeyboardScreen::graphicsRoutine() {
+	instrumentClipView.refreshKeyboardClipProgressRuler(*this);
+
 	int32_t newTickSquare;
 
 	const uint8_t* colours = keyboardTickColoursBasicRecording;

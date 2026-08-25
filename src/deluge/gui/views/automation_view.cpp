@@ -584,12 +584,14 @@ void AutomationView::graphicsRoutine() {
 		arrangerView.graphicsRoutine();
 	}
 	else {
-		if (getCurrentClip()->type == ClipType::AUDIO) {
+		const bool isAudioClip = getCurrentClip()->type == ClipType::AUDIO;
+		if (isAudioClip) {
 			audioClipView.graphicsRoutine();
 		}
 		else {
 			instrumentClipView.graphicsRoutine();
 		}
+		refreshClipProgressRuler(isAudioClip ? ClipProgressRulerKind::AUDIO : ClipProgressRulerKind::INSTRUMENT);
 	}
 	// if we changed probability, then a pop-up may be currently stuck on display
 	// if more than half a second has past since last knob turn, cancel the pop-up
@@ -1020,6 +1022,11 @@ void AutomationView::renderDisplayOLED(Clip* clip, Output* output, OutputType ou
 			automationEditorLayoutNote.renderNoteEditorDisplayOLED(canvas, (InstrumentClip*)clip, outputType,
 			                                                       knobPosLeft, knobPosRight);
 		}
+	}
+
+	if (!onArrangerView) {
+		renderClipProgressRuler(canvas, clip->type == ClipType::AUDIO ? ClipProgressRulerKind::AUDIO
+		                                                              : ClipProgressRulerKind::INSTRUMENT);
 	}
 
 	deluge::hid::display::OLED::markChanged();

@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains seventeen deviations:
+The local stack currently contains eighteen deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -23,6 +23,7 @@ The local stack currently contains seventeen deviations:
 15. Keep waveform peak addressing valid throughout the supported long-file range.
 16. Keep reversed single-row waveform ranges inside their half-open display bounds.
 17. Show efficient OLED waveform companions while editing sample bounds and slices.
+18. Show a compact OLED Clip timeline ruler.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -137,6 +138,9 @@ Let a player add a folder, region slices, or manual slices safely to the top of 
 - Confirming two or more slices in a brand-new or existing Kit creates exactly one playable Sound Drum per requested slice. Every generated row retains its assigned sample bounds, transpose, mode, and batch name; no later slice may be omitted because its row object was not retained during confirmation.
 - A confirmed Slice or Manual slice longer than two seconds uses the configured default sample mode. A slice shorter than two seconds uses Once so very short fragments do not choke later hits. Temporary Manual Slicer audition may also use Once while the player is editing.
 - The top three pads in Slicer's far-right status column choose the pending batch mode in vertical order: Default, All Cut, All Once. The selected pad is visibly brighter and gives immediate display feedback. The main slice grid and the far-right audition column keep their existing roles.
+- Pressing Select in either Region or Manual Slicer opens a fixed Auto, Cut, Once confirmation menu. Its initial highlight matches the pending batch mode already shown by the far-right controls on both OLED and seven-segment devices.
+- Turning Select in that menu changes only the highlight. Pressing Select on an item closes the menu, applies that choice to the same pending batch state used by the far-right controls, and immediately runs the existing slice-confirmation action.
+- Pressing Back from the menu returns to the exact in-progress Slicer session without changing its source, mode, boundaries, slice count, transpose values, preview state, or pending batch mode. If slice confirmation fails, Slicer remains open with the accepted mode and its existing failure feedback.
 - Default retains the normal duration-based behavior. All Cut makes every newly confirmed slice in that batch use Cut, including short slices. All Once makes every newly confirmed slice in that batch use Once. These choices never change the stored device default or existing Kit rows.
 - A Manual Slicer audition may temporarily use Once, but cancelling Slicer restores the selected anchor's prior mode. Only confirmation commits a generated batch's mode.
 - Each confirmed Slice or Manual slice batch receives a series name and zero-padded part number: the first is `A-01`, `A-02`, and onward. A later batch uses the series after the highest existing generated series, such as `B-01`, then `C-01`, with `AA-01` after `Z-01`.
@@ -159,7 +163,7 @@ Let a player add a folder, region slices, or manual slices safely to the top of 
 
 ### Verification contract
 
-- A human runtime check on a physical Deluge should confirm that holding Select on a chosen audio file opens the Manual slice action without a timing-sensitive shortcut; the Manual Slicer waveform and its slice pad audition the selected sample; standard Slice still starts in Region mode; and a normal entry after Manual slice is still Region mode. It should also confirm that a second batch started from a selected top Sound Drum, with a different selected file, shows and uses that new file rather than a tail or preview from the earlier batch; that the selected Sound Drum receives the first slice, later slices appear above it, existing rows below remain unchanged, and a Sound Drum with an occupied row above is refused. In both modes, check Default, All Cut, and All Once with long and short slices; confirm that a cancelled Manual audition restores its earlier mode.
+- A human runtime check on a physical Deluge should confirm that holding Select on a chosen audio file opens the Manual slice action without a timing-sensitive shortcut; the Manual Slicer waveform and its slice pad audition the selected sample; standard Slice still starts in Region mode; and a normal entry after Manual slice is still Region mode. It should also confirm that a second batch started from a selected top Sound Drum, with a different selected file, shows and uses that new file rather than a tail or preview from the earlier batch; that the selected Sound Drum receives the first slice, later slices appear above it, existing rows below remain unchanged, and a Sound Drum with an occupied row above is refused. In both Slicer modes and on both display types, check that Select opens the Auto, Cut, Once menu at the pending right-pad choice; turning Select does not change that choice; Back restores the unchanged session; and accepting each mode confirms long and short slices with the required playback behavior. Also confirm that a failed confirmation returns to the same session with the accepted mode and existing error, and that a cancelled Manual audition restores its earlier mode.
 - The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
 
 ## 6. Manual Slicer positioning and preview stop
@@ -508,6 +512,41 @@ Show sample shape and the edited region on an OLED Deluge without adding sample 
 - Source review confirms that OLED rendering consumes only already-available peak data, allocates no memory, performs no sample or storage work, adds no graphics or playhead timer, and invalidates OLED only after relevant editor state changes.
 - Compare the baseline and changed Release ELF sizes, run the complete configured host test suite, and complete a local Release firmware build.
 - On a physical OLED Deluge, check instrument Sample start, end, loop-start, and loop-end; Audio Clip start and end; zoomed, scrolled, and reversed views; Slicer Region divisions; and Manual/Lazy slice selection and boundary movement. Leave each editor idle while audio, storage streaming, CV output, and optional OLED mirroring are active, and confirm the waveform remains readable without visible display churn or new audio interruption. This check does not authorize flashing.
+
+## 18. OLED Clip timeline ruler
+
+### Intent
+
+Give a player a compact visual reference for progress through the complete Clip loop, its beat grid, and the part currently visible on the pad matrix without displacing the OLED information already used for sound, Clip, and recording feedback.
+
+### Required behavior
+
+- Normal Instrument Clip View for Synth, Kit, MIDI Out, and CV Clips, normal Audio Clip View, and every non-Arranger Clip Automation surface show a monochrome ruler in the three display rows at the OLED's top visible edge. Supported Automation surfaces include Automation Overview, parameter automation, and note Velocity editing for Instrument and Audio Clips where those modes apply.
+- The ruler's 128 columns always span the complete Clip loop from time zero through its exclusive end. Horizontal scroll, zoom, and Triplet layout changes must not rescale this whole-Clip domain or reset the playhead when it leaves the 16-pad view.
+- A separate clipped span shows the part of the Clip visible on the 16 main pad columns. Horizontal scroll moves that span, zoom changes its width, and a view covering the complete Clip fills the ruler. A pad view entirely outside the Clip shows no false selection.
+- The top row shows played progress, the middle row shows the visible pad range, and the bottom row shows musical marks. Quarter-note marks are one pixel wide. Bar marks are two adjacent pixels wide; a bar at the right edge shifts inward instead of being clipped to one pixel. Clip start and end caps and the live playhead cross all three rows and are drawn over those lanes.
+- Quarter-note marks appear when they remain at least four pixels apart across the complete loop. At greater density the ruler uses bar marks and then evenly coarser bar intervals. Marks remain bounded and never merge into a solid block.
+- While the current Clip is actively playing or recording, a three-pixel playhead crosses the ruler and a one-pixel progress segment reaches from Clip time zero to that position. The indicator follows forward, Reverse, and Ping-Pong motion, continues beyond the visible pad range, traverses the OLED once per complete loop, and wraps only at the Clip boundary.
+- A stopped Clip retains its whole-Clip caps, musical marks, and visible-range selection but does not show moving progress. Count-in and an inactive Clip likewise show no false live position.
+- A cloned overdub shown against its source Clip follows the same repeated-position and direction behavior as the established pad playhead.
+- During clocked linear Arrangement Audio recording, the ruler uses the growing live recording extent as its provisional whole-Clip length instead of the maximum-length sentinel, while the playhead remains at the growing right edge. A tempoless first-loop recording has no settled musical length, so it shows an explicit full-width progress and right-edge playhead state without beat marks or a false viewport selection until the musical length is established.
+- Kit Clips with independently looping rows show the master Clip timeline. The single OLED ruler must not imply that all independently looping rows share another row's position.
+- Normal OLED notifications and popups remain visually authoritative over the ruler. Entering Arranger Automation, Keyboard or Chord layouts, a menu, Sound Editor, Song or Arranger View, Sample Browser, Slicer, Sample Marker Editor, stem export, or a view transition removes or suppresses the live ruler update.
+- Static ruler changes appear immediately after Clip change, scroll, zoom, transport state change, or recording-state change. Moving playback and growing-recording projections occur no more than 20 times per second and only when the visible result changes, including when unrelated OLED content causes a full display redraw between cadence checkpoints.
+
+### Compatibility and boundaries
+
+- Preserve every existing Clip title, parameter value, icon, popup, side scroller, stem-export display, pad playhead, pad color, navigation gesture, Clip timing rule, recording rule, and project format.
+- Preserve 7SEG behavior and every OLED surface outside normal Instrument and Audio Clip views and non-Arranger Clip Automation.
+- The ruler is display-only. It must not add a separate timer, allocate memory while updating, read samples or storage, scan a Clip's events, run from an audio-rendering path, send an unchanged display frame, or increase per-Clip saved or runtime state.
+- Do not add a Song-level transport ruler, waveform, per-row Kit ruler, playhead trail, animation outside active playback or recording, user setting, color option, flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused host checks cover complete-loop mapping; ordinary, scrolled, zoomed, clipped, and Triplet-derived viewport ranges; quarter, two-pixel bar, right-edge bar, and coarsened marks; maximum supported timeline positions; forward, Reverse, Ping-Pong, wrapped, stopped, playing, and recording positions beyond the pad view; cloned overdubs; clocked Arrangement growth; tempoless first-loop state; exact three-row bounds and lane separation; unchanged-state suppression; full-render cache reuse; and the 20 Hz moving-update ceiling.
+- Source review confirms that normal Instrument and Audio Clip views and non-Arranger Clip Automation own the ruler, Automation repaints it after replacing the OLED canvas, inactive delegated Clip views do not invalidate Automation's shared cached frame, existing musical and viewport sources remain authoritative, all mapping work is fixed and bounded, and OLED animation adds no timer, allocation, storage or sample access, audio-path work, direct display transfer, or unchanged redraw.
+- Compare baseline and changed Release ELF sizes, run the complete configured host test suite, and complete a local Release firmware build.
+- On a physical OLED Deluge, check Synth, Kit, MIDI Out, CV, and Audio Clips in their normal Clip views and in non-Arranger Automation Overview, parameter automation, and note Velocity editing while stopped, playing, recording, wrapping, reversing, zooming, and scrolling. Confirm Arranger Automation, Keyboard and Chord layouts remain unchanged; titles and popups remain clear; movement is readable without dominating the screen; and simultaneous CV output, audio playback, recording, and storage streaming show no new interruption. This check does not authorize flashing.
 
 ## Maintaining this document
 

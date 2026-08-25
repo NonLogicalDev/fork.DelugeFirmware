@@ -18,10 +18,12 @@
 #pragma once
 
 #include "gui/views/clip_navigation_timeline_view.h"
+#include "gui/views/clip_progress_ruler.h"
 #include "hid/button.h"
 
 class Action;
 class ModControllableAudio;
+class UI;
 
 class ClipView : public ClipNavigationTimelineView {
 public:
@@ -36,8 +38,17 @@ public:
 	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
 
 protected:
+	enum class ClipProgressRulerKind : uint8_t { INSTRUMENT, AUDIO };
+
 	int32_t getTickSquare();
 	virtual ModControllableAudio* getModControllableAudioOrNone() { return nullptr; }
+	void renderClipProgressRuler(deluge::hid::display::oled_canvas::Canvas& canvas, ClipProgressRulerKind kind,
+	                             UI const* activeSurface = nullptr,
+	                             deluge::gui::views::clip_progress_ruler::ViewportPolicy viewportPolicy =
+	                                 deluge::gui::views::clip_progress_ruler::ViewportPolicy::TIMELINE);
+	void refreshClipProgressRuler(ClipProgressRulerKind kind, UI const* activeSurface = nullptr,
+	                              deluge::gui::views::clip_progress_ruler::ViewportPolicy viewportPolicy =
+	                                  deluge::gui::views::clip_progress_ruler::ViewportPolicy::TIMELINE);
 
 	Action* lengthenClip(int32_t newLength);
 	Action* shortenClip(int32_t newLength);
@@ -50,4 +61,22 @@ protected:
 	                                  uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea);
 	bool renderedShortcutOverview{false};
 	bool exitedShortcutOverview{false};
+
+private:
+	struct ClipProgressRulerCache;
+	struct ClipProgressRulerChanges;
+	struct ClipProgressRulerInput;
+	struct ClipProgressRulerUpdate;
+
+	void collectClipProgressRulerInput(ClipProgressRulerKind kind, UI const* activeSurface,
+	                                   deluge::gui::views::clip_progress_ruler::ViewportPolicy viewportPolicy,
+	                                   ClipProgressRulerInput& input);
+	[[nodiscard]] ClipProgressRulerChanges getClipProgressRulerChanges(ClipProgressRulerInput const& input) const;
+	[[nodiscard]] ClipProgressRulerUpdate prepareClipProgressRuler(ClipProgressRulerInput const& input,
+	                                                               ClipProgressRulerChanges changes);
+	void recordClipProgressRulerDisplay(ClipProgressRulerUpdate const& update, uint32_t mainImageGeneration,
+	                                    uint32_t now);
+	void invalidateClipProgressRuler();
+
+	static ClipProgressRulerCache clipProgressRulerCache_;
 };

@@ -103,6 +103,22 @@ using namespace deluge::gui;
 
 PLACE_SDRAM_DATA InstrumentClipView instrumentClipView{};
 
+void InstrumentClipView::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+	InstrumentClipMinder::renderOLED(canvas);
+	renderClipProgressRuler(canvas, ClipProgressRulerKind::INSTRUMENT);
+}
+
+void InstrumentClipView::renderKeyboardClipProgressRuler(deluge::hid::display::oled_canvas::Canvas& canvas,
+                                                         UI const& activeSurface) {
+	renderClipProgressRuler(canvas, ClipProgressRulerKind::INSTRUMENT, &activeSurface,
+	                        deluge::gui::views::clip_progress_ruler::ViewportPolicy::NONE);
+}
+
+void InstrumentClipView::refreshKeyboardClipProgressRuler(UI const& activeSurface) {
+	refreshClipProgressRuler(ClipProgressRulerKind::INSTRUMENT, &activeSurface,
+	                         deluge::gui::views::clip_progress_ruler::ViewportPolicy::NONE);
+}
+
 InstrumentClipView::InstrumentClipView() : numEditPadPresses(0) {
 
 	for (auto& edit_pad_pressed : editPadPresses) {
@@ -717,8 +733,7 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
 	// with Shift it pastes onto the held target. Shift + Learn before Audition remains the normal MIDI-unlearn route:
 	// once MIDI Learn is active, this handler must leave Learn to it. The first copy is sound-only; a second quick
 	// Learn press on the same row deliberately replaces it with a full row copy.
-	else if (b == LEARN && getCurrentOutputType() == OutputType::KIT
-	         && !isUIModeActive(UI_MODE_MIDI_LEARN)
+	else if (b == LEARN && getCurrentOutputType() == OutputType::KIT && !isUIModeActive(UI_MODE_MIDI_LEARN)
 	         && (oneNoteAuditioning() || currentUIMode == UI_MODE_ADDING_DRUM_NOTEROW)) {
 		if (inCardRoutine) {
 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
@@ -746,8 +761,7 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
 				goto passToOthers;
 			}
 
-			bool includeNotes = lastKitRowLearnPressTime != 0
-			                    && lastKitRowLearnYDisplay == lastAuditionedYDisplay
+			bool includeNotes = lastKitRowLearnPressTime != 0 && lastKitRowLearnYDisplay == lastAuditionedYDisplay
 			                    && (AudioEngine::audioSampleTimer - lastKitRowLearnPressTime) < kShortPressTime;
 			if (includeNotes) {
 				lastKitRowLearnPressTime = 0;
@@ -7431,6 +7445,7 @@ void InstrumentClipView::graphicsRoutine() {
 	if (!currentSong) {
 		return; // Briefly, if loading a song fails, during the creation of a new blank one, this could happen.
 	}
+	refreshClipProgressRuler(ClipProgressRulerKind::INSTRUMENT);
 
 	char modelStackMemory[MODEL_STACK_MAX_SIZE];
 	ModelStackWithTimelineCounter* modelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);

@@ -55,6 +55,9 @@ public:
 	/// Marks the OLED as dirty, so you don't need to do that later yourself.
 	static void clearMainImage();
 
+	/// Observe replacement of the whole main canvas without coupling its consumers to individual render call sites.
+	[[nodiscard]] static uint32_t getMainImageGeneration() { return mainImageGeneration; }
+
 	static void setupBlink(int32_t minX, int32_t width, int32_t minY, int32_t maxY, bool shouldBlinkImmediately);
 	static void stopBlink();
 
@@ -191,6 +194,7 @@ public:
 
 private:
 	static bool needsSending;
+	static uint32_t mainImageGeneration;
 };
 
 } // namespace deluge::hid::display

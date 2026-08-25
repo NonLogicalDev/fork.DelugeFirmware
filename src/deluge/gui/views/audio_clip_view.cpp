@@ -94,6 +94,7 @@ void AudioClipView::focusRegained() {
 
 void AudioClipView::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
 	view.displayOutputName(getCurrentOutput(), false, getCurrentClip());
+	renderClipProgressRuler(canvas, ClipProgressRulerKind::AUDIO);
 }
 
 bool AudioClipView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
@@ -267,6 +268,7 @@ bool AudioClipView::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth 
 }
 
 void AudioClipView::graphicsRoutine() {
+	refreshClipProgressRuler(ClipProgressRulerKind::AUDIO);
 	if (isUIModeActive(UI_MODE_AUDIO_CLIP_COLLAPSING)) {
 		return;
 	}

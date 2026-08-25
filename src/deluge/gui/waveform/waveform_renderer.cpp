@@ -41,6 +41,7 @@ WaveformRenderer::WaveformRenderer() {
 }
 
 #define SAMPLES_TO_READ_PER_COL_MAGNITUDE 9
+static_assert(Cluster::kSizeFAT16Max <= std::numeric_limits<int32_t>::max());
 
 // Returns false if had trouble loading some (will often not be all) Clusters, e.g. cos we're in the card routine
 bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64_t xZoom,
@@ -245,7 +246,18 @@ bool WaveformRenderer::findPeaksPerCol(Sample* sample, int64_t xScrollSamples, u
 		endClusters = sample->getFirstClusterIndexWithNoAudioData();
 	}
 
-	uint64_t numValidBytes = numValidSamples * sample->byteDepth * sample->numChannels;
+	const uint32_t bytesPerSampleFrame = sample->byteDepth * sample->numChannels;
+	uint64_t numValidBytes = sample->audioDataLengthBytes;
+	if (recorder) {
+		if (bytesPerSampleFrame == 0 || numValidSamples > std::numeric_limits<uint64_t>::max() / bytesPerSampleFrame) {
+			return false;
+		}
+		numValidBytes = numValidSamples * bytesPerSampleFrame;
+	}
+	if (numValidBytes > std::numeric_limits<uint64_t>::max() - sample->audioDataStartPosBytes) {
+		return false;
+	}
+	const uint64_t validAudioEndByte = numValidBytes + sample->audioDataStartPosBytes;
 
 	bool hadAnyTroubleLoading = false;
 
@@ -257,8 +269,21 @@ bool WaveformRenderer::findPeaksPerCol(Sample* sample, int64_t xScrollSamples, u
 
 		data->colStatus[col] = COL_STATUS_INVESTIGATED; // Default, which we may override below
 
-		int32_t colStartSample = xScrollSamples + col * xZoomSamples;
-		if (colStartSample >= numValidSamples) {
+		if (xZoomSamples > std::numeric_limits<uint64_t>::max() / static_cast<uint64_t>(col + 1)) {
+			data->colStatus[col] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
+			continue;
+		}
+		const uint64_t startOffset = static_cast<uint64_t>(col) * xZoomSamples;
+		const uint64_t endOffset = static_cast<uint64_t>(col + 1) * xZoomSamples;
+		const auto rawStart = deluge::gui::waveform::detail::addSampleOffset(xScrollSamples, startOffset);
+		const auto rawEnd = deluge::gui::waveform::detail::addSampleOffset(xScrollSamples, endOffset);
+		if (!rawStart.valid || !rawEnd.valid) {
+			data->colStatus[col] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
+			continue;
+		}
+
+		int64_t colStartSample = rawStart.value;
+		if (colStartSample >= 0 && static_cast<uint64_t>(colStartSample) >= numValidSamples) {
 			data->colStatus[col] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
 			continue;
 		}
@@ -266,10 +291,10 @@ bool WaveformRenderer::findPeaksPerCol(Sample* sample, int64_t xScrollSamples, u
 			colStartSample = 0;
 		}
 
-		int32_t colEndSample = xScrollSamples + (col + 1) * xZoomSamples;
+		int64_t colEndSample = rawEnd.value;
 
 		// If this column extends further right than the end of the waveform...
-		if (colEndSample >= numValidSamples) {
+		if (colEndSample >= 0 && static_cast<uint64_t>(colEndSample) >= numValidSamples) {
 
 			// If we're still recording, we'll just want to come back and render this one when the waveform has grown to
 			// cover this whole column
@@ -277,48 +302,59 @@ bool WaveformRenderer::findPeaksPerCol(Sample* sample, int64_t xScrollSamples, u
 				data->colStatus[col] = 0;
 				continue;
 			}
-			colEndSample = numValidSamples;
+			colEndSample = static_cast<int64_t>(numValidSamples);
 		}
 		else if (colEndSample < 0) {
 			data->colStatus[col] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
 			continue;
 		}
 
-		int32_t colStartByte =
-		    colStartSample * sample->numChannels * sample->byteDepth + sample->audioDataStartPosBytes;
-		int32_t colEndByte = colEndSample * sample->numChannels * sample->byteDepth + sample->audioDataStartPosBytes;
+		const auto colStartByte = deluge::gui::waveform::waveformSampleBytePosition(colStartSample, bytesPerSampleFrame,
+		                                                                            sample->audioDataStartPosBytes);
+		const auto colEndByte = deluge::gui::waveform::waveformSampleBytePosition(colEndSample, bytesPerSampleFrame,
+		                                                                          sample->audioDataStartPosBytes);
+		if (!colStartByte.valid || !colEndByte.valid) {
+			data->colStatus[col] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
+			continue;
+		}
 
-		int32_t colStartCluster = colStartByte >> Cluster::size_magnitude;
-		int32_t colEndCluster = colEndByte >> Cluster::size_magnitude;
+		const auto colStartCluster =
+		    deluge::gui::waveform::waveformClusterPosition(colStartByte.absoluteByte, Cluster::size_magnitude);
+		const auto colEndCluster =
+		    deluge::gui::waveform::waveformClusterPosition(colEndByte.absoluteByte, Cluster::size_magnitude);
+		if (!colStartCluster.valid || !colEndCluster.valid) {
+			data->colStatus[col] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
+			continue;
+		}
 
-		int32_t clusterIndexToDo;
+		uint64_t clusterIndexToDoWide;
 		int32_t startByteWithinCluster;
 		int32_t endByteWithinCluster;
 
-		int32_t numClustersSpan = colEndCluster - colStartCluster;
+		const uint64_t numClustersSpan = colEndCluster.clusterIndex - colStartCluster.clusterIndex;
 
 		bool investigatingAWholeCluster = false;
 
 		// If both same cluster...
 		if (numClustersSpan == 0) {
-			clusterIndexToDo = colStartCluster;
-			startByteWithinCluster = colStartByte & (Cluster::size - 1);
-			endByteWithinCluster = colEndByte & (Cluster::size - 1);
+			clusterIndexToDoWide = colStartCluster.clusterIndex;
+			startByteWithinCluster = static_cast<int32_t>(colStartCluster.byteWithinCluster);
+			endByteWithinCluster = static_cast<int32_t>(colEndCluster.byteWithinCluster);
 		}
 
 		// Special case to make sure we get initial transient (we know there's more than 1 cluster)
-		else if (colStartSample == 0 && colStartByte < (Cluster::size >> 1)) {
-			clusterIndexToDo = colStartCluster;
-			startByteWithinCluster = colStartByte & (Cluster::size - 1);
+		else if (colStartSample == 0 && colStartByte.absoluteByte < (Cluster::size >> 1)) {
+			clusterIndexToDoWide = colStartCluster.clusterIndex;
+			startByteWithinCluster = static_cast<int32_t>(colStartCluster.byteWithinCluster);
 			endByteWithinCluster = Cluster::size;
 			investigatingAWholeCluster = true;
 		}
 
 		// If 3 or more clusters, take 2nd one. TODO: have it take any one which has previously been fully investigated?
 		else if (numClustersSpan >= 2) {
-			clusterIndexToDo = colStartCluster + 1;
+			clusterIndexToDoWide = colStartCluster.clusterIndex + 1;
 
-			int32_t startByteWithinFirstCluster = colStartByte & (Cluster::size - 1);
+			int32_t startByteWithinFirstCluster = static_cast<int32_t>(colStartCluster.byteWithinCluster);
 
 			int32_t unusedBytesAtEndOfPrevCluster =
 			    (Cluster::size - startByteWithinFirstCluster) % (sample->numChannels * sample->byteDepth);
@@ -336,21 +372,21 @@ bool WaveformRenderer::findPeaksPerCol(Sample* sample, int64_t xScrollSamples, u
 		// If 2 cluster..
 		else if (numClustersSpan == 1) {
 
-			int32_t startByteWithinFirstCluster = colStartByte & (Cluster::size - 1);
+			int32_t startByteWithinFirstCluster = static_cast<int32_t>(colStartCluster.byteWithinCluster);
 			int32_t bytesInFirstCluster = Cluster::size - startByteWithinFirstCluster;
 
-			int32_t bytesInSecondCluster = colEndByte & (Cluster::size - 1);
+			int32_t bytesInSecondCluster = static_cast<int32_t>(colEndCluster.byteWithinCluster);
 
 			// If more in first cluster...
 			if (bytesInFirstCluster >= bytesInSecondCluster) {
-				clusterIndexToDo = colStartCluster;
+				clusterIndexToDoWide = colStartCluster.clusterIndex;
 				startByteWithinCluster = startByteWithinFirstCluster;
 				endByteWithinCluster = Cluster::size;
 			}
 
 			// Or if more in second cluster...
 			else {
-				clusterIndexToDo = colEndCluster;
+				clusterIndexToDoWide = colEndCluster.clusterIndex;
 
 				int32_t unusedBytesAtEndOfPrevCluster =
 				    (Cluster::size - startByteWithinFirstCluster) % (sample->numChannels * sample->byteDepth);
@@ -365,14 +401,16 @@ bool WaveformRenderer::findPeaksPerCol(Sample* sample, int64_t xScrollSamples, u
 			}
 		}
 
-		if (clusterIndexToDo >= endClusters) { // Could this actually happen?
+		if (endClusters <= 0 || clusterIndexToDoWide >= static_cast<uint64_t>(endClusters)
+		    || clusterIndexToDoWide > static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
 			data->colStatus[col] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
 			continue;
 		}
+		const int32_t clusterIndexToDo = static_cast<int32_t>(clusterIndexToDoWide);
 
-		else if (clusterIndexToDo == endClusters - 1) {
+		if (clusterIndexToDo == endClusters - 1) {
 
-			int32_t limit = (numValidBytes + sample->audioDataStartPosBytes) & (Cluster::size - 1);
+			int32_t limit = static_cast<int32_t>(validAudioEndByte & (Cluster::size - 1));
 
 			if (endByteWithinCluster > limit) {
 				endByteWithinCluster = limit;

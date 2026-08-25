@@ -23,6 +23,8 @@
 #include "model/sample/sample.h"
 #include "storage/multi_range/multisample_range.h"
 #include "util/misc.h"
+#include <algorithm>
+#include <limits>
 
 WaveformBasicNavigator waveformBasicNavigator{};
 
@@ -47,16 +49,21 @@ void WaveformBasicNavigator::opened(SampleHolder* holder) {
 	}
 }
 
-int32_t WaveformBasicNavigator::getMaxZoom() {
-	return ((sample->lengthInSamples - 1) >> kDisplayWidthMagnitude) + 1;
+int64_t WaveformBasicNavigator::getMaxZoom() {
+	if (sample->lengthInSamples == 0) {
+		return 1;
+	}
+	const uint64_t maxZoom = ((sample->lengthInSamples - 1) >> kDisplayWidthMagnitude) + 1;
+	return static_cast<int64_t>(
+	    std::min<uint64_t>(maxZoom, static_cast<uint64_t>(std::numeric_limits<int64_t>::max())));
 }
 
 bool WaveformBasicNavigator::zoom(int32_t offset, bool shouldAllowExtraScrollRight, MarkerColumn* cols,
                                   MarkerType markerType) {
-	uint32_t oldScroll = xScroll;
-	uint32_t oldZoom = xZoom;
+	int64_t oldScroll = xScroll;
+	int64_t oldZoom = xZoom;
 
-	int32_t newXZoom;
+	int64_t newXZoom;
 
 	// In
 	if (offset >= 0) {
@@ -65,9 +72,9 @@ bool WaveformBasicNavigator::zoom(int32_t offset, bool shouldAllowExtraScrollRig
 		}
 
 		bool isSquareNumber = false;
-		uint32_t nextSquareNumber;
-		for (int32_t i = 0; i < 31; i++) {
-			uint32_t squareNumber = (uint32_t)1 << i;
+		int64_t nextSquareNumber = 0;
+		for (int32_t i = 0; i < 63; i++) {
+			const int64_t squareNumber = int64_t{1} << i;
 			if (squareNumber == xZoom) {
 				isSquareNumber = true;
 				break;
@@ -78,7 +85,7 @@ bool WaveformBasicNavigator::zoom(int32_t offset, bool shouldAllowExtraScrollRig
 			}
 		}
 
-		if (!isSquareNumber) {
+		if (!isSquareNumber && nextSquareNumber != 0) {
 			if (xZoom >= nextSquareNumber * 0.707) {
 				newXZoom = nextSquareNumber >> 1;
 			}
@@ -94,18 +101,18 @@ bool WaveformBasicNavigator::zoom(int32_t offset, bool shouldAllowExtraScrollRig
 
 	// Out
 	else {
-		int32_t limit = getMaxZoom();
+		int64_t limit = getMaxZoom();
 		if (xZoom >= limit) {
 			return false;
 		}
-		newXZoom = xZoom << 1;
-		if (newXZoom >= limit || (newXZoom * 2) * 0.707 >= limit) {
+		newXZoom = (xZoom > limit / 2) ? limit : xZoom * 2;
+		if (newXZoom >= limit || static_cast<double>(newXZoom) * 1.414 >= static_cast<double>(limit)) {
 			newXZoom = limit;
 		}
 	}
 
 	int32_t pinMarkerCol = -1;
-	int32_t pinMarkerPos = xScroll + xZoom * (kDisplayWidth >> 1);
+	int64_t pinMarkerPos = xScroll + xZoom * (kDisplayWidth >> 1);
 	MarkerType pinnedToMarkerType = MarkerType::NONE;
 
 	if (markerType != MarkerType::NONE) {
@@ -176,7 +183,14 @@ bestYet:
 	       (kDisplayWidth + kSideBarWidth) * kDisplayHeight * sizeof(RGB));
 
 	// Calculate pin squares
-	int32_t zoomPinSquareBig = ((int64_t)(int32_t)(oldScroll - xScroll) << 16) / (int32_t)(newXZoom - oldZoom);
+	int64_t pinNumerator = oldScroll - xScroll;
+	int64_t pinDenominator = newXZoom - oldZoom;
+	while (pinNumerator > std::numeric_limits<int64_t>::max() / 65536
+	       || pinNumerator < std::numeric_limits<int64_t>::min() / 65536) {
+		pinNumerator /= 2;
+		pinDenominator /= 2;
+	}
+	int32_t zoomPinSquareBig = static_cast<int32_t>((pinNumerator * 65536) / pinDenominator);
 	for (int32_t i = 0; i < kDisplayHeight; i++) {
 		PadLEDs::zoomPinSquare[i] = zoomPinSquareBig;
 		PadLEDs::transitionTakingPlaceOnRow[i] = true;
@@ -205,15 +219,20 @@ bool WaveformBasicNavigator::scroll(int32_t offset, bool shouldAllowExtraScrollR
 	if (offset >= 0) {
 
 		if (shouldAllowExtraScrollRight) {
-			int32_t newScroll = xScroll + xZoom;
-			if ((int32_t)(xScroll + xZoom * kDisplayWidth) < xScroll) {
+			if (xZoom > std::numeric_limits<int64_t>::max() - xScroll) {
 				return false;
 			}
-			xScroll = newScroll;
+			xScroll += xZoom;
 		}
 		else {
-			if (xScroll + xZoom * kDisplayWidth >= sample->lengthInSamples
+			const uint64_t scroll = static_cast<uint64_t>(std::max<int64_t>(xScroll, 0));
+			const uint64_t zoom = static_cast<uint64_t>(xZoom);
+			const bool viewportOverflows = zoom > (std::numeric_limits<uint64_t>::max() - scroll) / kDisplayWidth;
+			if ((viewportOverflows || scroll + zoom * kDisplayWidth >= sample->lengthInSamples)
 			    && (!cols || cols[util::to_underlying(MarkerType::END)].colOnScreen < kDisplayWidth)) {
+				return false;
+			}
+			if (xZoom > std::numeric_limits<int64_t>::max() - xScroll) {
 				return false;
 			}
 			xScroll += xZoom;
@@ -246,8 +265,12 @@ void WaveformBasicNavigator::potentiallyAdjustScrollPosition(bool shouldAllowExt
 	else {
 		if (!shouldAllowExtraScrollRight) {
 			// Make sure not scrolled too far right
-			uint32_t lengthInSamples = sample->lengthInSamples;
-			int32_t scrollLimit = ((lengthInSamples - 1) / xZoom + 1 - kDisplayWidth) * xZoom;
+			const uint64_t lengthInSamples = sample->lengthInSamples;
+			const uint64_t zoom = static_cast<uint64_t>(xZoom);
+			const uint64_t columns = lengthInSamples == 0 ? 0 : ((lengthInSamples - 1) / zoom) + 1;
+			const uint64_t scrollLimitWide = columns <= kDisplayWidth ? 0 : (columns - kDisplayWidth) * zoom;
+			const int64_t scrollLimit = static_cast<int64_t>(
+			    std::min<uint64_t>(scrollLimitWide, static_cast<uint64_t>(std::numeric_limits<int64_t>::max())));
 			if (xScroll > scrollLimit) {
 				xScroll = scrollLimit;
 			}

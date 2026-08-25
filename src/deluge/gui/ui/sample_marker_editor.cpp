@@ -46,6 +46,7 @@
 #include "storage/multi_range/multisample_range.h"
 #include "util/cfunctions.h"
 #include "util/misc.h"
+#include <limits>
 
 using namespace deluge::gui;
 
@@ -142,8 +143,18 @@ bool SampleMarkerEditor::opened() {
 void SampleMarkerEditor::recordScrollAndZoom() {
 	if (markerType != MarkerType::NONE) {
 		auto& sampleHolder = getCurrentSampleHolder();
-		sampleHolder.waveformViewScroll = waveformBasicNavigator.xScroll;
-		sampleHolder.waveformViewZoom = waveformBasicNavigator.xZoom;
+		if (waveformBasicNavigator.xScroll >= std::numeric_limits<int32_t>::min()
+		    && waveformBasicNavigator.xScroll <= std::numeric_limits<int32_t>::max() && waveformBasicNavigator.xZoom > 0
+		    && waveformBasicNavigator.xZoom <= std::numeric_limits<int32_t>::max()) {
+			sampleHolder.waveformViewScroll = static_cast<int32_t>(waveformBasicNavigator.xScroll);
+			sampleHolder.waveformViewZoom = static_cast<int32_t>(waveformBasicNavigator.xZoom);
+		}
+		else {
+			// The legacy holder fields cannot represent this long-sample viewport. Reopen at full view instead of
+			// saving a wrapped value which would make the waveform disappear.
+			sampleHolder.waveformViewScroll = 0;
+			sampleHolder.waveformViewZoom = 0;
+		}
 	}
 }
 

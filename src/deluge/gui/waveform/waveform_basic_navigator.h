@@ -33,7 +33,7 @@ class WaveformBasicNavigator {
 public:
 	WaveformBasicNavigator();
 	void opened(SampleHolder* range = nullptr);
-	int32_t getMaxZoom();
+	int64_t getMaxZoom();
 	bool isZoomedIn();
 
 	bool zoom(int32_t offset, bool shouldAllowExtraScrollRight = false, MarkerColumn* cols = nullptr,

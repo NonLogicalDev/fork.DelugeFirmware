@@ -19,6 +19,7 @@
 #include "definitions_cxx.hpp"
 #include "extern.h"
 #include "gui/ui/load/load_pattern_ui.h"
+#include "gui/views/timeline_view_navigation.h"
 #include "gui/views/view.h"
 #include "hid/button.h"
 #include "hid/buttons.h"
@@ -40,7 +41,7 @@ void TimelineView::scrollFinished() {
 }
 
 // Virtual function
-bool TimelineView::setupScroll(uint32_t oldScroll) {
+bool TimelineView::setupScroll(int32_t oldScroll) {
 	memset(PadLEDs::transitionTakingPlaceOnRow, 1, sizeof(PadLEDs::transitionTakingPlaceOnRow));
 
 	renderMainPads(0xFFFFFFFF, PadLEDs::imageStore, &PadLEDs::occupancyMaskStore[kDisplayHeight], true);
@@ -48,9 +49,10 @@ bool TimelineView::setupScroll(uint32_t oldScroll) {
 	return true;
 }
 
-bool TimelineView::calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll, uint32_t newZoom, uint32_t oldZoom) {
+bool TimelineView::calculateZoomPinSquares(int32_t oldScroll, int32_t newScroll, uint32_t newZoom, uint32_t oldZoom) {
 
-	int32_t zoomPinSquareBig = ((int64_t)(int32_t)(oldScroll - newScroll) << 16) / (int32_t)(newZoom - oldZoom);
+	int32_t zoomPinSquareBig =
+	    ((static_cast<int64_t>(oldScroll) - newScroll) << 16) / static_cast<int32_t>(newZoom - oldZoom);
 
 	for (int32_t i = 0; i < kDisplayHeight; i++) {
 		PadLEDs::zoomPinSquare[i] = zoomPinSquareBig;
@@ -191,7 +193,9 @@ ActionResult TimelineView::horizontalEncoderAction(int32_t offset) {
 			}
 
 			currentSong->xZoom[navSysId] = newZoom;
-			int32_t newScroll = currentSong->xScroll[navSysId] / (newZoom * kDisplayWidth) * (newZoom * kDisplayWidth);
+			const uint32_t zoomSpan = newZoom * kDisplayWidth;
+			int32_t newScroll = deluge::gui::timeline_view_navigation::alignScrollForZoom(
+			    currentSong->xScroll[navSysId], zoomSpan, getMinXScroll());
 
 			initiateXZoom(zoomMagnitude, newScroll, oldXZoom);
 			displayZoomLevel();
@@ -204,12 +208,11 @@ ActionResult TimelineView::horizontalEncoderAction(int32_t offset) {
 		// or it's pressed and you're in note row editor
 		if (!Buttons::isShiftButtonPressed() || inNoteRowEditor) {
 
-			int32_t newXScroll = currentSong->xScroll[navSysId] + offset * currentSong->xZoom[navSysId] * kDisplayWidth;
-
-			// Make sure we don't scroll too far left
-			if (newXScroll < 0) {
-				newXScroll = 0;
-			}
+			const int64_t requestedScroll =
+			    static_cast<int64_t>(currentSong->xScroll[navSysId])
+			    + static_cast<int64_t>(offset) * currentSong->xZoom[navSysId] * kDisplayWidth;
+			const int32_t newXScroll =
+			    deluge::gui::timeline_view_navigation::clampScroll(requestedScroll, getMinXScroll());
 
 			// Make sure we don't scroll too far right
 			if (newXScroll < getMaxLength() || offset < 0) {
@@ -234,7 +237,12 @@ void TimelineView::displayScrollPos() {
 		quantization *= kDisplayWidth;
 	}
 
-	displayNumberOfBarsAndBeats(currentSong->xScroll[navSysId], quantization, true, "FAR");
+	if (currentSong->xScroll[navSysId] < 0) {
+		display->displayPopup("PRE", 3, true);
+	}
+	else {
+		displayNumberOfBarsAndBeats(currentSong->xScroll[navSysId], quantization, true, "FAR");
+	}
 }
 
 void TimelineView::displayNumberOfBarsAndBeats(uint32_t number, uint32_t quantization, bool countFromOne,
@@ -307,9 +315,9 @@ putBeatCountOnFarRight:
 }
 
 // Changes the actual xScroll.
-void TimelineView::initiateXScroll(uint32_t newXScroll, int32_t numSquaresToScroll) {
+void TimelineView::initiateXScroll(int32_t newXScroll, int32_t numSquaresToScroll) {
 
-	uint32_t oldXScroll = currentSong->xScroll[getNavSysId()];
+	int32_t oldXScroll = currentSong->xScroll[getNavSysId()];
 
 	int32_t scrollDirection = (newXScroll > currentSong->xScroll[getNavSysId()]) ? 1 : -1;
 
@@ -333,7 +341,9 @@ bool TimelineView::zoomToMax(bool inOnly) {
 		// Zoom to view what's new
 		currentSong->xZoom[getNavSysId()] = maxZoom;
 
-		int32_t newScroll = currentSong->xScroll[getNavSysId()] / (maxZoom * kDisplayWidth) * (maxZoom * kDisplayWidth);
+		const uint32_t zoomSpan = maxZoom * kDisplayWidth;
+		int32_t newScroll = deluge::gui::timeline_view_navigation::alignScrollForZoom(
+		    currentSong->xScroll[getNavSysId()], zoomSpan, getMinXScroll());
 
 		initiateXZoom(howMuchMoreMagnitude(maxZoom, oldZoom), newScroll, oldZoom);
 		return true;
@@ -349,7 +359,7 @@ void TimelineView::initiateXZoom(int32_t zoomMagnitude, int32_t newScroll, uint3
 	memcpy(PadLEDs::imageStore[(zoomMagnitude < 0) ? kDisplayHeight : 0], PadLEDs::image,
 	       (kDisplayWidth + kSideBarWidth) * kDisplayHeight * sizeof(RGB));
 
-	uint32_t oldScroll = currentSong->xScroll[getNavSysId()];
+	int32_t oldScroll = currentSong->xScroll[getNavSysId()];
 
 	currentSong->xScroll[getNavSysId()] = newScroll;
 	bool anyToAnimate = calculateZoomPinSquares(oldScroll, newScroll, currentSong->xZoom[getNavSysId()], oldZoom)

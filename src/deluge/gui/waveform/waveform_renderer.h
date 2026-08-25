@@ -41,7 +41,7 @@ class WaveformRenderer {
 public:
 	WaveformRenderer();
 
-	bool renderFullScreen(Sample* sample, uint64_t xScroll, uint64_t xZoom,
+	bool renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
 	                      RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
 	                      SampleRecorder* recorder = nullptr, std::optional<RGB> rgb = std::nullopt,
 	                      bool reversed = false, int32_t xEnd = kDisplayWidth);

@@ -26,6 +26,7 @@ class ConsequenceClipLength final : public Consequence {
 public:
 	ConsequenceClipLength(Clip* newClip, int32_t oldLength);
 	Error revert(TimeType time, ModelStack* modelStack) override;
+	bool recordMarkerValueForReversion(uint64_t* markerValue, uint64_t valueBeforeEdit);
 
 	Clip* clip;
 	int32_t lengthToRevertTo;

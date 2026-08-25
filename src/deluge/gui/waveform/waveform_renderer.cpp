@@ -45,7 +45,7 @@ WaveformRenderer::WaveformRenderer() {
 static_assert(Cluster::kSizeFAT16Max <= std::numeric_limits<int32_t>::max());
 
 // Returns false if had trouble loading some (will often not be all) Clusters, e.g. cos we're in the card routine
-bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64_t xZoom,
+bool WaveformRenderer::renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
                                         RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
                                         SampleRecorder* recorder, std::optional<RGB> rgb, bool reversed, int32_t xEnd) {
 

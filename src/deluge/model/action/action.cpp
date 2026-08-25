@@ -54,7 +54,7 @@ Action::Action(ActionType newActionType) {
 	offset = 0;
 }
 
-EnumStringMap<ActionType, 29> actionTypeMap{
+EnumStringMap<ActionType, 30> actionTypeMap{
     {{{ActionType::MISC, "misc"},
       {ActionType::NOTE_EDIT, "note_edit"},
       {ActionType::NOTE_TAIL_EXTEND, "note_tail_extend"},
@@ -83,7 +83,8 @@ EnumStringMap<ActionType, 29> actionTypeMap{
       {ActionType::NOTEROW_ROTATE, "noterow_rotate"},
       {ActionType::NOTEROW_LENGTH_EDIT, "noterow_length_edit"},
       {ActionType::NOTEROW_HORIZONTAL_SHIFT, "noterow_horizontal_shift"},
-      {ActionType::NOTEROW_REORDER, "noterow_reorder"}}}};
+      {ActionType::NOTEROW_REORDER, "noterow_reorder"},
+      {ActionType::AUDIO_CLIP_MARKER_EDIT, "audio_clip_marker_edit"}}}};
 
 // Call this before the destructor!
 void Action::prepareForDestruction(int32_t whichQueueActionIn, Song* song) {
@@ -117,6 +118,28 @@ void Action::addConsequence(Consequence* consequence) {
 
 // Returns error code
 Error Action::revert(TimeType time, ModelStack* modelStack) {
+	if (type == ActionType::AUDIO_CLIP_MARKER_EDIT) {
+		// A shortening snapshots automation after the length consequence is added. Action replay reverses its list
+		// after every pass, so without restoring this order, Redo would shorten first and destructively trim the
+		// automation that its following parameter consequences still need to swap. Keep the length change last on every
+		// pass.
+		Consequence** lengthLink = &firstConsequence;
+		while (*lengthLink && (*lengthLink)->type != Consequence::CLIP_LENGTH) {
+			lengthLink = &(*lengthLink)->next;
+		}
+		if (*lengthLink && (*lengthLink)->next) {
+			Consequence* lengthConsequence = *lengthLink;
+			*lengthLink = lengthConsequence->next;
+
+			Consequence** tail = &firstConsequence;
+			while (*tail) {
+				tail = &(*tail)->next;
+			}
+			lengthConsequence->next = nullptr;
+			*tail = lengthConsequence;
+		}
+	}
+
 	Consequence* thisConsequence = firstConsequence;
 
 	// If we're a record-arrangement-from-session Action, there's a trick - we know that whether we're being undone or
@@ -290,14 +313,14 @@ void Action::recordClipInstanceExistenceChange(Output* output, ClipInstance* cli
 	}
 }
 
-void Action::recordClipLengthChange(Clip* clip, int32_t oldLength) {
+ConsequenceClipLength* Action::recordClipLengthChange(Clip* clip, int32_t oldLength) {
 
 	// Check we don't already have a Consequence for this Clip's length
 	for (Consequence* cons = firstConsequence; cons; cons = cons->next) {
 		if (cons->type == Consequence::CLIP_LENGTH) {
 			ConsequenceClipLength* consequenceClipLength = (ConsequenceClipLength*)cons;
 			if (consequenceClipLength->clip == clip) {
-				return;
+				return consequenceClipLength;
 			}
 		}
 	}
@@ -307,7 +330,10 @@ void Action::recordClipLengthChange(Clip* clip, int32_t oldLength) {
 	if (consMemory) {
 		ConsequenceClipLength* consequenceClipLength = new (consMemory) ConsequenceClipLength(clip, oldLength);
 		addConsequence(consequenceClipLength);
+		return consequenceClipLength;
 	}
+
+	return nullptr;
 }
 
 bool Action::recordClipExistenceChange(Song* song, ClipArray* clipArray, Clip* clip, ExistenceChangeType type) {

@@ -42,6 +42,7 @@ class AudioClip;
 class NoteVector;
 class ModelStackWithAutoParam;
 class ModelStack;
+class ConsequenceClipLength;
 
 enum class ActionType {
 	MISC,
@@ -73,9 +74,10 @@ enum class ActionType {
 	NOTEROW_LENGTH_EDIT,
 	NOTEROW_HORIZONTAL_SHIFT,
 	NOTEROW_REORDER,
+	AUDIO_CLIP_MARKER_EDIT,
 };
 
-extern EnumStringMap<ActionType, 29> actionTypeMap;
+extern EnumStringMap<ActionType, 30> actionTypeMap;
 
 class Action {
 public:
@@ -96,7 +98,7 @@ public:
 	void updateYScrollClipViewAfter(InstrumentClip* clip = nullptr);
 	void recordClipInstanceExistenceChange(Output* output, ClipInstance* clipInstance, ExistenceChangeType type);
 	void prepareForDestruction(int32_t whichQueueActionIn, Song* song);
-	void recordClipLengthChange(Clip* clip, int32_t oldLength);
+	ConsequenceClipLength* recordClipLengthChange(Clip* clip, int32_t oldLength);
 	bool recordClipExistenceChange(Song* song, ClipArray* clipArray, Clip* clip, ExistenceChangeType type);
 	void recordAudioClipSampleChange(AudioClip* clip);
 	void deleteAllConsequences(int32_t whichQueueActionIn, Song* song, bool destructing = false);

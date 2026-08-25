@@ -33,10 +33,11 @@ public:
 	TimelineView* toTimelineView() final { return this; }
 
 	virtual uint32_t getMaxZoom() = 0;
-	virtual bool calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll, uint32_t newZoom,
+	virtual bool calculateZoomPinSquares(int32_t oldScroll, int32_t newScroll, uint32_t newZoom,
 	                                     uint32_t oldZoom); // Returns false if no animation needed
 	virtual uint32_t getMaxLength() = 0;
-	virtual bool setupScroll(uint32_t oldScroll); // Returns false if no animation needed
+	virtual bool setupScroll(int32_t oldScroll); // Returns false if no animation needed
+	[[nodiscard]] virtual int32_t getMinXScroll() const { return 0; }
 	[[nodiscard]] virtual int32_t getNavSysId() const { return NAVIGATION_CLIP; }
 
 	// By default, animate every row during a zoom transition. A row that renders identically before and after simply
@@ -51,7 +52,7 @@ public:
 	void displayScrollPos();
 	void displayNumberOfBarsAndBeats(uint32_t number, uint32_t quantization, bool countFromOne,
 	                                 char const* tooLongText);
-	void initiateXScroll(uint32_t newXScroll, int32_t numSquaresToScroll = kDisplayWidth);
+	void initiateXScroll(int32_t newXScroll, int32_t numSquaresToScroll = kDisplayWidth);
 	bool zoomToMax(bool inOnly = false);
 	void initiateXZoom(int32_t zoomMagnitude, int32_t newScroll, uint32_t oldZoom);
 	void midiLearnFlash() override;

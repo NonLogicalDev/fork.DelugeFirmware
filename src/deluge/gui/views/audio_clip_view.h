@@ -34,7 +34,8 @@ public:
 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea = true) override;
 	bool renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
 	                   uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) override;
-	bool setupScroll(uint32_t oldScroll) override;
+	bool setupScroll(int32_t oldScroll) override;
+	[[nodiscard]] int32_t getMinXScroll() const override;
 	[[nodiscard]] bool supportsTriplets() const override { return false; }
 	ClipMinder* toClipMinder() override { return this; }
 
@@ -71,11 +72,21 @@ private:
 	bool endMarkerVisible;   // True if user is currently adjusting the clip's end
 	bool startMarkerVisible; // True if user is currently adjusting the clip's start
 	bool blinkOn;
+	bool markerGestureActive;
+	uint64_t markerGestureRawStart;
+	uint64_t markerGestureRawEnd;
+	uint64_t markerGestureSourceLength;
+	int32_t markerGestureLoopLength;
+	int64_t markerGestureTickOffset;
+
+	void closeMarkerGesture();
+	void clearMarkerSelection();
+	void clearMarkerSelectionIfOffscreen();
+	bool beginMarkerGesture();
+	void moveSelectedMarker(int8_t offset);
 
 	void changeUnderlyingSampleLength(AudioClip& clip, const Sample* sample, int32_t newLength, int32_t oldLength,
 	                                  uint64_t oldLengthSamples) const;
-	void changeUnderlyingSampleStart(AudioClip& clip, const Sample* sample, int32_t newStartTicks, int32_t oldLength,
-	                                 uint64_t oldLengthSamples) const;
 };
 
 extern AudioClipView audioClipView;

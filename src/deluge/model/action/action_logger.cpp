@@ -36,6 +36,7 @@
 #include "model/clip/instrument_clip.h"
 #include "model/clip/instrument_clip_minder.h"
 #include "model/consequence/consequence_clip_begin_linear_record.h"
+#include "model/consequence/consequence_clip_length.h"
 #include "model/consequence/consequence_note_array_change.h"
 #include "model/consequence/consequence_param_change.h"
 #include "model/consequence/consequence_performance_view_press.h"
@@ -84,11 +85,23 @@ void ActionLogger::deleteLastAction() {
 }
 
 Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addToExistingIfPossible) {
+	return getNewActionInternal(newActionType, addToExistingIfPossible, nullptr, nullptr);
+}
+
+Action* ActionLogger::getNewActionForAudioClipMarkerEdit(Clip* clip, uint64_t* markerValue) {
+	if (!currentSong || !clip || clip->type != ClipType::AUDIO || clip != getCurrentClip() || !markerValue
+	    || getCurrentUI() != &audioClipView) {
+		return nullptr;
+	}
+	return getNewActionInternal(ActionType::AUDIO_CLIP_MARKER_EDIT, ActionAddition::ALLOWED, clip, markerValue);
+}
+
+Action* ActionLogger::getNewActionInternal(ActionType newActionType, ActionAddition addToExistingIfPossible,
+                                           Clip* clipRequiredForAddition, uint64_t* markerValueForClipLengthChange) {
 
 	if (!currentSong) {
 		return nullptr;
 	}
-	deleteLog(AFTER);
 
 	// If not on a View, not allowed!
 	// Exception for sound editor note editor UI which can edit notes on the grid
@@ -101,6 +114,7 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
 	}
 
 	Action* newAction;
+	bool actionNeedsCommit = false;
 
 	// If recording arrangement...
 	if (playbackHandler.recording == RecordingMode::ARRANGEMENT) {
@@ -126,6 +140,7 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
 	else if (addToExistingIfPossible != ActionAddition::NOT_ALLOWED && firstAction[BEFORE]
 	         && firstAction[BEFORE]->openForAdditions && firstAction[BEFORE]->type == newActionType
 	         && firstAction[BEFORE]->view == getCurrentUI()
+	         && (!clipRequiredForAddition || firstAction[BEFORE]->currentClip == clipRequiredForAddition)
 	         && (addToExistingIfPossible == ActionAddition::ALLOWED
 	             || firstAction[BEFORE]->creationTime == AudioEngine::audioSampleTimer)) {
 		newAction = firstAction[BEFORE];
@@ -133,14 +148,6 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
 
 	// If we can't do that...
 	else {
-
-		deleteLastActionIfEmpty();
-
-		// Make sure we close off any existing action
-		if (firstAction[BEFORE]) {
-			firstAction[BEFORE]->openForAdditions = false;
-		}
-
 		// And make a new one
 		void* actionMemory = GeneralMemoryAllocator::get().allocLowSpeed(sizeof(Action));
 
@@ -171,11 +178,6 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
 
 		newAction->numClipStates = numClips;
 
-		// Only now put the new action into the list of undo actions - because in the above steps, we may have decided
-		// to delete it and get out (if we ran out of RAM while creating the ActionClipStates)
-		newAction->nextAction = firstAction[BEFORE];
-		firstAction[BEFORE] = newAction;
-
 		// And fill out all the snapshot stuff that the Action captures at a song-wide level
 		newAction->yScrollSongView[BEFORE] = currentSong->getYScrollSongViewWithoutPendingOverdubs();
 		newAction->xScrollClip[BEFORE] = currentSong->xScroll[NAVIGATION_CLIP];
@@ -194,6 +196,39 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
 
 		newAction->view = getCurrentUI();
 		newAction->currentClip = getCurrentClip();
+		actionNeedsCommit = true;
+	}
+
+	// Marker edits are committed to history only after both the action and its exact reversible state exist. This keeps
+	// an allocation failure from consuming Redo or leaving an empty marker-edit action ahead of an unchanged model.
+	if (markerValueForClipLengthChange) {
+		ConsequenceClipLength* consequence =
+		    newAction->recordClipLengthChange(clipRequiredForAddition, clipRequiredForAddition->loopLength);
+		if (!consequence
+		    || !consequence->recordMarkerValueForReversion(markerValueForClipLengthChange,
+		                                                   *markerValueForClipLengthChange)) {
+			if (actionNeedsCommit) {
+				newAction->prepareForDestruction(BEFORE, currentSong);
+				newAction->~Action();
+				delugeDealloc(newAction);
+			}
+			return nullptr;
+		}
+	}
+
+	if (actionNeedsCommit) {
+		deleteLastActionIfEmpty();
+
+		if (firstAction[BEFORE]) {
+			firstAction[BEFORE]->openForAdditions = false;
+		}
+
+		deleteLog(AFTER);
+		newAction->nextAction = firstAction[BEFORE];
+		firstAction[BEFORE] = newAction;
+	}
+	else {
+		deleteLog(AFTER);
 	}
 
 	updateAction(newAction);

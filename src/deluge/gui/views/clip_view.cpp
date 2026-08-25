@@ -38,6 +38,7 @@
 #include "playback/playback_handler.h"
 #include "processing/engines/audio_engine.h"
 #include "processing/stem_export/stem_export.h"
+#include <algorithm>
 
 namespace ruler = deluge::gui::views::clip_progress_ruler;
 
@@ -141,6 +142,7 @@ uint32_t ClipView::getMaxLength() {
 
 void ClipView::focusRegained() {
 	ClipNavigationTimelineView::focusRegained();
+	currentSong->xScroll[NAVIGATION_CLIP] = std::max(currentSong->xScroll[NAVIGATION_CLIP], getMinXScroll());
 	invalidateClipProgressRuler();
 }
 

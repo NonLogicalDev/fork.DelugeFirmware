@@ -163,6 +163,7 @@ bool SessionView::opened() {
 void SessionView::focusRegained() {
 	viewingRecordArmingActive = false;
 	horizontalEncoderPressed = false;
+	currentSong->xScroll[NAVIGATION_CLIP] = std::max(currentSong->xScroll[NAVIGATION_CLIP], getMinXScroll());
 	selectLayout(0); // Make sure we get a valid layout from the loaded file
 
 	bool doingRender = (currentUIMode != UI_MODE_ANIMATION_FADE);
@@ -2492,7 +2493,7 @@ void SessionView::rowNeedsRenderingDependingOnSubMode(int32_t yDisplay) {
 	}
 }
 
-bool SessionView::calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll, uint32_t newZoom, uint32_t oldZoom) {
+bool SessionView::calculateZoomPinSquares(int32_t oldScroll, int32_t newScroll, uint32_t newZoom, uint32_t oldZoom) {
 
 	bool anyToDo = false;
 
@@ -2501,8 +2502,8 @@ bool SessionView::calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll
 		Clip* clip = getClipOnScreen(yDisplay);
 
 		if (clip && clip->currentlyScrollableAndZoomable()) {
-			int32_t oldLocal = getClipLocalScroll(clip, oldScroll, oldZoom);
-			int32_t newLocal = getClipLocalScroll(clip, newScroll, newZoom);
+			int32_t oldLocal = getClipLocalScroll(clip, static_cast<uint32_t>(oldScroll), oldZoom);
+			int32_t newLocal = getClipLocalScroll(clip, static_cast<uint32_t>(newScroll), newZoom);
 
 			PadLEDs::zoomPinSquare[yDisplay] =
 			    ((int64_t)(int32_t)(oldLocal - newLocal) << 16) / (int32_t)(newZoom - oldZoom);
@@ -2525,7 +2526,7 @@ uint32_t SessionView::getMaxLength() {
 	return currentSong->getLongestClip(true, false)->loopLength;
 }
 
-bool SessionView::setupScroll(uint32_t oldScroll) {
+bool SessionView::setupScroll(int32_t oldScroll) {
 	if (currentSong->sessionLayout == SessionLayoutType::SessionLayoutTypeGrid) {
 		return false;
 	}
@@ -2547,7 +2548,7 @@ bool SessionView::setupScroll(uint32_t oldScroll) {
 		if (clip && clip->currentlyScrollableAndZoomable()) {
 
 			uint32_t newLocalPos = getClipLocalScroll(clip, currentSong->xScroll[NAVIGATION_CLIP], xZoom);
-			uint32_t oldLocalPos = getClipLocalScroll(clip, oldScroll, xZoom);
+			uint32_t oldLocalPos = getClipLocalScroll(clip, static_cast<uint32_t>(oldScroll), xZoom);
 			bool moved = (newLocalPos != oldLocalPos);
 			if (moved) {
 				ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);

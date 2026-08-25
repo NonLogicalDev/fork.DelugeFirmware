@@ -25,6 +25,7 @@
 class ParamCollection;
 class Sound;
 class ModelStack;
+class Clip;
 
 enum class ActionAddition {
 	NOT_ALLOWED,
@@ -39,6 +40,9 @@ public:
 	// warning - super not thread safe
 	Action* getNewAction(ActionType newActionType,
 	                     ActionAddition addToExistingIfPossible = ActionAddition::NOT_ALLOWED);
+	// Call before changing either the raw marker or Clip length. A non-null result already owns their original values;
+	// failure leaves the Undo and Redo queues unchanged.
+	Action* getNewActionForAudioClipMarkerEdit(Clip* clip, uint64_t* markerValue);
 	void recordUnautomatedParamChange(ModelStackWithAutoParam const* modelStack,
 	                                  ActionType actionType = ActionType::PARAM_UNAUTOMATED_VALUE_CHANGE);
 	void recordSwingChange(int8_t swingBefore, int8_t swingAfter);
@@ -60,6 +64,8 @@ public:
 	Action* firstAction[2];
 
 private:
+	Action* getNewActionInternal(ActionType newActionType, ActionAddition addToExistingIfPossible,
+	                             Clip* clipRequiredForAddition, uint64_t* markerValueForClipLengthChange);
 	void revertAction(Action* action, bool updateVisually, bool doNavigation, TimeType time);
 	void deleteLastActionIfEmpty();
 	void deleteLastAction();

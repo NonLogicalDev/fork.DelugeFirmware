@@ -2392,6 +2392,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
 	writer.writeAttribute("keyboardRowInterval", keyboardState.isomorphic.rowInterval);
 	writer.writeAttribute("drumsScrollOffset", keyboardState.drums.scroll_offset);
 	writer.writeAttribute("drumsZoomLevel", keyboardState.drums.zoom_level);
+	writer.writeAttribute("drumsVelocityProfile", static_cast<int32_t>(keyboardState.drums.velocity_profile));
+	writer.writeAttribute("drumsFixedVelocity", keyboardState.drums.fixed_velocity);
 	writer.writeAttribute("inKeyScrollOffset", keyboardState.inKey.scrollOffset);
 	writer.writeAttribute("inKeyRowInterval", keyboardState.inKey.rowInterval);
 
@@ -2585,6 +2587,17 @@ someError:
 
 		else if (!strcmp(tagName, "drumsZoomLevel")) {
 			keyboardState.drums.zoom_level = reader.readTagOrAttributeValueInt();
+		}
+
+		else if (!strcmp(tagName, "drumsVelocityProfile")) {
+			int32_t rawProfile = reader.readTagOrAttributeValueInt();
+			keyboardState.drums.velocity_profile = deluge::gui::ui::keyboard::velocityDrumsProfileFromValue(rawProfile);
+		}
+
+		else if (!strcmp(tagName, "drumsFixedVelocity")) {
+			int32_t rawFixedVelocity = reader.readTagOrAttributeValueInt();
+			keyboardState.drums.fixed_velocity =
+			    deluge::gui::ui::keyboard::velocityDrumsFixedVelocityFromValue(rawFixedVelocity);
 		}
 
 		else if (!strcmp(tagName, "inKeyScrollOffset")) {

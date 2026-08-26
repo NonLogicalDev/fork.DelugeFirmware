@@ -87,6 +87,8 @@ private:
 	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
 
 	void selectLayout(int8_t offset);
+	bool velocityDrumsOwnsScaleModifier();
+	void clearVelocityDrumsScaleGesture();
 	void enterScaleMode(int32_t selectedRootNote = kDefaultCalculateRootNote);
 	void exitScaleMode();
 	void drawNoteCode(int32_t noteCode);
@@ -102,6 +104,9 @@ private:
 	bool keyboardButtonUsed = false;
 	bool yEncoderActive = false;
 	bool xEncoderActive = false;
+	bool velocityDrumsScalePressOwned = false;
+	bool velocityDrumsScaleGestureUsed = false;
+	bool velocityDrumsScaleBlockedByLoad = false;
 };
 }; // namespace deluge::gui::ui::keyboard
 

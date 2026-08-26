@@ -19,6 +19,7 @@
 #include "definitions_cxx.hpp"
 #include "gui/ui/keyboard/chords.h"
 #include "gui/ui/keyboard/layout/column_control_state.h"
+#include "gui/ui/keyboard/layout/velocity_drums_profile.h"
 #include "storage/flash_storage.h"
 
 namespace deluge::gui::ui::keyboard {
@@ -32,6 +33,8 @@ struct KeyboardStateIsomorphic {
 struct KeyboardStateDrums {
 	int32_t scroll_offset = 0;
 	int32_t zoom_level = 8;
+	VelocityDrumsProfile velocity_profile = VelocityDrumsProfile::Full;
+	uint8_t fixed_velocity = kDefaultVelocityDrumsFixedVelocity;
 };
 
 constexpr int32_t kDefaultInKeyRowInterval = 3;

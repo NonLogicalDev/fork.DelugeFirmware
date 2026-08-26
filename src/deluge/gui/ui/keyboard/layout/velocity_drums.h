@@ -18,6 +18,7 @@
 #pragma once
 
 #include "gui/ui/keyboard/layout.h"
+#include "gui/ui/keyboard/layout/velocity_drums_profile.h"
 
 namespace deluge::gui::ui::keyboard::layout {
 
@@ -38,6 +39,9 @@ public:
 	void handleVerticalEncoder(int32_t offset) override;
 	void handleHorizontalEncoder(int32_t offset, bool shiftEnabled, PressedPad presses[kMaxNumKeyboardPadPresses],
 	                             bool encoderPressed = false) override;
+	void adjustVelocityProfile(int32_t offset);
+	void adjustFixedVelocity(int32_t offset);
+	void displayVelocityProfile();
 
 	void renderPads(RGB image[][kDisplayWidth + kSideBarWidth]) override;
 
@@ -46,7 +50,9 @@ public:
 	bool supportsKit() override { return true; }
 
 private:
-	inline uint8_t velocityFromCoords(int32_t x, int32_t y, uint32_t edge_size_x, uint32_t edge_size_y) {
+	uint8_t velocityFromCoords(int32_t x, int32_t y, uint32_t edge_size_x, uint32_t edge_size_y);
+
+	inline uint8_t legacyVelocityFromCoords(int32_t x, int32_t y, uint32_t edge_size_x, uint32_t edge_size_y) {
 		uint32_t velocity = 0;
 		if (edge_size_x == 1) {
 			// No need to do a lot of calculations or use max velocity for only one option.

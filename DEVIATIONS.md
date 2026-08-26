@@ -661,6 +661,42 @@ Keep whole-sample information and the graphical Waveform Editor as two predictab
 - Compile every affected menu and graphical editor source with the target ARM Release toolchain, run formatting checks, run the complete configured host suite, and complete a local Release firmware build.
 - On a physical OLED and seven-segment Deluge, check each launcher, information-to-graph Select, graph-to-information Back, the next Back, both visible bounds, Shift plus Select in both release orders, Start and End movement, loop markers, forward and reverse playback, same-sample re-entry, a different sample, Kit held-Select audition, and storage-busy behavior. Physical verification remains human-controlled and does not authorize flashing.
 
+## 22. Velocity Drums velocity profiles
+
+### Intent
+
+Let a player keep large Velocity Drums hit areas while choosing how many distinct velocity targets each drum exposes. The velocity profile belongs to the existing layout rather than creating another drum layout or changing drum placement.
+
+### Required behavior
+
+- Velocity Drums offers four profiles named `FULL`, `4`, `2`, and `FIXED`. Each Clip remembers its active profile and fixed velocity independently of other Clips.
+- `FULL` is the default for new Clips and for projects that do not contain valid profile data. It preserves the established velocity and brightness of every cell exactly.
+- In a four-by-four drum block, `4` divides the pad into four two-by-two quadrants. The bottom-left quadrant emits velocity 32, bottom-right emits 64, top-left emits 96, and top-right emits 127. Every cell in one quadrant has the same brightness and emitted velocity.
+- `2` divides a multi-row drum block into lower and upper halves at velocities 64 and 127. A one-row block instead uses left and right halves at those velocities.
+- `FIXED` makes every cell in the drum block emit the saved fixed velocity. The value is limited to 1 through 127 and defaults to 64 when saved data is missing or invalid.
+- When a block cannot form all requested regions, use its available horizontal or vertical cells to form no more than the selected number of ordered soft-to-loud regions. A one-cell block uses the saved fixed velocity.
+- For `4`, `2`, and `FIXED`, each cell's brightness represents the velocity that the same cell will emit. Disabled drum blocks remain unlit, and an active note retains the established active-note dimming.
+- In a Kit Clip using Velocity Drums, holding Scale and turning Horizontal selects the profile. Holding Scale and turning Vertical changes the fixed velocity and selects `FIXED`. Accelerated encoder offsets remain bounded or wrap only within the four profiles.
+- Pressing and releasing Scale without an encoder turn reports the current profile instead of showing the Kit scale refusal. The matching release remains consumed even if the Output or Keyboard layout changes while Scale is held.
+- A Load chord must not change or report the velocity profile. Scale-modified encoder actions take precedence over Shift color editing, pressed-Horizontal zoom, and Shift zoom only while Velocity Drums owns the Scale press.
+- A profile or fixed-velocity change applies to later pad presses. It does not retrigger, stop, rewrite, or change the velocity of an already sounding or recorded note.
+- Profile and fixed-velocity fields load independently. An invalid field falls back to its own default without resetting the other field or the Clip's existing Velocity Drums scroll and zoom state.
+
+### Compatibility and boundaries
+
+- Preserve drum order, block geometry, scroll, zoom, selected-drum tracking, retrigger choice, recording, note-off behavior, Clip color editing, and the complete legacy `FULL` velocity and brightness behavior.
+- Preserve the established Scale button behavior in every non-Kit surface and every Kit Keyboard layout other than Velocity Drums. Leaving and returning to Keyboard View must not leave a stale Scale gesture.
+- Do not repair the pre-existing widened final block mismatch at the three-cell horizontal zoom or the pre-existing zero-velocity edge at the largest `FULL` zoom as part of this deviation.
+- Do not add a duplicate Keyboard layout, a timer, background work, persistent Song-wide state, Kit-row sample state, sequencer note editing, MIDI velocity processing, or the separate proposed note-length gesture.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused host checks cover independent saved-field validation, fixed-value clamping, exact `FULL` passthrough, four-by-four quadrant orientation, two-half orientation, fixed velocity, one-cell and single-axis blocks, odd and wide geometries, nonzero new-profile velocities, and brightness mapping.
+- Source review confirms that `FULL` retains its separate legacy render path; Scale ownership, Load suppression, and encoder precedence cannot leak to another layout; profile changes do not touch active notes; and saving and loading use the existing per-Clip Keyboard state without disturbing scroll or zoom.
+- Format every affected source, compile the changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete a local Release firmware build.
+- On a physical Deluge, check every profile and zoom, four-quadrant orientation, two-region orientation, fixed-value limits, accelerated turns, OLED and seven-segment feedback, held notes, retriggering, scroll, zoom, color editing, Load chords, layout changes while Scale is held, and save and reload. Physical verification remains human-controlled and does not authorize flashing.
+
 ## Maintaining this document
 
 Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.

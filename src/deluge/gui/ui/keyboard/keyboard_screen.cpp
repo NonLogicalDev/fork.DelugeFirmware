@@ -81,6 +81,17 @@ KeyboardScreen::KeyboardScreen() {
 	lastNotesState = {0};
 }
 
+bool KeyboardScreen::velocityDrumsOwnsScaleModifier() {
+	return getCurrentOutputType() == OutputType::KIT
+	       && getCurrentInstrumentClip()->keyboardState.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeDrums;
+}
+
+void KeyboardScreen::clearVelocityDrumsScaleGesture() {
+	velocityDrumsScalePressOwned = false;
+	velocityDrumsScaleGestureUsed = false;
+	velocityDrumsScaleBlockedByLoad = false;
+}
+
 void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
 	InstrumentClipMinder::renderOLED(canvas);
 	instrumentClipView.renderKeyboardClipProgressRuler(canvas, *this);
@@ -506,8 +517,30 @@ ActionResult KeyboardScreen::buttonAction(deluge::hid::Button b, bool on, bool i
 		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
 	}
 
+	if (b == LOAD && on && velocityDrumsScalePressOwned) {
+		velocityDrumsScaleBlockedByLoad = true;
+	}
+
 	// Scale mode button
 	if (b == SCALE_MODE) {
+		if (on && velocityDrumsOwnsScaleModifier()) {
+			velocityDrumsScalePressOwned = true;
+			velocityDrumsScaleGestureUsed = false;
+			velocityDrumsScaleBlockedByLoad =
+			    Buttons::isButtonPressed(LOAD) || currentUIMode == UI_MODE_HOLDING_LOAD_BUTTON;
+			return ActionResult::DEALT_WITH;
+		}
+
+		if (!on && velocityDrumsScalePressOwned) {
+			bool shouldReportProfile =
+			    !velocityDrumsScaleGestureUsed && !velocityDrumsScaleBlockedByLoad && velocityDrumsOwnsScaleModifier();
+			clearVelocityDrumsScaleGesture();
+			if (shouldReportProfile) {
+				keyboard_layout_velocity_drums.displayVelocityProfile();
+			}
+			return ActionResult::DEALT_WITH;
+		}
+
 		if ((getCurrentOutputType() == OutputType::KIT)) {
 			// Kits can't do scales!
 			display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_KEYBOARD_VIEW_CANT_ENTER_SCALE));
@@ -709,6 +742,18 @@ ActionResult KeyboardScreen::verticalEncoderAction(int32_t offset, bool inCardRo
 		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE; // Allow sometimes.
 	}
 
+	if (velocityDrumsScalePressOwned && !Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)) {
+		clearVelocityDrumsScaleGesture();
+	}
+
+	if (offset != 0 && velocityDrumsScalePressOwned && Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)
+	    && !velocityDrumsScaleBlockedByLoad && velocityDrumsOwnsScaleModifier()) {
+		velocityDrumsScaleGestureUsed = true;
+		keyboard_layout_velocity_drums.adjustFixedVelocity(offset);
+		requestRendering();
+		return ActionResult::DEALT_WITH;
+	}
+
 	if (Buttons::isShiftButtonPressed() && currentUIMode == UI_MODE_NONE) {
 		getCurrentInstrumentClip()->colourOffset += offset;
 		layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->precalculate();
@@ -726,6 +771,17 @@ ActionResult KeyboardScreen::verticalEncoderAction(int32_t offset, bool inCardRo
 }
 
 ActionResult KeyboardScreen::horizontalEncoderAction(int32_t offset) {
+	if (velocityDrumsScalePressOwned && !Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)) {
+		clearVelocityDrumsScaleGesture();
+	}
+
+	if (offset != 0 && velocityDrumsScalePressOwned && Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)
+	    && !velocityDrumsScaleBlockedByLoad && velocityDrumsOwnsScaleModifier()) {
+		velocityDrumsScaleGestureUsed = true;
+		keyboard_layout_velocity_drums.adjustVelocityProfile(offset);
+		requestRendering();
+		return ActionResult::DEALT_WITH;
+	}
 
 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->handleHorizontalEncoder(
 	    offset, (Buttons::isShiftButtonPressed() && isUIModeWithinRange(padActionUIModes)), pressedPads,
@@ -869,6 +925,9 @@ bool KeyboardScreen::opened() {
 }
 
 void KeyboardScreen::focusRegained() {
+	if (!Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)) {
+		clearVelocityDrumsScaleGesture();
+	}
 	keyboardButtonUsed = true; // Ensure we don't leave the mode on button up
 	InstrumentClipMinder::focusRegained();
 	setLedStates();

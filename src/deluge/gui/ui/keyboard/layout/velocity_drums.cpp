@@ -24,6 +24,25 @@
 
 namespace deluge::gui::ui::keyboard::layout {
 
+uint8_t KeyboardLayoutVelocityDrums::velocityFromCoords(int32_t x, int32_t y, uint32_t edge_size_x,
+                                                        uint32_t edge_size_y) {
+	uint8_t fullVelocity = legacyVelocityFromCoords(x, y, edge_size_x, edge_size_y) >> 1;
+	uint32_t blockWidth = edge_size_x;
+	uint32_t localX = x % edge_size_x;
+	if (edge_size_x > 1 && edge_size_x % 2 == 1) {
+		uint32_t xLimit = kDisplayWidth - 2 - edge_size_x;
+		bool widenedFinalBlock = x > xLimit;
+		if (widenedFinalBlock) {
+			blockWidth++;
+			localX = x - xLimit - 1;
+		}
+	}
+
+	KeyboardStateDrums& state = getState().drums;
+	return velocityFromDrumsProfile(state.velocity_profile, localX, y % edge_size_y, blockWidth, edge_size_y,
+	                                state.fixed_velocity, fullVelocity);
+}
+
 void KeyboardLayoutVelocityDrums::evaluatePads(PressedPad presses[kMaxNumKeyboardPadPresses]) {
 	currentNotesState = NotesState{}; // Erase active notes
 
@@ -52,8 +71,7 @@ void KeyboardLayoutVelocityDrums::evaluatePads(PressedPad presses[kMaxNumKeyboar
 			continue; // save calculation time if press was on an unlit pad. Is there a way to prevent
 			          // re-rendering?
 		}
-		uint32_t velocity =
-		    (velocityFromCoords(x, y, edge_size_x, edge_size_y) >> 1); // uses bitshift to divide by two, to get 0-127
+		uint32_t velocity = velocityFromCoords(x, y, edge_size_x, edge_size_y);
 		// D_PRINTLN("note, velocity: %d, %d", note, velocity);
 		auto note_on_idx = currentNotesState.enableNote(note, velocity);
 		// enableNote returns `count` (>= the number of tracked notes) when the note could not be added - either
@@ -88,6 +106,61 @@ void KeyboardLayoutVelocityDrums::evaluatePads(PressedPad presses[kMaxNumKeyboar
 			instrumentClipView.setSelectedDrum(thisDrum, true, nullptr, shouldSendMidiFeedback);
 		}
 	}
+}
+
+void KeyboardLayoutVelocityDrums::displayVelocityProfile() {
+	KeyboardStateDrums& state = getState().drums;
+	VelocityDrumsProfile profile = velocityDrumsProfileFromValue(static_cast<int32_t>(state.velocity_profile));
+
+	DEF_STACK_STRING_BUF(buffer, 24);
+	if (display->haveOLED()) {
+		buffer.append("Velocity: ");
+	}
+	switch (profile) {
+	case VelocityDrumsProfile::Full:
+		buffer.append(display->haveOLED() ? "Full" : "FULL");
+		break;
+	case VelocityDrumsProfile::Four:
+		buffer.append("4");
+		break;
+	case VelocityDrumsProfile::Two:
+		buffer.append("2");
+		break;
+	case VelocityDrumsProfile::Fixed:
+		buffer.append(display->haveOLED() ? "Fixed " : "F");
+		buffer.appendInt(velocityDrumsFixedVelocityFromValue(state.fixed_velocity));
+		break;
+	}
+	display->displayPopup(buffer.c_str());
+}
+
+void KeyboardLayoutVelocityDrums::adjustVelocityProfile(int32_t offset) {
+	if (offset == 0) {
+		return;
+	}
+
+	KeyboardStateDrums& state = getState().drums;
+	constexpr int32_t kProfileCount = static_cast<int32_t>(VelocityDrumsProfile::Fixed) + 1;
+	int32_t nextProfile =
+	    static_cast<int32_t>(velocityDrumsProfileFromValue(static_cast<int32_t>(state.velocity_profile)));
+	nextProfile = (nextProfile + offset) % kProfileCount;
+	if (nextProfile < 0) {
+		nextProfile += kProfileCount;
+	}
+	state.velocity_profile = static_cast<VelocityDrumsProfile>(nextProfile);
+	displayVelocityProfile();
+}
+
+void KeyboardLayoutVelocityDrums::adjustFixedVelocity(int32_t offset) {
+	if (offset == 0) {
+		return;
+	}
+
+	KeyboardStateDrums& state = getState().drums;
+	int32_t fixedVelocity = velocityDrumsFixedVelocityFromValue(state.fixed_velocity);
+	state.fixed_velocity = clampVelocityDrumsFixedVelocity(fixedVelocity + offset);
+	state.velocity_profile = VelocityDrumsProfile::Fixed;
+	displayVelocityProfile();
 }
 
 void KeyboardLayoutVelocityDrums::handleVerticalEncoder(int32_t offset) {
@@ -140,9 +213,10 @@ void KeyboardLayoutVelocityDrums::handleHorizontalEncoder(int32_t offset, bool s
 void KeyboardLayoutVelocityDrums::renderPads(RGB image[][kDisplayWidth + kSideBarWidth]) {
 	// D_PRINTLN("render pads");
 	uint32_t highest_clip_note = getHighestClipNote();
-	uint32_t offset = getState().drums.scroll_offset;
+	KeyboardStateDrums& state = getState().drums;
+	uint32_t offset = state.scroll_offset;
 	uint32_t offset2 = getCurrentInstrumentClip()->colourOffset + 60;
-	uint32_t zoom_level = getState().drums.zoom_level;
+	uint32_t zoom_level = state.zoom_level;
 	uint32_t edge_size_x = zoom_arr[zoom_level][0];
 	uint32_t edge_size_y = zoom_arr[zoom_level][1];
 	uint32_t pad_area_1 = edge_size_x * edge_size_y;
@@ -175,15 +249,47 @@ void KeyboardLayoutVelocityDrums::renderPads(RGB image[][kDisplayWidth + kSideBa
 				uint32_t pad_area = x_adjust ? pad_area_2 : pad_area_1;
 				float intensity_increment = x_adjust ? intensity_increment_2 : intensity_increment_1;
 				float colour_intensity = initial_intensity;
+				std::array<uint8_t, 4> cachedVelocities{};
+				std::array<float, 4> cachedIntensities{};
+				uint32_t cachedIntensityCount = 0;
+				auto intensityForVelocity = [&](uint8_t mappedVelocity) {
+					for (uint32_t index = 0; index < cachedIntensityCount; ++index) {
+						if (cachedVelocities[index] == mappedVelocity) {
+							return cachedIntensities[index];
+						}
+					}
+
+					uint32_t intensityIndex = velocityDrumsIntensityIndex(mappedVelocity, pad_area);
+					float intensity = 1;
+					if (intensityIndex != pad_area - 1) {
+						intensity = initial_intensity;
+						for (uint32_t step = 0; step < intensityIndex; ++step) {
+							intensity *= intensity_increment;
+						}
+					}
+
+					if (cachedIntensityCount < cachedVelocities.size()) {
+						cachedVelocities[cachedIntensityCount] = mappedVelocity;
+						cachedIntensities[cachedIntensityCount] = intensity;
+						cachedIntensityCount++;
+					}
+					return intensity;
+				};
 				uint32_t x2 = 0;
 				uint32_t y2 = 0;
 				for (int32_t i = 0; i < pad_area; ++i) {
+					float renderedIntensity = colour_intensity;
+					if (state.velocity_profile != VelocityDrumsProfile::Full) {
+						uint8_t mappedVelocity = velocityFromDrumsProfile(state.velocity_profile, x2, y2, edge_size_x2,
+						                                                  edge_size_y, state.fixed_velocity, 0);
+						renderedIntensity = intensityForVelocity(mappedVelocity);
+					}
 					if (disabled_pad)
 						image[y + y2][x + x2] = colours::black;
 					else {
 						image[y + y2][x + x2] =
-						    note_colour.transform([brightness_factor, colour_intensity](uint8_t chan) {
-							    return (chan * brightness_factor * colour_intensity);
+						    note_colour.transform([brightness_factor, renderedIntensity](uint8_t chan) {
+							    return (chan * brightness_factor * renderedIntensity);
 						    });
 					}
 					x2++;
@@ -200,11 +306,22 @@ void KeyboardLayoutVelocityDrums::renderPads(RGB image[][kDisplayWidth + kSideBa
 			else {
 				if (note > highest_clip_note)
 					image[y][x] = colours::black;
-				else if (note_enabled)
-					image[y][x] =
-					    note_colour.transform([brightness_factor](uint8_t chan) { return (chan * brightness_factor); });
-				else
-					image[y][x] = note_colour;
+				else if (state.velocity_profile == VelocityDrumsProfile::Full) {
+					if (note_enabled)
+						image[y][x] = note_colour.transform(
+						    [brightness_factor](uint8_t chan) { return (chan * brightness_factor); });
+					else
+						image[y][x] = note_colour;
+				}
+				else {
+					float velocityBrightness = 1;
+					uint8_t mappedVelocity =
+					    velocityFromDrumsProfile(state.velocity_profile, 0, 0, 1, 1, state.fixed_velocity, 0);
+					velocityBrightness = static_cast<float>(mappedVelocity) / 127;
+					image[y][x] = note_colour.transform([brightness_factor, velocityBrightness](uint8_t chan) {
+						return chan * brightness_factor * velocityBrightness;
+					});
+				}
 			}
 			note++;
 		}

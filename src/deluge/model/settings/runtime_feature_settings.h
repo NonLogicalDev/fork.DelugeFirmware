@@ -69,6 +69,7 @@ enum RuntimeFeatureSettingType : uint32_t {
 	RoundedCorners,
 	ShortcutOverlay,
 	MidiSustainPedal,
+	ExternalStepMidiClips,
 	MaxElement // Keep as boundary
 };
 

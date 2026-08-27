@@ -43,6 +43,11 @@ class MIDICable;
 class NoteRow;
 class Song;
 
+namespace deluge::midi {
+class ExternalStepMIDIInput;
+enum class ExternalStepMIDIMessageType : uint8_t;
+} // namespace deluge::midi
+
 constexpr uint16_t metronomeValuesBPM[16] = {
     60, 63, 66, 69, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116,
 };
@@ -190,7 +195,10 @@ public:
 	void setMidiOutClockMode(bool newValue);
 	void pitchBendReceived(MIDICable& cable, uint8_t channel, uint8_t data1, uint8_t data2, bool* doingMidiThru);
 	void midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value, bool* doingMidiThru);
-	void programChangeReceived(MIDICable& cable, int32_t channel, int32_t program);
+	void programChangeReceived(MIDICable& cable, int32_t channel, int32_t program, bool* doingMidiThru);
+	void refreshExternalStepMIDIConflicts();
+	bool willConsumeExternalStepCC(MIDICable& cable, uint8_t channel, uint8_t ccNumber);
+	void midiInputDisconnected(MIDICable& cable);
 	void aftertouchReceived(MIDICable& cable, int32_t channel, int32_t value, int32_t noteCode,
 	                        bool* doingMidiThru); // noteCode -1 means channel-wide
 	void loopCommand(OverDubType overdubNature);
@@ -272,6 +280,15 @@ private:
 	bool offerNoteToLearnedThings(MIDICable& cable, bool on, int32_t channel, int32_t note);
 	bool tryGlobalMIDICommands(MIDICable& cable, int32_t channel, int32_t note);
 	bool tryGlobalMIDICommandsOff(MIDICable& cable, int32_t channel, int32_t note);
+	bool processExternalStepMIDIMessage(MIDICable& cable, uint8_t channel,
+	                                    deluge::midi::ExternalStepMIDIMessageType messageType, uint8_t number,
+	                                    bool asserted, bool* doingMidiThru);
+	bool externalStepMIDIInputHasConflict(const deluge::midi::ExternalStepMIDIInput& input) const;
+	bool refreshExternalStepMIDIConflictsForMessage(MIDICable& cable, uint8_t channel,
+	                                                deluge::midi::ExternalStepMIDIMessageType messageType,
+	                                                uint8_t number);
+	void considerExternalStepTimeoutDeadline(const InstrumentClip& clip);
+	void serviceExternalStepTimeouts(uint32_t sampleTime);
 	void decideOnCurrentPlaybackMode();
 	float getCurrentInternalTickFloatFollowingExternalClock();
 	void scheduleTriggerClockOutTickParamsKnown(uint32_t analogOutTicksPer, uint64_t fractionLastTimerTick,
@@ -280,6 +297,9 @@ private:
 	void scheduleMIDIClockOutTickParamsKnown(uint32_t midiClockOutTicksPer, uint64_t fractionLastTimerTick,
 	                                         uint64_t fractionNextMIDIClockOutTick);
 	void scheduleMIDIClockOutTickFromExternalClock();
+
+	uint32_t externalStepTimeoutDeadline = 0;
+	bool externalStepTimeoutScheduled = false;
 };
 
 extern PlaybackHandler playbackHandler;

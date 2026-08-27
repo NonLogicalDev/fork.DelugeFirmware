@@ -24,11 +24,12 @@
 #include "io/midi/midi_device.h"
 #include "memory/general_memory_allocator.h"
 #include "model/action/action.h"
+#include "model/clip/external_step_runtime.h"
 #include "model/clip/instrument_clip.h"
 #include "model/consequence/consequence_note_existence.h"
 #include "model/drum/drum_name.h"
-#include "model/drum/generated_slice_name.h"
 #include "model/drum/gate_drum.h"
+#include "model/drum/generated_slice_name.h"
 #include "model/instrument/kit.h"
 #include "model/note/copied_note_row.h"
 #include "model/note/note.h"
@@ -93,7 +94,8 @@ Error NoteRow::beenCloned(ModelStackWithNoteRow* modelStack, bool shouldFlattenR
 
 	firstOldDrumName = nullptr;
 	ignoreNoteOnsBefore_ = 0;
-	// sequenced = false;
+	sequenced = false;
+	externalStepPulsesUntilNoteOff = 0;
 
 	int32_t effectiveLength = modelStack->getLoopLength();
 
@@ -1878,6 +1880,72 @@ void NoteRow::stopCurrentlyPlayingNote(ModelStackWithNoteRow* modelStack, bool a
 	sequenced = false;
 }
 
+void NoteRow::clearExternalStepNoteState(ModelStackWithNoteRow* modelStack, bool sendNoteOff) {
+	if (sequenced) {
+		stopCurrentlyPlayingNote(modelStack, sendNoteOff);
+	}
+	externalStepPulsesUntilNoteOff = 0;
+}
+
+void NoteRow::processExternalStepBoundary(ModelStackWithNoteRow* modelStack, uint32_t previousPosition,
+                                          uint32_t boundaryPosition, uint32_t loopLength, uint32_t stepTicks,
+                                          bool firstBoundary, bool wrapped, PendingNoteOnList* pendingNoteOnList) {
+	Note* noteToStart = nullptr;
+
+	if (!muted && !isAuditioning(modelStack) && notes.getNumElements()) {
+		int32_t noteIndex = -1;
+		if (firstBoundary) {
+			noteIndex = notes.search(1, LESS);
+			if (noteIndex >= 0 && notes.getElement(noteIndex)->pos != 0) {
+				noteIndex = -1;
+			}
+		}
+		else if (wrapped) {
+			// Position zero is chronologically latest at a wrap and wins over starts delayed from the previous tail.
+			noteIndex = notes.search(boundaryPosition + 1, LESS);
+			if (noteIndex < 0 || notes.getElement(noteIndex)->pos > static_cast<int32_t>(boundaryPosition)) {
+				noteIndex = notes.search(loopLength, LESS);
+				if (noteIndex >= 0 && notes.getElement(noteIndex)->pos <= static_cast<int32_t>(previousPosition)) {
+					noteIndex = -1;
+				}
+			}
+		}
+		else {
+			noteIndex = notes.search(boundaryPosition + 1, LESS);
+			if (noteIndex >= 0 && notes.getElement(noteIndex)->pos <= static_cast<int32_t>(previousPosition)) {
+				noteIndex = -1;
+			}
+		}
+
+		if (noteIndex >= 0) {
+			noteToStart = notes.getElement(noteIndex);
+		}
+	}
+
+	if (sequenced) {
+		if (externalStepPulsesUntilNoteOff <= 1 || noteToStart || muted || isAuditioning(modelStack)) {
+			stopCurrentlyPlayingNote(modelStack, true);
+			externalStepPulsesUntilNoteOff = 0;
+		}
+		else {
+			externalStepPulsesUntilNoteOff--;
+		}
+	}
+	else {
+		externalStepPulsesUntilNoteOff = 0;
+	}
+
+	if (!noteToStart || !pendingNoteOnList || pendingNoteOnList->count >= kMaxNumNoteOnsPending) {
+		return;
+	}
+
+	playNote(true, modelStack, noteToStart, 0, 0, false, pendingNoteOnList);
+	if (sequenced) {
+		externalStepPulsesUntilNoteOff = deluge::external_step::noteDurationInPulses(
+		    noteToStart->pos, noteToStart->length, boundaryPosition, loopLength, stepTicks, wrapped);
+	}
+}
+
 // occupancyMask now optional!
 void NoteRow::renderRow(TimelineView* editorScreen, RGB rowColour, RGB rowTailColour, RGB rowBlurColour, RGB* image,
                         uint8_t occupancyMask[], bool overwriteExisting, uint32_t effectiveRowLength,
@@ -2646,6 +2714,14 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
                         int32_t oldPos, // Sometimes needs to be overridden
                         bool hadIndependentPlayPosBefore) {
 	Clip* clip = (Clip*)modelStack->getTimelineCounter();
+	InstrumentClip* instrumentClip = static_cast<InstrumentClip*>(clip);
+	const bool resetExternalStep = instrumentClip->isExternalStepMode();
+	if (resetExternalStep) {
+		char externalStepModelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStackWithTimelineCounter* externalStepModelStack =
+		    setupModelStackWithTimelineCounter(externalStepModelStackMemory, modelStack->song, instrumentClip);
+		instrumentClip->clearExternalStepForStop(externalStepModelStack);
+	}
 
 	bool playingReversedBefore = modelStack->isCurrentlyPlayingReversed();
 
@@ -2665,7 +2741,7 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
 			repeatCountIfIndependent = clip->repeatCount;
 		}
 
-		if (shouldResumePlaybackOnNoteRowLengthSet) {
+		if (shouldResumePlaybackOnNoteRowLengthSet && !resetExternalStep) {
 			resumePlayback(modelStack, true);
 		}
 	}
@@ -4492,6 +4568,15 @@ bool NoteRow::recordPolyphonicExpressionEvent(ModelStackWithNoteRow* modelStack,
 }
 
 void NoteRow::setSequenceDirectionMode(ModelStackWithNoteRow* modelStack, SequenceDirection newMode) {
+	InstrumentClip* clip = static_cast<InstrumentClip*>(modelStack->getTimelineCounter());
+	const bool resetExternalStep = clip->isExternalStepMode();
+	if (resetExternalStep) {
+		char externalStepModelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStackWithTimelineCounter* externalStepModelStack =
+		    setupModelStackWithTimelineCounter(externalStepModelStackMemory, modelStack->song, clip);
+		clip->clearExternalStepForStop(externalStepModelStack);
+	}
+
 	int32_t lastProcessedPosBefore = modelStack->getLastProcessedPos();
 
 	bool reversedBefore = modelStack->isCurrentlyPlayingReversed();
@@ -4512,7 +4597,7 @@ void NoteRow::setSequenceDirectionMode(ModelStackWithNoteRow* modelStack, Sequen
 		if (reversedBefore != modelStack->isCurrentlyPlayingReversed()) {
 			lastProcessedPosIfIndependent =
 			    modelStack->getLoopLength() - lastProcessedPosIfIndependent; // Again, might have no effect.
-			if (!muted && playbackHandler.isEitherClockActive()
+			if (!resetExternalStep && !muted && playbackHandler.isEitherClockActive()
 			    && modelStack->song->isClipActive((Clip*)modelStack->getTimelineCounter())) {
 				resumePlayback(modelStack, true);
 			}

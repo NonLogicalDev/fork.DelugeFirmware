@@ -137,6 +137,8 @@ public:
 	ActionResult potentialShortcutPadAction(int32_t x, int32_t y, bool on);
 	bool editingReverbSidechain();
 	MenuItem* getCurrentMenuItem();
+	bool midiLearnUsesPhysicalChannel();
+	bool midiCCLearnConsumesBeforeRPN();
 	bool inSettingsMenu();
 	bool setupKitGlobalFXMenu;
 	ActionResult exitUI() override { return exitCompletely(); };

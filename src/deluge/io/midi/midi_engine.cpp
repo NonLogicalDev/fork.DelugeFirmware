@@ -1019,34 +1019,37 @@ void MidiEngine::midiMessageReceived(MIDICable& cable, uint8_t statusType, uint8
 			case 0x0B: // CC or channel mode message
 				// CC
 				if (data1 < 120) {
+					const bool usedByExternalStep = playbackHandler.willConsumeExternalStepCC(cable, channel, data1);
 
-					// Interpret RPN stuff, before we additionally try to process the CC within the song, in case it
-					// means something different to the user.
-					switch (data1) {
-					case 100: // RPN LSB
-						cable.inputChannels[channel].rpnLSB = data2;
-						break;
+					// An External Step CC pulse, or a CC being captured by its Input menu, is not RPN data. All other
+					// CCs retain the existing RPN interpretation before normal song routing.
+					if (!usedByExternalStep) {
+						switch (data1) {
+						case 100: // RPN LSB
+							cable.inputChannels[channel].rpnLSB = data2;
+							break;
 
-					case 101: // RPN MSB
-						cable.inputChannels[channel].rpnMSB = data2;
-						break;
+						case 101: // RPN MSB
+							cable.inputChannels[channel].rpnMSB = data2;
+							break;
 
-					case 6: { // (RPN) data entry MSB
-						char modelStackMemory[MODEL_STACK_MAX_SIZE];
-						ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
-						cable.dataEntryMessageReceived(modelStack, channel, data2);
-						break;
-					}
-					default: { // not an rpn - let's reset the msb/lsb
-						cable.inputChannels[channel].rpnLSB = 0x7F;
-						cable.inputChannels[channel].rpnMSB = 0x7F;
-					}
+						case 6: { // (RPN) data entry MSB
+							char modelStackMemory[MODEL_STACK_MAX_SIZE];
+							ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+							cable.dataEntryMessageReceived(modelStack, channel, data2);
+							break;
+						}
+						default: { // not an rpn - let's reset the msb/lsb
+							cable.inputChannels[channel].rpnLSB = 0x7F;
+							cable.inputChannels[channel].rpnMSB = 0x7F;
+						}
+						}
 					}
 
 					playbackHandler.midiCCReceived(cable, channel, data1, data2, &shouldDoMidiThruNow);
 				}
 
-				// Channel mode
+				// Channel Mode messages 120 through 127 are deliberately not learnable External Step CCs.
 				else {
 
 					// All notes off
@@ -1060,7 +1063,7 @@ void MidiEngine::midiMessageReceived(MIDICable& cable, uint8_t statusType, uint8
 				break;
 
 			case 0x0C: // Program change message
-				playbackHandler.programChangeReceived(cable, channel, data1);
+				playbackHandler.programChangeReceived(cable, channel, data1, &shouldDoMidiThruNow);
 				break;
 
 			case 0x0D: // Channel pressure

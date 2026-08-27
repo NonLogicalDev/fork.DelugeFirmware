@@ -20,6 +20,8 @@
 #include "definitions_cxx.hpp"
 #include "gui/ui/keyboard/state_data.h"
 #include "gui/views/instrument_clip_view.h"
+#include "io/midi/external_step_midi_input.h"
+#include "model/clip/external_step_runtime.h"
 #include "model/note/note_row_vector.h"
 #include "modulation/arpeggiator.h"
 
@@ -42,6 +44,7 @@ class ModelStackWithModControllable;
 class ModelStackWithNoteRow;
 
 struct PendingNoteOn;
+struct PendingNoteOnList;
 
 enum class VerticalNudgeType { ROW, OCTAVE };
 
@@ -56,6 +59,26 @@ public:
 	void halveNoteRowsWithIndependentLength(ModelStackWithTimelineCounter* modelStack);
 	void repeatOrChopToExactLength(ModelStackWithTimelineCounter* modelStack, int32_t newLength);
 	void processCurrentPos(ModelStackWithTimelineCounter* modelStack, uint32_t posIncrement) override;
+	[[nodiscard]] uint32_t getLivePos() const override;
+
+	[[nodiscard]] bool isExternalStepMode() const {
+		return externalStepClockMode == deluge::external_step::ClockMode::EXTERNAL_STEP;
+	}
+	[[nodiscard]] uint32_t getExternalStepTicks(const Song* song) const;
+	[[nodiscard]] deluge::external_step::Eligibility getExternalStepEligibility(bool featureEnabled,
+	                                                                            const Song* song) const;
+	deluge::external_step::Eligibility validateExternalStep(ModelStackWithTimelineCounter* modelStack,
+	                                                        bool featureEnabled);
+	[[nodiscard]] deluge::external_step::Status getExternalStepStatus(bool featureEnabled, const Song* song) const;
+	void setExternalStepClockMode(deluge::external_step::ClockMode mode, ModelStackWithTimelineCounter* modelStack);
+	void setExternalStepSize(deluge::external_step::StepSize size, ModelStackWithTimelineCounter* modelStack);
+	bool processExternalStep(ModelStackWithTimelineCounter* modelStack, uint32_t sampleTime, bool featureEnabled);
+	void resetExternalStep(ModelStackWithTimelineCounter* modelStack);
+	void clearExternalStepForStop(ModelStackWithTimelineCounter* modelStack, bool sendNoteOffs = true);
+	void cutExternalStepNotesPreservePhase(ModelStackWithTimelineCounter* modelStack);
+	bool serviceExternalStepTimeout(ModelStackWithTimelineCounter* modelStack, uint32_t sampleTime);
+	[[nodiscard]] bool hasExternalStepTimeoutDeadline() const { return externalStepRuntime.hasTimeoutDeadline(); }
+	[[nodiscard]] uint32_t getExternalStepTimeoutDeadline() const { return externalStepRuntime.timeoutDeadline(); }
 	bool renderAsSingleRow(ModelStackWithTimelineCounter* modelStack, TimelineView* editorScreen, int32_t xScroll,
 	                       uint32_t xZoom, RGB* image, uint8_t occupancyMask[], bool addUndefinedArea,
 	                       int32_t noteRowIndexStart = 0, int32_t noteRowIndexEnd = 2147483647, int32_t xStart = 0,
@@ -135,6 +158,12 @@ public:
 	uint8_t midiBank; // 128 means none
 	uint8_t midiSub;  // 128 means none
 	uint8_t midiPGM;  // 128 means none
+
+	// Saved External Step configuration. Runtime phase, cadence, and held-edge state are deliberately reset on copy.
+	deluge::external_step::ClockMode externalStepClockMode = deluge::external_step::ClockMode::SONG;
+	deluge::external_step::StepSize externalStepSize = deluge::external_step::StepSize::SIXTEENTH;
+	deluge::midi::ExternalStepMIDIInput externalStepInput;
+	deluge::midi::ExternalStepMIDIInput externalResetInput;
 
 	OutputType outputTypeWhileLoading; // For use only while loading song
 
@@ -240,6 +269,7 @@ protected:
 	void posReachedEnd(ModelStackWithTimelineCounter* modelStack) override;
 	bool wantsToBeginLinearRecording(Song* song) override;
 	bool cloneOutput(ModelStackWithTimelineCounter* modelStack) override;
+	void sequenceDirectionModeChanged(ModelStackWithTimelineCounter* modelStack) override;
 	void pingpongOccurred(ModelStackWithTimelineCounter* modelStack) override;
 
 private:
@@ -248,6 +278,10 @@ private:
 	void deleteEmptyNoteRowsAtEitherEnd(bool onlyIfNoDrum, ModelStackWithTimelineCounter* modelStack,
 	                                    bool mustKeepLastOne = true, bool keepOnesWithMIDIInput = true);
 	void sendPendingNoteOn(ModelStackWithTimelineCounter* modelStack, PendingNoteOn* pendingNoteOn);
+	void resolvePendingNoteOns(ModelStackWithTimelineCounter* modelStack, PendingNoteOnList* pendingNoteOnList, bool ending);
+	void clearExternalStepNoteRows(ModelStackWithTimelineCounter* modelStack, bool sendNoteOffs);
+	void demoteExternalStepForUnsupportedOutput(OutputType newOutputType, Song* song);
+	[[nodiscard]] bool externalStepBindingsAreIdentical() const;
 	Error undoUnassignmentOfAllNoteRowsFromDrums(ModelStackWithTimelineCounter* modelStack);
 	void deleteBackedUpParamManagerMIDI();
 	bool possiblyDeleteEmptyNoteRow(NoteRow* noteRow, bool onlyIfNoDrum, Song* song, bool onlyIfNonNumeric = false,
@@ -259,4 +293,5 @@ private:
 	bool lastProbabilities[kNumProbabilityValues]{};
 	int32_t lastProbabiltyPos[kNumProbabilityValues]{};
 	bool currentlyRecordingLinearly;
+	deluge::external_step::Runtime externalStepRuntime;
 };

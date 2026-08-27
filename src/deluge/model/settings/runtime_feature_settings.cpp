@@ -213,6 +213,11 @@ void RuntimeFeatureSettings::init() {
 	SetupOnOffSetting(settings[RuntimeFeatureSettingType::MidiSustainPedal],
 	                  STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL, "midiSustainPedal",
 	                  RuntimeFeatureStateToggle::Off);
+
+	// Externally stepped MIDI Clips
+	SetupOnOffSetting(settings[RuntimeFeatureSettingType::ExternalStepMidiClips],
+	                  STRING_FOR_COMMUNITY_FEATURE_EXTERNAL_STEP_MIDI_CLIPS, "externalStepMidiClips",
+	                  RuntimeFeatureStateToggle::Off);
 }
 
 void RuntimeFeatureSettings::factoryReset(bool showPopup) {

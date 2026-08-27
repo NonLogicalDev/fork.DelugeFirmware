@@ -20,8 +20,11 @@
 #include "emulated_display.h"
 #include "hid/display/display.h"
 #include "hid/display/oled_canvas/canvas.h"
+#include "model/clip/instrument_clip.h"
 #include "model/model_stack.h"
+#include "model/song/clip_iterators.h"
 #include "model/song/song.h"
+#include "playback/playback_handler.h"
 #include "processing/sound/sound_instrument.h"
 #include "setting.h"
 #include "shift_is_sticky.h"
@@ -72,6 +75,29 @@ public:
 	}
 };
 
+class ExternalStepMidiClipsSetting final : public SettingToggle {
+public:
+	using SettingToggle::SettingToggle;
+
+	void writeCurrentValue() override {
+		bool wasEnabled = runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips);
+		SettingToggle::writeCurrentValue();
+		bool isEnabled = runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips);
+		if (wasEnabled == isEnabled || !currentSong) {
+			return;
+		}
+
+		playbackHandler.refreshExternalStepMIDIConflicts();
+		char modelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+		for (InstrumentClip* clip : InstrumentClips::everywhere(currentSong)) {
+			if (clip->isExternalStepMode()) {
+				clip->validateExternalStep(modelStack->addTimelineCounter(clip), isEnabled);
+			}
+		}
+	}
+};
+
 // Generic menu item instances
 SettingToggle menuDrumRandomizer(RuntimeFeatureSettingType::DrumRandomizer);
 SettingToggle menuFineTempo(RuntimeFeatureSettingType::FineTempoKnob);
@@ -99,6 +125,7 @@ SettingToggle menuShowBatteryLevel(RuntimeFeatureSettingType::ShowBatteryLevel);
 RoundedCornersSettingToggle menuRoundedCorners(RuntimeFeatureSettingType::RoundedCorners);
 SettingToggle menuShortcutOverlay(RuntimeFeatureSettingType::ShortcutOverlay);
 MidiSustainPedalSetting menuMidiSustainPedal(RuntimeFeatureSettingType::MidiSustainPedal);
+ExternalStepMidiClipsSetting menuExternalStepMidiClips(RuntimeFeatureSettingType::ExternalStepMidiClips);
 
 std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettings> subMenuEntries{
     &menuDrumRandomizer,
@@ -126,7 +153,8 @@ std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettin
     &menuTrimFromStartOfAudioClip,
     &menuShowBatteryLevel,
     &menuShortcutOverlay,
-    &menuMidiSustainPedal};
+    &menuMidiSustainPedal,
+    &menuExternalStepMidiClips};
 
 Settings::Settings(l10n::String name, l10n::String title) : menu_item::Submenu(name, title, subMenuEntries) {
 }

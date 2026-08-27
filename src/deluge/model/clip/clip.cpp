@@ -1052,6 +1052,8 @@ void Clip::setSequenceDirectionMode(ModelStackWithTimelineCounter* modelStack, S
 			}
 		}
 	}
+
+	sequenceDirectionModeChanged(modelStack);
 }
 
 int32_t Clip::getMaxLength() {

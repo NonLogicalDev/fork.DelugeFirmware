@@ -58,6 +58,18 @@ enum class LaunchStatus {
 	LAUNCH_ALONG_WITH_EXISTING_LAUNCHING,
 };
 
+namespace {
+
+InstrumentClip* getExternalStepClip(Clip* clip) {
+	if (clip == nullptr || clip->type != ClipType::INSTRUMENT) {
+		return nullptr;
+	}
+	auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+	return instrumentClip->isExternalStepMode() ? instrumentClip : nullptr;
+}
+
+} // namespace
+
 using namespace deluge::gui::colours;
 const Colour defaultClipSectionColours[] = {RGB::fromHue(102), // bright light blue
                                             RGB::fromHue(168), // bright dark pink
@@ -610,7 +622,12 @@ doNormalLaunch:
 
 					ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
 
-					clip->setPos(modelStackWithTimelineCounter, 0, false);
+					if (InstrumentClip* externalStepClip = getExternalStepClip(clip)) {
+						externalStepClip->resetExternalStep(modelStackWithTimelineCounter);
+					}
+					else {
+						clip->setPos(modelStackWithTimelineCounter, 0, false);
+					}
 
 					giveClipOpportunityToBeginLinearRecording(clip, c, 0);
 					output = clip->output; // A new Output may have been created as recording began
@@ -822,6 +839,9 @@ void Session::launchSchedulingMightNeedCancelling() {
 // under these conditions since the input clock started. Presumably we'd call this if the conditions have changed (e.g.
 // sync-scaling changed) and we want to restore order
 void Session::reSyncClipToSongTicks(Clip* clip) {
+	if (getExternalStepClip(clip)) {
+		return;
+	}
 
 	if (clip->armState != ArmState::OFF) {
 		clip->armState = ArmState::OFF;
@@ -856,6 +876,9 @@ void Session::reSyncClipToSongTicks(Clip* clip) {
 void Session::reSyncClip(ModelStackWithTimelineCounter* modelStack, bool mustSetPosToSomething, bool mayResumeClip) {
 
 	Clip* clip = (Clip*)modelStack->getTimelineCounter();
+	if (getExternalStepClip(clip)) {
+		return;
+	}
 
 	bool armingCancelled = clip->cancelAnyArming();
 	if (armingCancelled) {
@@ -1873,6 +1896,10 @@ void Session::armClipToStartOrSoloUsingQuantization(Clip* thisClip, bool doLateS
 			currentSong->assertActiveness(modelStack, playbackHandler.getActualArrangementRecordPos() - pos);
 
 setPosAndStuff:
+			if (InstrumentClip* externalStepClip = getExternalStepClip(thisClip)) {
+				externalStepClip->resetExternalStep(modelStack);
+				return;
+			}
 			// pos is a "live" pos, so we have to subtract swungTicksSkipped before setting the Clip's lastProcessedPos,
 			// because it's soon going to be jumped forward by that many ticks
 			int32_t modifiedStartPos = (int32_t)pos - playbackHandler.getNumSwungTicksInSinceLastActionedSwungTick();
@@ -1904,6 +1931,9 @@ setPosAndStuff:
  *
  */
 void Session::scheduleFillClip(Clip* clip) {
+	if (getExternalStepClip(clip)) {
+		return;
+	}
 
 	if (clip->launchStyle == LaunchStyle::FILL) {
 		if (launchEventAtSwungTickCount > 0) {
@@ -2095,6 +2125,9 @@ void Session::reversionDone() {
 	}
 	for (Clip* clip : AllClips::everywhere(currentSong)) {
 		if (currentSong->isClipActive(clip)) {
+			if (getExternalStepClip(clip)) {
+				continue;
+			}
 			char modelStackMemory[MODEL_STACK_MAX_SIZE];
 			ModelStackWithTimelineCounter* modelStackWithTimelineCounter =
 			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, clip);
@@ -2126,6 +2159,14 @@ bool Session::endPlayback() {
 		clip->cancelAnyArming();
 		if (currentSong->isClipActive(clip)) {
 			clip->expectNoFurtherTicks(currentSong);
+		}
+		else if (InstrumentClip* externalStepClip = getExternalStepClip(clip)) {
+			// Active Clips emitted their required note-offs above. Inactive Clips must still discard observed input and
+			// return to pre-step-zero, but must not emit MIDI while being cleaned up.
+			char modelStackMemory[MODEL_STACK_MAX_SIZE];
+			ModelStackWithTimelineCounter* modelStack =
+			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, externalStepClip);
+			externalStepClip->clearExternalStepForStop(modelStack, false);
 		}
 	}
 
@@ -2236,11 +2277,16 @@ void Session::resetPlayPos(int32_t newPos, bool doingComplete, int32_t buttonPre
 yeahNahItsOn:
 			ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
 
-			clip->setPos(modelStackWithTimelineCounter, newPos, true);
+			if (InstrumentClip* externalStepClip = getExternalStepClip(clip)) {
+				externalStepClip->resetExternalStep(modelStackWithTimelineCounter);
+			}
+			else {
+				clip->setPos(modelStackWithTimelineCounter, newPos, true);
+			}
 
 			if (doingComplete) {
 				// If starting after 0, must do the "resume" function, to get samples playing from right point, etc
-				if (newPos) {
+				if (newPos && !getExternalStepClip(clip)) {
 					clip->resumePlayback(modelStackWithTimelineCounter);
 				}
 
@@ -2314,7 +2360,9 @@ traverseClips:
 
 		ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
 
-		clip->incrementPos(modelStackWithTimelineCounter, numTicksBeingIncremented);
+		if (!getExternalStepClip(clip)) {
+			clip->incrementPos(modelStackWithTimelineCounter, numTicksBeingIncremented);
+		}
 	}
 	if (clipArray != &currentSong->arrangementOnlyClips) {
 		clipArray = &currentSong->arrangementOnlyClips;
@@ -2480,6 +2528,9 @@ void Session::doTickForward(int32_t posIncrement) {
 			if (!currentSong->isClipActive(clip)) {
 				continue;
 			}
+			if (getExternalStepClip(clip)) {
+				continue;
+			}
 
 			if (clip->output->getActiveClip() && clip->output->getActiveClip()->beingRecordedFromClip == clip) {
 				clip = clip->output->getActiveClip();
@@ -2513,6 +2564,9 @@ void Session::doTickForward(int32_t posIncrement) {
 
 	// Do arps too (hmmm, could we want to do this in considerLaunchEvent() instead, just like the incrementing?)
 	for (Output* thisOutput = currentSong->firstOutput; thisOutput; thisOutput = thisOutput->next) {
+		if (getExternalStepClip(thisOutput->getActiveClip())) {
+			continue;
+		}
 
 		int32_t posForArp;
 		if (thisOutput->getActiveClip() && currentSong->isClipActive(thisOutput->getActiveClip())) {

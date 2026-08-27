@@ -106,6 +106,10 @@ public:
 	void deleteNoteByPos(ModelStackWithNoteRow* modelStack, int32_t pos, Action* action);
 	void stopCurrentlyPlayingNote(ModelStackWithNoteRow* modelStack, bool actuallySoundChange = true,
 	                              Note* note = nullptr);
+	void processExternalStepBoundary(ModelStackWithNoteRow* modelStack, uint32_t previousPosition,
+	                                 uint32_t boundaryPosition, uint32_t loopLength, uint32_t stepTicks,
+	                                 bool firstBoundary, bool wrapped, PendingNoteOnList* pendingNoteOnList);
+	void clearExternalStepNoteState(ModelStackWithNoteRow* modelStack, bool sendNoteOff);
 	bool generateRepeats(ModelStackWithNoteRow* modelStack, uint32_t oldLength, uint32_t newLength,
 	                     int32_t numRepeatsRounded, Action* action);
 	void toggleMute(ModelStackWithNoteRow* modelStack, bool clipIsActiveAndPlaybackIsOn);
@@ -148,6 +152,7 @@ public:
 	uint8_t probabilityValue;
 	Iterance iteranceValue;
 	uint8_t fillValue;
+	uint32_t externalStepPulsesUntilNoteOff = 0;
 	// These are deprecated, and only used during loading for compatibility with old song files
 	LearnedMIDI muteMIDICommand;
 	LearnedMIDI midiInput;

@@ -1015,6 +1015,18 @@ PLACE_SDRAM_DATA Language english{
         {STRING_FOR_DEFAULT_HORIZONTAL_MENU, "Horizontal Menu"},
         {STRING_FOR_CHORD_KEYBOARD_MODE_ROW, "Chord Row Mode"},
         {STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN, "Chord Column Mode"},
+        {STRING_FOR_COMMUNITY_FEATURE_EXTERNAL_STEP_MIDI_CLIPS, "External Step MIDI Clips"},
+        {STRING_FOR_EXTERNAL_STEP, "External Step"},
+        {STRING_FOR_EXTERNAL_STEP_SIZE, "Step Size"},
+        {STRING_FOR_EXTERNAL_STEP_INPUT, "Step Input"},
+        {STRING_FOR_EXTERNAL_RESET_INPUT, "Reset Input"},
+        {STRING_FOR_EXTERNAL_STEP_STATUS, "Status"},
+        {STRING_FOR_EXTERNAL_STEP_WAITING, "Waiting"},
+        {STRING_FOR_EXTERNAL_STEP_MISSING_INPUT, "Missing Input"},
+        {STRING_FOR_EXTERNAL_STEP_CONFLICT, "Conflict"},
+        {STRING_FOR_EXTERNAL_STEP_UNASSIGNED, "Unassigned"},
+        {STRING_FOR_EXTERNAL_STEP_UNSUPPORTED, "Unsupported"},
+        {STRING_FOR_EXTERNAL_STEP_READY, "Ready"},
     },
 };
 } // namespace deluge::l10n::built_in

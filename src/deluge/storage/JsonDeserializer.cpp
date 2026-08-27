@@ -19,6 +19,7 @@
 #include "io/debug/log.h"
 #include "processing/engines/audio_engine.h"
 #include "storage/cluster/cluster.h"
+#include "storage/firmware_compatibility.h"
 #include "storage/storage_manager.h"
 #include "util/d_string.h"
 #include "util/d_stringbuf.h"
@@ -643,10 +644,8 @@ Error JsonDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool 
 	// If this tag doesn't exist, it's from old firmware so is ok
 	else if (!strcmp(tagName, "earliestCompatibleFirmware")) {
 		char const* firmware_version_string = readTagOrAttributeValue();
-		auto earliestFirmware = FirmwareVersion::parse(firmware_version_string);
-		if (earliestFirmware > FirmwareVersion::current() && !ignoreIncorrectFirmware) {
-			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
-		}
+		return deluge::firmware_compatibility::evaluateEarliestCompatibleFirmware(
+		    firmware_version_string, FirmwareVersion::current(), ignoreIncorrectFirmware);
 	}
 
 	else {

@@ -181,6 +181,8 @@ public:
 
 	/// Used by SoundEditor to determine if the current menu item can accept MIDI learning.
 	virtual bool allowsLearnMode() { return false; }
+	/// Use the incoming physical MIDI channel instead of converting MPE member channels to their zone while learning.
+	virtual bool midiLearnUsesPhysicalChannel() { return false; }
 	/// @brief Attempt to bind this menu item to a note code.
 	///
 	/// @return True if the learn succeeded and the feature controlled by this menu item will now be bound to a MIDI

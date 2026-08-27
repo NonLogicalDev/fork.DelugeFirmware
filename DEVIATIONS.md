@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains twenty-one deviations:
+The local stack currently contains twenty-three deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -27,6 +27,8 @@ The local stack currently contains twenty-one deviations:
 19. Audition the exact Kit row being edited in Waveform Editor.
 20. Make Audio Clip Start editing reversible from Audio Clip View.
 21. Make Waveform Editor entry and bound selection explicit.
+22. Add selectable velocity profiles to Velocity Drums.
+23. Let Session MIDI-Out Clips advance from independent external steps.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -696,6 +698,61 @@ Let a player keep large Velocity Drums hit areas while choosing how many distinc
 - Source review confirms that `FULL` retains its separate legacy render path; Scale ownership, Load suppression, and encoder precedence cannot leak to another layout; profile changes do not touch active notes; and saving and loading use the existing per-Clip Keyboard state without disturbing scroll or zoom.
 - Format every affected source, compile the changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete a local Release firmware build.
 - On a physical Deluge, check every profile and zoom, four-quadrant orientation, two-region orientation, fixed-value limits, accelerated turns, OLED and seven-segment feedback, held notes, retriggering, scroll, zoom, color editing, Load chords, layout changes while Scale is held, and save and reload. Physical verification remains human-controlled and does not authorize flashing.
+
+## 23. Externally stepped MIDI Clips
+
+### Intent
+
+Let the Deluge act as several independent MIDI step sequencers for modular software such as VCV Rack. Each eligible Clip follows its own learned external Step and Reset controls instead of deriving its position from the Song tempo.
+
+### Required behavior
+
+- Community Features contains an External Step MIDI Clips setting that defaults to Off.
+- A Session MIDI-Out Clip exposes a Clock setting with Song and External Step modes. External Step remains a clock mode of the existing MIDI Clip rather than another Output type.
+- Existing and newly created MIDI Clips remain in Song mode unless the player deliberately selects External Step while the Community Feature is On.
+- A persisted External Step Clip retains access to its Clock settings while the Community Feature is Off so the player can return it to Song mode. The Clip remains stopped until then and never falls back to Song timing.
+- External Step provides separate learned Step and Reset controls. Each control identifies one exact connected MIDI input, raw physical MIDI channel, message type, and number. Raw channel matching remains exact when the input port is configured for MPE; MPE zones do not widen or translate the binding. Supported message types are Note, Control Change, and Program Change.
+- A valid Step control is required before the Clip can advance. Reset is optional and evaluated independently of Step assignment, connection, conflict, and Clip timing eligibility. An unassigned, missing, invalid, or conflicting Reset disables only Reset and does not block an otherwise eligible Step. A valid nonduplicate Reset remains usable when Step is invalid.
+- For a Note control, one positive-velocity Note On creates an edge and later Note On messages do nothing until Note Off or a velocity-zero Note On rearms it. For a Control Change control, crossing from values 0 through 63 into 64 through 127 creates an edge and later high values do nothing until a value below 64 rearms it. Every matching Program Change creates one edge.
+- A Clip cannot assign the same exact control to both Step and Reset. The same Step or Reset control may be shared by several Clips. One shared Step edge advances each eligible matching Clip once, and one shared Reset edge resets each active matching External Step Clip with a valid Reset once, even when that Clip's Step is invalid.
+- When one message is Reset for some Clips and Step for others, every matching Reset occurs before any matching Step.
+- Active MIDI Learn always receives a prospective binding first and learning a control never invokes it. Existing global, section, Clip, Kit-row, and parameter mappings retain priority. A conflicting External Step control remains saved but inactive. A Step conflict makes Step unavailable; an optional Reset conflict disables and reports Conflict only for Reset while Step remains governed by its own status.
+- Whenever a higher-priority mapping changes a Step or Reset binding into or out of Conflict, that binding's held Note or Control Change state rearms. Program Change has no held state and remains one edge per matching message. A newly conflicting Step cuts the Clip's owned notes once while preserving phase; repeated conflict checks do not repeat the cut.
+- While the feature owns a valid active binding, its matching Note, Control Change, or Program Change messages do not audition a sound, record notes or automation, enter MIDI Follow, control an Output, or pass through MIDI Thru.
+- Global Play enables External Step advancement but the Song clock never moves an External Step Clip. Launching or relaunching the Clip places it before step zero and shows that it is waiting.
+- The first accepted Step edge after launch, Stop, or Reset emits the events at Clip position zero exactly once without first advancing. Each later accepted Step edge advances by exactly the selected step.
+- Reset works while transport is running or stopped and does not depend on Step validity. It cuts notes owned by the Clip, returns the Clip to the position immediately before step zero, clears cadence state, and emits no step-boundary note-on or automation. It does not rearm a held Note or Control Change; that control still needs its defined release or low value. The next accepted running Step emits position zero.
+- Clip stop, mute, replacement, MIDI-Out reassignment, and feature disable cut notes owned by the Clip, rearm its Note and Control Change controls, and return it to launch state. Global Stop and leaving Session apply that cleanup to every configured External Step Clip, active or inactive. Cleanup emits no step-boundary note-on or automation; a note-off needed to cut an owned note is the only permitted MIDI output.
+- Panic cuts owned notes and clock-loss state while preserving the current phase and held-edge state. The next Step after Panic continues from that frozen phase unless the Clip is also stopped or reset.
+- Supported step sizes are one quarter, one eighth, one sixteenth, and one thirty-second note. The saved size is independent of pad zoom and defaults to one sixteenth when absent or invalid.
+- The first version supports forward Session MIDI-Out Clips whose master loop length is evenly divisible by the selected step. Changing Clip direction to Reverse or Ping-Pong, or giving a NoteRow independent length or direction, immediately cuts owned notes, rearms Step and Reset Note or Control Change state, and returns the Clip to pre-step-zero. The Clip then remains visibly unsupported and inactive. Restoring supported timing also remains at pre-step-zero and cannot sound through ordinary Song resume behavior. This safety cleanup never moves, quantizes, or otherwise rewrites stored notes; only the player's requested timing edit keeps its established effect.
+- Notes and stepped MIDI Control Change automation execute only on pulse boundaries. An off-grid event waits until the first boundary at or after its stored position and remains unmodified in the project. A note shorter than one pulse lasts one pulse.
+- All due note-offs occur before any note-ons at a boundary. When several starts in one NoteRow collapse onto one boundary, only the latest stored start before that boundary emits; the earlier starts remain saved.
+- Probability and iterance retain their established decisions at the emitted boundary. Smooth automation, swing between pulses, arpeggiators, MPE timing, and other sub-pulse behavior are not part of this mode.
+- A stable-clock watchdog qualifies only after three consecutive intervals from 25 milliseconds through 4 seconds remain within 25 percent of their median. Four missed median intervals cut owned notes and show Waiting without changing phase. Slower or irregular controls continue stepping but do not establish automatic clock-loss timing.
+- The next Step after qualified clock loss continues from the frozen phase. A disconnected input clears held-edge state and cuts owned notes only when that exact input has no remaining connection.
+- Clip mode, step size, Step binding, and Reset binding survive save, load, and Clip duplication. Transient held-edge, phase, cadence, and pending note-off state never persist or copy.
+- Missing or invalid fields recover independently. Missing mode means Song, missing size means one sixteenth, invalid Step keeps External Step visibly inactive, and invalid or missing Reset remains unassigned.
+- Assigning or loading the Clip with an internal Synth, Kit, or CV output demotes its Clock mode to Song before normal playback. A valid MIDI-Out assignment retains External Step mode and its saved bindings. No non-MIDI Clip may retain a hidden active External Step mode.
+- A Song containing any External Step Clip records the exact local compatibility sentinel `nl-save-schema-1`, even while the feature is Off or its input is unavailable. Schema-1 firmware accepts local schema 0 and 1, rejects future, malformed, or empty local schema sentinels, and otherwise preserves ordinary official and Community version comparison. Older P45 files guarded with `c1.3.1` remain loadable and resave with schema 1. Unsupported firmware refuses the guarded Song instead of silently loading the Clip on the Song clock. The stronger requirement is removed only after every External Step Clip returns to Song mode.
+
+### Compatibility and boundaries
+
+- Preserve ordinary Song-clocked MIDI Clips, their editing, output channel, note and Control Change transmission, launch behavior, probability, iterance, automation, save data, and display behavior.
+- Preserve the established meanings and priority of MIDI Learn, global commands, section and Clip commands, Kit-row mute controls, parameter mappings, MIDI Follow, instrument input, recording, and MIDI Thru whenever no active valid External Step binding owns the message.
+- Do not apply External Step to Audio, internal Synth, Kit, CV, or Arrangement Clips. Do not add another standard MIDI Clock domain, Song Position Pointer, external Start or Stop ownership, MIDI clock output, linear recording, overdub recording, smooth automation, swing, arpeggiators, sample synchronization, or MPE timing.
+- Pulse handling, timeout service, Reset, Stop, and cleanup perform no heap allocation, storage access, sample access, or work in the shared Song next-event scheduler.
+- A disabled feature does not consume configured controls. Arrangement playback does not advance Session External Step Clips.
+- This deviation is local-only and does not authorize firmware flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused checks cover exact device, raw physical channel including MPE-configured ports, type, and number matching; Note and Control Change edge rearming; Program Change edges; independent and shared Step and Reset controls; Reset independence from Step validity; Reset-before-Step ordering; stopped-transport Reset; first step at zero; later steps; loop wrap; off-grid starts; short notes; note-off ordering; collapsed starts; probability; iterance; stepped automation; qualified timeout; irregular clocks; disconnect; feature disable; Step and Reset conflicts; invalid data; and save and load defaults.
+- State-transition checks cover conflict entry and exit rearming, one cut on a newly conflicting Step, all configured Clips on Stop and Session exit, non-MIDI output demotion, and unsupported timing edits without an ordinary resume or any extra stored-note rewrite from the safety cleanup.
+- Review confirms that every Song tick, resync, launch, live-position, arpeggiator, and shared next-event path excludes External Step Clips; matching controls cannot leak into ordinary MIDI handling; no pulse path allocates or accesses storage; and Stop, Reset, timeout, feature disable, disconnect, conflict transitions, timing edits, and Panic cannot leave an owned note sounding.
+- Compatibility checks cover schema 0 and 1 acceptance, future and malformed schema refusal, unchanged ordinary-version comparison, and Songs saved with and without External Step Clips. Current firmware reloads both, an unsupported Community build refuses only the guarded Song, converting every affected Clip to Song removes the stronger compatibility requirement, and an older P45 `c1.3.1` file loads and resaves with schema 1.
+- Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
+- On a physical Deluge connected to VCV Rack, check Note, Control Change, and Program Change Step and Reset controls; independent and shared clocks; first step, wrap, Reset, Stop, Panic, clock loss, reconnect, Clip switching, UI feedback, save and reload, and ordinary Song Clips. Physical verification remains human-controlled and does not authorize flashing or installation.
 
 ## Maintaining this document
 

@@ -226,5 +226,6 @@ protected:
 	cloneOutput(ModelStackWithTimelineCounter* modelStack) = 0; // Returns whether a new Output was in fact created
 	Error solicitParamManager(Song* song, ParamManager* newParamManager = nullptr,
 	                          Clip* favourClipForCloningParamManager = nullptr);
+	virtual void sequenceDirectionModeChanged(ModelStackWithTimelineCounter* modelStack) {}
 	virtual void pingpongOccurred(ModelStackWithTimelineCounter* modelStack) {}
 };

@@ -26,6 +26,7 @@
 #include "gui/views/view.h"
 #include "hid/buttons.h"
 #include "io/midi/midi_device.h"
+#include "io/midi/midi_device_manager.h"
 #include "io/midi/midi_engine.h"
 #include "memory/general_memory_allocator.h"
 #include "model/action/action_logger.h"
@@ -48,12 +49,14 @@
 #include "modulation/midi/midi_param.h"
 #include "modulation/midi/midi_param_collection.h"
 #include "modulation/patch/patch_cable_set.h"
+#include "playback/mode/session.h"
 #include "processing/engines/audio_engine.h"
 #include "processing/engines/cv_engine.h"
 #include "processing/sound/sound_instrument.h"
 #include "storage/storage_manager.h"
 #include "util/const_functions.h"
 #include "util/firmware_version.h"
+#include "util/functions.h"
 #include "util/try.h"
 #include <array>
 #include <cmath>
@@ -63,6 +66,65 @@
 #include "playback/mode/playback_mode.h"
 
 namespace params = deluge::modulation::params;
+
+namespace {
+
+void writeExternalStepMIDIInput(Serializer& writer, char const* tagName,
+                                const deluge::midi::ExternalStepMIDIInput& input) {
+	if (!input.isAssigned()) {
+		return;
+	}
+	writer.writeOpeningTagBeginning(tagName);
+	writer.writeAttribute("channel", input.channel);
+	writer.writeAttribute("messageType", util::to_underlying(input.messageType));
+	writer.writeAttribute("number", input.number);
+	writer.writeOpeningTagEnd();
+	input.cable->writeReferenceToFile(writer);
+	writer.writeClosingTag(tagName);
+}
+
+void readExternalStepMIDIInput(Deserializer& reader, deluge::midi::ExternalStepMIDIInput& input) {
+	int32_t channel = deluge::midi::ExternalStepMIDIInput::kUnassigned;
+	int32_t messageType = util::to_underlying(deluge::midi::ExternalStepMIDIMessageType::NONE);
+	int32_t number = deluge::midi::ExternalStepMIDIInput::kUnassigned;
+	MIDICable* cable = nullptr;
+
+	char const* tagName;
+	while (*(tagName = reader.readNextTagOrAttributeName())) {
+		if (!strcmp(tagName, "channel")) {
+			channel = reader.readTagOrAttributeValueInt();
+		}
+		else if (!strcmp(tagName, "messageType")) {
+			messageType = reader.readTagOrAttributeValueInt();
+		}
+		else if (!strcmp(tagName, "number")) {
+			number = reader.readTagOrAttributeValueInt();
+		}
+		else if (!strcmp(tagName, "device")) {
+			cable = MIDIDeviceManager::readDeviceReferenceFromFile(reader);
+		}
+		reader.exitTag(tagName);
+	}
+
+	if (channel < 0 || channel >= deluge::midi::ExternalStepMIDIInput::kChannelCount || messageType < 0
+	    || messageType > util::to_underlying(deluge::midi::ExternalStepMIDIMessageType::PROGRAM_CHANGE) || number < 0
+	    || number > UINT8_MAX || cable == nullptr) {
+		input.clear();
+		return;
+	}
+	const auto type = static_cast<deluge::midi::ExternalStepMIDIMessageType>(messageType);
+	if (!deluge::midi::ExternalStepMIDIInput::numberIsValid(type, number)) {
+		input.clear();
+		return;
+	}
+	input.cable = cable;
+	input.channel = channel;
+	input.messageType = type;
+	input.number = number;
+	input.clearRuntimeState();
+}
+
+} // namespace
 
 // Supplying song is optional, and basically only for the purpose of setting yScroll according to root note
 InstrumentClip::InstrumentClip(Song* song) : Clip(ClipType::INSTRUMENT), noteRows() {
@@ -136,6 +198,11 @@ void InstrumentClip::copyBasicsFrom(Clip const* otherClip) {
 	yScroll = otherInstrumentClip->yScroll;
 	keyboardState = otherInstrumentClip->keyboardState;
 	sequenceDirectionMode = otherInstrumentClip->sequenceDirectionMode;
+	externalStepClockMode = otherInstrumentClip->externalStepClockMode;
+	externalStepSize = otherInstrumentClip->externalStepSize;
+	externalStepInput = otherInstrumentClip->externalStepInput;
+	externalResetInput = otherInstrumentClip->externalResetInput;
+	externalStepRuntime.resetToPreZero();
 
 	affectEntire = otherInstrumentClip->affectEntire;
 
@@ -150,6 +217,205 @@ void InstrumentClip::copyBasicsFrom(Clip const* otherClip) {
 	}
 
 	arpSettings.cloneFrom(&otherInstrumentClip->arpSettings);
+}
+
+uint32_t InstrumentClip::getLivePos() const {
+	return isExternalStepMode() ? lastProcessedPos : Clip::getLivePos();
+}
+
+uint32_t InstrumentClip::getExternalStepTicks(const Song* song) const {
+	if (song == nullptr) {
+		return 0;
+	}
+	return increaseMagnitude(deluge::external_step::baseTicksForStepSize(externalStepSize),
+	                         song->getInputTickMagnitude());
+}
+
+bool InstrumentClip::externalStepBindingsAreIdentical() const {
+	return externalStepInput.hasSameAssignmentAs(externalResetInput);
+}
+
+deluge::external_step::Eligibility InstrumentClip::getExternalStepEligibility(bool featureEnabled,
+                                                                              const Song* song) const {
+	using enum deluge::external_step::Eligibility;
+	using deluge::midi::ExternalStepMIDIInput;
+	if (!isExternalStepMode()) {
+		return SONG_MODE;
+	}
+	if (!featureEnabled) {
+		return FEATURE_DISABLED;
+	}
+	if (output == nullptr || output->type != OutputType::MIDI_OUT) {
+		return NOT_MIDI_OUT;
+	}
+	if (isArrangementOnlyClip()) {
+		return ARRANGEMENT_ONLY;
+	}
+	if (currentlyRecordingLinearly) {
+		return RECORDING;
+	}
+	if (arpSettings.mode != ArpMode::OFF) {
+		return ARPEGGIATOR;
+	}
+	if (sequenceDirectionMode != SequenceDirection::FORWARD) {
+		return UNSUPPORTED_DIRECTION;
+	}
+	const uint32_t stepTicks = getExternalStepTicks(song);
+	if (stepTicks == 0 || loopLength <= 0 || static_cast<uint32_t>(loopLength) % stepTicks != 0) {
+		return INDIVISIBLE_LOOP;
+	}
+	NoteRowVector& mutableNoteRows = const_cast<NoteRowVector&>(noteRows);
+	for (int32_t i = 0; i < mutableNoteRows.getNumElements(); i++) {
+		if (mutableNoteRows.getElement(i)->hasIndependentPlayPos()) {
+			return INDEPENDENT_NOTE_ROW;
+		}
+	}
+	const bool stepIdentityValid =
+	    externalStepInput.channel < ExternalStepMIDIInput::kChannelCount
+	    && ExternalStepMIDIInput::numberIsValid(externalStepInput.messageType, externalStepInput.number);
+	if (!stepIdentityValid) {
+		return STEP_UNASSIGNED;
+	}
+	if (externalStepInput.cable == nullptr || externalStepInput.cable->connectionFlags == 0) {
+		return STEP_INPUT_MISSING;
+	}
+	if (externalStepInput.conflict) {
+		return CONFLICT;
+	}
+	if (externalStepBindingsAreIdentical()) {
+		return DUPLICATE_BINDING;
+	}
+	return ELIGIBLE;
+}
+
+deluge::external_step::Status InstrumentClip::getExternalStepStatus(bool featureEnabled, const Song* song) const {
+	switch (getExternalStepEligibility(featureEnabled, song)) {
+	case deluge::external_step::Eligibility::SONG_MODE:
+		return deluge::external_step::Status::SONG;
+	case deluge::external_step::Eligibility::FEATURE_DISABLED:
+		return deluge::external_step::Status::FEATURE_DISABLED;
+	case deluge::external_step::Eligibility::STEP_UNASSIGNED:
+		return deluge::external_step::Status::UNASSIGNED;
+	case deluge::external_step::Eligibility::STEP_INPUT_MISSING:
+		return deluge::external_step::Status::MISSING_INPUT;
+	case deluge::external_step::Eligibility::CONFLICT:
+	case deluge::external_step::Eligibility::DUPLICATE_BINDING:
+		return deluge::external_step::Status::CONFLICT;
+	case deluge::external_step::Eligibility::ELIGIBLE:
+		return externalStepRuntime.isWaiting() ? deluge::external_step::Status::WAIT
+		                                       : deluge::external_step::Status::READY;
+	default:
+		return deluge::external_step::Status::UNSUPPORTED;
+	}
+}
+
+deluge::external_step::Eligibility InstrumentClip::validateExternalStep(ModelStackWithTimelineCounter* modelStack,
+                                                                        bool featureEnabled) {
+	const deluge::external_step::Eligibility eligibility = getExternalStepEligibility(featureEnabled, modelStack->song);
+	if (isExternalStepMode() && eligibility != deluge::external_step::Eligibility::ELIGIBLE) {
+		clearExternalStepForStop(modelStack);
+	}
+	return eligibility;
+}
+
+void InstrumentClip::clearExternalStepNoteRows(ModelStackWithTimelineCounter* modelStack, bool sendNoteOffs) {
+	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
+		NoteRow* noteRow = noteRows.getElement(i);
+		noteRow->clearExternalStepNoteState(modelStack->addNoteRow(getNoteRowId(noteRow, i), noteRow), sendNoteOffs);
+	}
+}
+
+void InstrumentClip::setExternalStepClockMode(deluge::external_step::ClockMode mode,
+                                              ModelStackWithTimelineCounter* modelStack) {
+	if (mode == externalStepClockMode) {
+		return;
+	}
+	clearExternalStepNoteRows(modelStack, true);
+	externalStepRuntime.resetToPreZero();
+	externalStepInput.clearRuntimeState();
+	externalResetInput.clearRuntimeState();
+	lastProcessedPos = 0;
+	repeatCount = 0;
+	externalStepClockMode = mode;
+	if (!isExternalStepMode()) {
+		if (currentPlaybackMode == &session && playbackHandler.isEitherClockActive()
+		    && modelStack->song->isClipActive(this)) {
+			session.reSyncClip(modelStack, true, true);
+		}
+		else {
+			expectEvent();
+		}
+	}
+}
+
+void InstrumentClip::setExternalStepSize(deluge::external_step::StepSize size,
+                                         ModelStackWithTimelineCounter* modelStack) {
+	if (size == externalStepSize) {
+		return;
+	}
+	clearExternalStepNoteRows(modelStack, true);
+	externalStepRuntime.resetToPreZero();
+	externalStepInput.clearHeldState();
+	externalResetInput.clearHeldState();
+	lastProcessedPos = 0;
+	repeatCount = 0;
+	externalStepSize = size;
+}
+
+void InstrumentClip::resetExternalStep(ModelStackWithTimelineCounter* modelStack) {
+	clearExternalStepNoteRows(modelStack, true);
+	externalStepRuntime.resetToPreZero();
+	lastProcessedPos = 0;
+	repeatCount = 0;
+}
+
+void InstrumentClip::clearExternalStepForStop(ModelStackWithTimelineCounter* modelStack, bool sendNoteOffs) {
+	clearExternalStepNoteRows(modelStack, sendNoteOffs);
+	externalStepRuntime.resetToPreZero();
+	lastProcessedPos = 0;
+	repeatCount = 0;
+	externalStepInput.clearHeldState();
+	externalResetInput.clearHeldState();
+}
+
+void InstrumentClip::sequenceDirectionModeChanged(ModelStackWithTimelineCounter* modelStack) {
+	if (isExternalStepMode()) {
+		clearExternalStepForStop(modelStack);
+	}
+}
+
+void InstrumentClip::demoteExternalStepForUnsupportedOutput(OutputType newOutputType, Song* song) {
+	if (!isExternalStepMode() || newOutputType == OutputType::MIDI_OUT) {
+		return;
+	}
+
+	if (output != nullptr) {
+		char modelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStackWithTimelineCounter* modelStack = setupModelStackWithTimelineCounter(modelStackMemory, song, this);
+		clearExternalStepForStop(modelStack);
+	}
+	else {
+		externalStepRuntime.resetToPreZero();
+		externalStepInput.clearHeldState();
+		externalResetInput.clearHeldState();
+		lastProcessedPos = 0;
+		repeatCount = 0;
+	}
+
+	externalStepClockMode = deluge::external_step::ClockMode::SONG;
+}
+
+void InstrumentClip::cutExternalStepNotesPreservePhase(ModelStackWithTimelineCounter* modelStack) {
+	clearExternalStepNoteRows(modelStack, true);
+	externalStepRuntime.waitPreservingPhase();
+}
+
+bool InstrumentClip::serviceExternalStepTimeout(ModelStackWithTimelineCounter* modelStack, uint32_t sampleTime) {
+	if (!externalStepRuntime.timeoutDue(sampleTime)) {
+		return false;
+	}
+	cutExternalStepNotesPreservePhase(modelStack);
+	return true;
 }
 
 // Will replace the Clip in the modelStack, if success.
@@ -304,6 +570,9 @@ void InstrumentClip::lengthChanged(ModelStackWithTimelineCounter* modelStack, in
 	}
 
 	Clip::lengthChanged(modelStack, oldLength, action);
+	if (isExternalStepMode()) {
+		clearExternalStepForStop(modelStack);
+	}
 }
 
 // Does this individually for each NoteRow, because they might be different lengths, and some might need repeating while
@@ -379,6 +648,9 @@ void InstrumentClip::halveNoteRowsWithIndependentLength(ModelStackWithTimelineCo
 // Accepts any pos >= -length
 void InstrumentClip::setPos(ModelStackWithTimelineCounter* modelStack, int32_t newPos,
                             bool useActualPosForParamManagers) {
+	if (isExternalStepMode()) {
+		return;
+	}
 	Clip::setPos(modelStack, newPos, useActualPosForParamManagers); // This will also call our own virtual expectEvent()
 
 	noteRowsNumTicksBehindClip = 0;
@@ -669,6 +941,10 @@ void InstrumentClip::posReachedEnd(ModelStackWithTimelineCounter* thisModelStack
 }
 
 bool InstrumentClip::wantsToBeginLinearRecording(Song* song) {
+	if (isExternalStepMode()) {
+		return false;
+	}
+
 	if (!Clip::wantsToBeginLinearRecording(song)) {
 		return false;
 	}
@@ -694,7 +970,54 @@ void InstrumentClip::pingpongOccurred(ModelStackWithTimelineCounter* modelStack)
 	}
 }
 
+bool InstrumentClip::processExternalStep(ModelStackWithTimelineCounter* modelStack, uint32_t sampleTime,
+                                         bool featureEnabled) {
+	if (getExternalStepEligibility(featureEnabled, modelStack->song) != deluge::external_step::Eligibility::ELIGIBLE
+	    || currentPlaybackMode != &session || !playbackHandler.isEitherClockActive()
+	    || !modelStack->song->isClipActive(this) || !isActiveOnOutput()) {
+		return false;
+	}
+
+	const uint32_t previousPosition = lastProcessedPos;
+	const uint32_t stepTicks = getExternalStepTicks(modelStack->song);
+	const bool firstBoundary = externalStepRuntime.state() == deluge::external_step::State::PRE_ZERO;
+	const deluge::external_step::Advance advance =
+	    externalStepRuntime.advance(previousPosition, loopLength, stepTicks, sampleTime);
+	if (!advance.emit) {
+		return false;
+	}
+
+	lastProcessedPos = advance.position;
+	if (advance.wrapped) {
+		repeatCount++;
+	}
+
+	static PendingNoteOnList pendingNoteOnList;
+	pendingNoteOnList.count = 0;
+	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
+		NoteRow* noteRow = noteRows.getElement(i);
+		noteRow->processExternalStepBoundary(modelStack->addNoteRow(getNoteRowId(noteRow, i), noteRow),
+		                                     previousPosition, advance.position, loopLength, stepTicks, firstBoundary,
+		                                     advance.wrapped, &pendingNoteOnList);
+	}
+
+	ParamCollectionSummary* midiSummary = paramManager.getMIDIParamCollectionSummary();
+	if (midiSummary->paramCollection != nullptr && midiSummary->containsAutomation()) {
+		ModelStackWithThreeMainThings* threeThings =
+		    modelStack->addOtherTwoThingsButNoNoteRow(output->toModControllable(), &paramManager);
+		paramManager.getMIDIParamCollection()->grabValuesFromPos(advance.position,
+		                                                         threeThings->addParamCollectionSummary(midiSummary));
+	}
+
+	// Incoming pulses have no predictable final iteration; never borrow Song-clock ending state.
+	resolvePendingNoteOns(modelStack, &pendingNoteOnList, false);
+	return true;
+}
+
 void InstrumentClip::processCurrentPos(ModelStackWithTimelineCounter* modelStack, uint32_t ticksSinceLast) {
+	if (isExternalStepMode()) {
+		return;
+	}
 
 	Clip::processCurrentPos(modelStack, ticksSinceLast);
 	if (modelStack->getTimelineCounter() != this) {
@@ -737,175 +1060,7 @@ void InstrumentClip::processCurrentPos(ModelStackWithTimelineCounter* modelStack
 
 		noteRowsNumTicksBehindClip = 0;
 
-		// Count up how many of each probability there are
-		uint8_t probabilityCount[kNumProbabilityValues];
-		memset(probabilityCount, 0, sizeof(probabilityCount));
-
-		// Check whether special case where all probability adds up to 100%
-		int32_t probabilitySum = 0;
-
-		bool doingSumTo100 = false;
-		int32_t winningI;
-
-		for (int32_t i = 0; i < pendingNoteOnList.count; i++) {
-
-			// If we found a 100%, we know we're not doing sum-to-100
-			if (pendingNoteOnList.pendingNoteOns[i].probability == kNumProbabilityValues) {
-				goto skipDoingSumTo100;
-			}
-
-			// If any follow-previous-probability, skip this statistics-grabbing
-			if (pendingNoteOnList.pendingNoteOns[i].probability & 128) {
-				continue;
-			}
-
-			// Add to probability total sum - only if we hadn't already found a pending note-on with this probability
-			// value
-			// if (probabilityCount[pendingNoteOnList.pendingNoteOns[i].probability - 1] == 0)
-			probabilitySum += pendingNoteOnList.pendingNoteOns[i].probability;
-
-			probabilityCount[pendingNoteOnList.pendingNoteOns[i].probability - 1]++;
-		}
-
-		doingSumTo100 = (probabilitySum == kNumProbabilityValues);
-
-		if (doingSumTo100) {
-			int32_t probabilityValueForSummers = ((uint32_t)getRandom255() * kNumProbabilityValues) >> 8;
-
-			int32_t probabilitySumSecondPass = 0;
-
-			bool foundWinner = false;
-
-			for (int32_t i = 0; i < pendingNoteOnList.count; i++) {
-
-				// If any follow-previous-probability, skip this statistics-grabbing
-				if (pendingNoteOnList.pendingNoteOns[i].probability & 128) {
-					continue;
-				}
-
-				int32_t probability = pendingNoteOnList.pendingNoteOns[i].probability;
-
-				probabilitySumSecondPass += probability;
-
-				lastProbabiltyPos[probability] = lastProcessedPos;
-
-				if (!foundWinner && probabilitySumSecondPass > probabilityValueForSummers) {
-					winningI = i;
-					lastProbabilities[probability] = true;
-
-					foundWinner = true;
-				}
-
-				else {
-					// Mark down this "loser"
-					lastProbabilities[probability] = false;
-				}
-			}
-		}
-
-skipDoingSumTo100:
-
-		// Go through each pending note-on
-		for (int32_t i = 0; i < pendingNoteOnList.count; i++) {
-
-			bool conditionPassed;
-
-			// If it's a 100%, which usually will be the case...
-			if (pendingNoteOnList.pendingNoteOns[i].probability == kNumProbabilityValues) {
-				conditionPassed = true;
-			}
-
-			// Otherwise...
-			else [[unlikely]] {
-				int32_t probability = pendingNoteOnList.pendingNoteOns[i].probability & 127;
-
-				// If based on a previous probability...
-				if (pendingNoteOnList.pendingNoteOns[i].probability & 128) {
-
-					// Check that that previous probability value is still valid. It normally should be, unless the
-					// user has changed the probability of that "previous" note
-					if (lastProbabiltyPos[probability] == -1 || lastProbabiltyPos[probability] == lastProcessedPos) {
-						goto doNewProbability;
-					}
-
-					conditionPassed = lastProbabilities[probability];
-				}
-
-				// Or if not based on a previous probability...
-				else {
-
-					// If we're summing to 100...
-					if (doingSumTo100) {
-						conditionPassed = (i == winningI);
-					}
-
-					// Or if not summing to 100...
-					else {
-doNewProbability:
-						// If the outcome of this probability has already been decided (by another note with same
-						// probability)
-						if (probabilityCount[probability - 1] >= 254) {
-							conditionPassed = probabilityCount[probability - 1] == 255;
-						}
-
-						// Otherwise, decide it now
-						else {
-							int32_t probabilityValue = ((uint32_t)getRandom255() * kNumProbabilityValues) >> 8;
-							conditionPassed = (probabilityValue < probability);
-
-							lastProbabilities[kNumProbabilityValues - probability] = !conditionPassed;
-							lastProbabiltyPos[kNumProbabilityValues - probability] = lastProcessedPos;
-
-							lastProbabilities[probability] = conditionPassed;
-							lastProbabiltyPos[probability] = lastProcessedPos;
-
-							// Store the outcome, for any neighbouring notes
-							probabilityCount[probability - 1] = conditionPassed ? 255 : 254;
-						}
-					}
-				}
-			}
-
-			// if probably setting has resulted in a note on
-			if (conditionPassed) [[likely]] {
-				// now we check if we should skip note based on iteration condition
-				Iterance iterance = pendingNoteOnList.pendingNoteOns[i].iterance;
-
-				// If it's an iteration dependence...
-				if (iterance != kDefaultIteranceValue) [[unlikely]] {
-					ModelStackWithNoteRow* modelStackWithNoteRow = modelStack->addNoteRow(
-					    pendingNoteOnList.pendingNoteOns[i].noteRowId, pendingNoteOnList.pendingNoteOns[i].noteRow);
-
-					conditionPassed = iterance.passesCheck(modelStackWithNoteRow->getRepeatCount(), ending);
-				}
-
-				// lastly, if after checking iteration we still have a note on
-				// we'll check if that note should be sounded based on fill state
-				if (conditionPassed) {
-					// check if it's a FILL note and SYNC_SCALING is *not* pressed
-					if (pendingNoteOnList.pendingNoteOns[i].fill == FillMode::FILL
-					    && !currentSong->isFillModeActive()) {
-						conditionPassed = false;
-					}
-					// check if it's a NOT FILL note and SYNC_SCALING is pressed
-					else if (pendingNoteOnList.pendingNoteOns[i].fill == FillMode::NOT_FILL
-					         && currentSong->isFillModeActive()) {
-						conditionPassed = false;
-					}
-				}
-
-				// probability, iterance and fill conditions have passed
-				if (conditionPassed) {
-					sendPendingNoteOn(modelStack, &pendingNoteOnList.pendingNoteOns[i]);
-				}
-				else {
-					pendingNoteOnList.pendingNoteOns[i].noteRow->sequenced = false;
-				}
-			}
-			else {
-				pendingNoteOnList.pendingNoteOns[i].noteRow->sequenced = false;
-			}
-		}
+		resolvePendingNoteOns(modelStack, &pendingNoteOnList, ending);
 	}
 
 	if (ticksTilNextNoteRowEvent < playbackHandler.swungTicksTilNextEvent) {
@@ -913,6 +1068,177 @@ doNewProbability:
 	}
 }
 
+void InstrumentClip::resolvePendingNoteOns(ModelStackWithTimelineCounter* modelStack,
+                                           PendingNoteOnList* pendingNoteOnList, bool ending) {
+	// Count up how many of each probability there are
+	uint8_t probabilityCount[kNumProbabilityValues];
+	memset(probabilityCount, 0, sizeof(probabilityCount));
+
+	// Check whether special case where all probability adds up to 100%
+	int32_t probabilitySum = 0;
+
+	bool doingSumTo100 = false;
+	int32_t winningI;
+
+	for (int32_t i = 0; i < pendingNoteOnList->count; i++) {
+
+		// If we found a 100%, we know we're not doing sum-to-100
+		if (pendingNoteOnList->pendingNoteOns[i].probability == kNumProbabilityValues) {
+			goto skipDoingSumTo100;
+		}
+
+		// If any follow-previous-probability, skip this statistics-grabbing
+		if (pendingNoteOnList->pendingNoteOns[i].probability & 128) {
+			continue;
+		}
+
+		// Add to probability total sum - only if we hadn't already found a pending note-on with this probability
+		// value
+		// if (probabilityCount[pendingNoteOnList->pendingNoteOns[i].probability - 1] == 0)
+		probabilitySum += pendingNoteOnList->pendingNoteOns[i].probability;
+
+		probabilityCount[pendingNoteOnList->pendingNoteOns[i].probability - 1]++;
+	}
+
+	doingSumTo100 = (probabilitySum == kNumProbabilityValues);
+
+	if (doingSumTo100) {
+		int32_t probabilityValueForSummers = ((uint32_t)getRandom255() * kNumProbabilityValues) >> 8;
+
+		int32_t probabilitySumSecondPass = 0;
+
+		bool foundWinner = false;
+
+		for (int32_t i = 0; i < pendingNoteOnList->count; i++) {
+
+			// If any follow-previous-probability, skip this statistics-grabbing
+			if (pendingNoteOnList->pendingNoteOns[i].probability & 128) {
+				continue;
+			}
+
+			int32_t probability = pendingNoteOnList->pendingNoteOns[i].probability;
+
+			probabilitySumSecondPass += probability;
+
+			lastProbabiltyPos[probability] = lastProcessedPos;
+
+			if (!foundWinner && probabilitySumSecondPass > probabilityValueForSummers) {
+				winningI = i;
+				lastProbabilities[probability] = true;
+
+				foundWinner = true;
+			}
+
+			else {
+				// Mark down this "loser"
+				lastProbabilities[probability] = false;
+			}
+		}
+	}
+
+skipDoingSumTo100:
+
+	// Go through each pending note-on
+	for (int32_t i = 0; i < pendingNoteOnList->count; i++) {
+
+		bool conditionPassed;
+
+		// If it's a 100%, which usually will be the case...
+		if (pendingNoteOnList->pendingNoteOns[i].probability == kNumProbabilityValues) {
+			conditionPassed = true;
+		}
+
+		// Otherwise...
+		else [[unlikely]] {
+			int32_t probability = pendingNoteOnList->pendingNoteOns[i].probability & 127;
+
+			// If based on a previous probability...
+			if (pendingNoteOnList->pendingNoteOns[i].probability & 128) {
+
+				// Check that that previous probability value is still valid. It normally should be, unless the
+				// user has changed the probability of that "previous" note
+				if (lastProbabiltyPos[probability] == -1 || lastProbabiltyPos[probability] == lastProcessedPos) {
+					goto doNewProbability;
+				}
+
+				conditionPassed = lastProbabilities[probability];
+			}
+
+			// Or if not based on a previous probability...
+			else {
+
+				// If we're summing to 100...
+				if (doingSumTo100) {
+					conditionPassed = (i == winningI);
+				}
+
+				// Or if not summing to 100...
+				else {
+doNewProbability:
+					// If the outcome of this probability has already been decided (by another note with same
+					// probability)
+					if (probabilityCount[probability - 1] >= 254) {
+						conditionPassed = probabilityCount[probability - 1] == 255;
+					}
+
+					// Otherwise, decide it now
+					else {
+						int32_t probabilityValue = ((uint32_t)getRandom255() * kNumProbabilityValues) >> 8;
+						conditionPassed = (probabilityValue < probability);
+
+						lastProbabilities[kNumProbabilityValues - probability] = !conditionPassed;
+						lastProbabiltyPos[kNumProbabilityValues - probability] = lastProcessedPos;
+
+						lastProbabilities[probability] = conditionPassed;
+						lastProbabiltyPos[probability] = lastProcessedPos;
+
+						// Store the outcome, for any neighbouring notes
+						probabilityCount[probability - 1] = conditionPassed ? 255 : 254;
+					}
+				}
+			}
+		}
+
+		// if probably setting has resulted in a note on
+		if (conditionPassed) [[likely]] {
+			// now we check if we should skip note based on iteration condition
+			Iterance iterance = pendingNoteOnList->pendingNoteOns[i].iterance;
+
+			// If it's an iteration dependence...
+			if (iterance != kDefaultIteranceValue) [[unlikely]] {
+				ModelStackWithNoteRow* modelStackWithNoteRow = modelStack->addNoteRow(
+				    pendingNoteOnList->pendingNoteOns[i].noteRowId, pendingNoteOnList->pendingNoteOns[i].noteRow);
+
+				conditionPassed = iterance.passesCheck(modelStackWithNoteRow->getRepeatCount(), ending);
+			}
+
+			// lastly, if after checking iteration we still have a note on
+			// we'll check if that note should be sounded based on fill state
+			if (conditionPassed) {
+				// check if it's a FILL note and SYNC_SCALING is *not* pressed
+				if (pendingNoteOnList->pendingNoteOns[i].fill == FillMode::FILL && !currentSong->isFillModeActive()) {
+					conditionPassed = false;
+				}
+				// check if it's a NOT FILL note and SYNC_SCALING is pressed
+				else if (pendingNoteOnList->pendingNoteOns[i].fill == FillMode::NOT_FILL
+				         && currentSong->isFillModeActive()) {
+					conditionPassed = false;
+				}
+			}
+
+			// probability, iterance and fill conditions have passed
+			if (conditionPassed) {
+				sendPendingNoteOn(modelStack, &pendingNoteOnList->pendingNoteOns[i]);
+			}
+			else {
+				pendingNoteOnList->pendingNoteOns[i].noteRow->sequenced = false;
+			}
+		}
+		else {
+			pendingNoteOnList->pendingNoteOns[i].noteRow->sequenced = false;
+		}
+	}
+}
 void InstrumentClip::sendPendingNoteOn(ModelStackWithTimelineCounter* modelStack, PendingNoteOn* pendingNoteOn) {
 
 	ModelStackWithNoteRow* modelStackWithNoteRow =
@@ -1133,6 +1459,9 @@ ModelStackWithNoteRow* InstrumentClip::getOrCreateNoteRowForYNote(int32_t yNote,
 // I think you need to check (playbackHandler.isEitherClockActive() && song->isClipActive(thisClip)) before calling
 // this.
 void InstrumentClip::resumePlayback(ModelStackWithTimelineCounter* modelStack, bool mayMakeSound) {
+	if (isExternalStepMode()) {
+		return;
+	}
 	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
 		NoteRow* thisNoteRow = noteRows.getElement(i);
 		if (!thisNoteRow->muted) {
@@ -1145,6 +1474,14 @@ void InstrumentClip::resumePlayback(ModelStackWithTimelineCounter* modelStack, b
 }
 
 void InstrumentClip::expectNoFurtherTicks(Song* song, bool actuallySoundChange) {
+	if (isExternalStepMode()) {
+		char externalStepModelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStackWithTimelineCounter* externalStepModelStack =
+		    setupModelStackWithTimelineCounter(externalStepModelStackMemory, song, this);
+		clearExternalStepForStop(externalStepModelStack);
+		currentlyRecordingLinearly = false;
+		return;
+	}
 
 	// If it's actually another Clip, that we're recording into the arranger...
 	if (output->getActiveClip() && output->getActiveClip()->beingRecordedFromClip == this) {
@@ -1196,6 +1533,10 @@ void InstrumentClip::expectNoFurtherTicks(Song* song, bool actuallySoundChange) 
 // Stops currently-playing notes by actually sending a note-off right now.
 // Check that we're allowed to make sound before you call this (nowhere does, is that bad?)
 void InstrumentClip::stopAllNotesPlaying(ModelStackWithTimelineCounter* modelStack, bool actuallySoundChange) {
+	if (isExternalStepMode() && actuallySoundChange) {
+		cutExternalStepNotesPreservePhase(modelStack);
+		return;
+	}
 	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
 		NoteRow* thisNoteRow = noteRows.getElement(i);
 		ModelStackWithNoteRow* modelStackWithNoteRow =
@@ -1610,6 +1951,7 @@ int32_t InstrumentClip::getNumNoteRows() {
 }
 
 Error InstrumentClip::setNonAudioInstrument(Instrument* newInstrument, Song* song, ParamManager* newParamManager) {
+	demoteExternalStepForUnsupportedOutput(newInstrument->type, song);
 
 	// New addition - need expression params... hopefully fine?
 	// Maybe this function should have the ability to do something equivalent to solicitParamManager(), for the purpose
@@ -2226,6 +2568,9 @@ void InstrumentClip::detachFromOutput(ModelStackWithTimelineCounter* modelStack,
                                       bool shouldDeleteEmptyNoteRowsAtEitherEnd, bool shouldRetainLinksToOutput,
                                       bool keepNoteRowsWithMIDIInput, bool shouldGrabMidiCommands,
                                       bool shouldBackUpExpressionParamsToo) {
+	if (isExternalStepMode()) {
+		clearExternalStepForStop(modelStack);
+	}
 
 	if (isActiveOnOutput()) {
 		output->detachActiveClip(modelStack->song);
@@ -2300,6 +2645,7 @@ Error InstrumentClip::undoDetachmentFromOutput(ModelStackWithTimelineCounter* mo
 Error InstrumentClip::setAudioInstrument(Instrument* newInstrument, Song* song, bool shouldSetupPatching,
                                          ParamManager* newParamManager,
                                          InstrumentClip* favourClipForCloningParamManager) {
+	demoteExternalStepForUnsupportedOutput(newInstrument->type, song);
 
 	output = newInstrument;
 	affectEntire = (newInstrument->type != OutputType::KIT); // Moved here from changeInstrument, March 2021
@@ -2353,6 +2699,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
 	if (output->type == OutputType::KIT) {
 		writer.writeAttribute("affectEntire", affectEntire);
 	}
+	writer.writeAttribute("externalStepClockMode", util::to_underlying(externalStepClockMode));
+	writer.writeAttribute("externalStepSize", util::to_underlying(externalStepSize));
 
 	Instrument* instrument = (Instrument*)output;
 
@@ -2400,6 +2748,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
 	writer.writeOpeningTagEnd();
 
 	Clip::writeMidiCommandsToFile(writer, song);
+	writeExternalStepMIDIInput(writer, "externalStepInput", externalStepInput);
+	writeExternalStepMIDIInput(writer, "externalResetInput", externalResetInput);
 
 	if (output->type == OutputType::MIDI_OUT) {
 		paramManager.getMIDIParamCollection()->writeToFile(writer);
@@ -2563,6 +2913,25 @@ someError:
 
 		else if (!strcmp(tagName, "midiPGM")) {
 			midiPGM = reader.readTagOrAttributeValueInt();
+		}
+
+		else if (!strcmp(tagName, "externalStepClockMode")) {
+			const int32_t value = reader.readTagOrAttributeValueInt();
+			externalStepClockMode = value == util::to_underlying(deluge::external_step::ClockMode::EXTERNAL_STEP)
+			                            ? deluge::external_step::ClockMode::EXTERNAL_STEP
+			                            : deluge::external_step::ClockMode::SONG;
+		}
+
+		else if (!strcmp(tagName, "externalStepSize")) {
+			externalStepSize = deluge::external_step::stepSizeFromValue(reader.readTagOrAttributeValueInt());
+		}
+
+		else if (!strcmp(tagName, "externalStepInput")) {
+			readExternalStepMIDIInput(reader, externalStepInput);
+		}
+
+		else if (!strcmp(tagName, "externalResetInput")) {
+			readExternalStepMIDIInput(reader, externalResetInput);
 		}
 
 		else if (!strcmp(tagName, "yScroll")) {
@@ -3931,6 +4300,8 @@ Error InstrumentClip::claimOutput(ModelStackWithTimelineCounter* modelStack) {
 		}
 	}
 
+	demoteExternalStepForUnsupportedOutput(output->type, modelStack->song);
+
 	// If Instrument is a Kit, match each NoteRow to its Drum
 	if (output->type == OutputType::KIT) {
 		Kit* kit = (Kit*)output;
@@ -4413,6 +4784,9 @@ returnNull:
 }
 
 void InstrumentClip::expectEvent() {
+	if (isExternalStepMode()) {
+		return;
+	}
 	ticksTilNextNoteRowEvent = 0;
 	Clip::expectEvent();
 }
@@ -4738,6 +5112,9 @@ bool InstrumentClip::hasAnyPitchExpressionAutomationOnNoteRows() {
 }
 
 void InstrumentClip::incrementPos(ModelStackWithTimelineCounter* modelStack, int32_t numTicks) {
+	if (isExternalStepMode()) {
+		return;
+	}
 	Clip::incrementPos(modelStack, numTicks);
 
 	ticksTilNextNoteRowEvent -= numTicks; // We're one tick closer to the next event...

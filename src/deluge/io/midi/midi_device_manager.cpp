@@ -28,6 +28,7 @@
 #include "io/midi/midi_engine.h"
 #include "mem_functions.h"
 #include "memory/general_memory_allocator.h"
+#include "playback/playback_handler.h"
 #include "storage/storage_manager.h"
 #include "util/container/vector/named_thing_vector.h"
 #include "util/misc.h"
@@ -283,7 +284,11 @@ extern "C" void hostedDeviceDetached(int32_t ip, int32_t midiDeviceNum) {
 	for (int32_t i = 0; i <= ports; i++) {
 		MIDICableUSB* device = connectedDevice->cable[i];
 		if (device) { // Surely always has one?
+			const uint8_t previousConnectionFlags = device->connectionFlags;
 			device->connectionFlags &= ~(1 << midiDeviceNum);
+			if (previousConnectionFlags && !device->connectionFlags) {
+				playbackHandler.midiInputDisconnected(*device);
+			}
 		}
 		connectedDevice->cable[i] = nullptr;
 	}
@@ -317,9 +322,18 @@ extern "C" void detachedAsPeripheral(int32_t ip) {
 	for (int32_t i = 0; i <= ports; i++) {
 		connectedUSBMIDIDevices[ip][0].cable[i] = nullptr;
 	}
-	upstreamUSBMIDICable1.connectionFlags = 0;
-	upstreamUSBMIDICable2.connectionFlags = 0;
-	upstreamUSBMIDICable3.connectionFlags = 0;
+	MIDICableUSBUpstream* upstreamCables[] = {
+	    &upstreamUSBMIDICable1,
+	    &upstreamUSBMIDICable2,
+	    &upstreamUSBMIDICable3,
+	};
+	for (MIDICableUSBUpstream* cable : upstreamCables) {
+		const bool wasConnected = cable->connectionFlags != 0;
+		cable->connectionFlags = 0;
+		if (wasConnected) {
+			playbackHandler.midiInputDisconnected(*cable);
+		}
+	}
 	anyUSBSendingStillHappening[ip] = 0; // Reset this again. Been meaning to do this, and can no longer quite remember
 	                                     // reason or whether technically essential, but adds to safety at least.
 

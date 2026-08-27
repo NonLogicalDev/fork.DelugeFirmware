@@ -49,6 +49,7 @@
 #include "model/scale/utils.h"
 #include "model/settings/runtime_feature_settings.h"
 #include "model/song/clip_iterators.h"
+#include "model/song/project_compatibility.h"
 #include "model/voice/voice_sample.h"
 #include "modulation/patch/patch_cable_set.h"
 #include "playback/mode/arrangement.h"
@@ -1152,7 +1153,14 @@ void Song::writeToFile() {
 	writer.writeOpeningTagBeginning("song", true, false);
 
 	writer.writeFirmwareVersion();
-	writer.writeEarliestCompatibleFirmwareVersion("4.1.0-alpha");
+	auto requiredSaveSchema = deluge::project_compatibility::LocalSaveSchema::NONE;
+	for (InstrumentClip* clip : InstrumentClips::everywhere(this)) {
+		requiredSaveSchema = deluge::project_compatibility::maximumRequiredSchema(
+		    requiredSaveSchema,
+		    deluge::project_compatibility::requiredSchemaForExternalStep(clip->isExternalStepMode()));
+	}
+	writer.writeEarliestCompatibleFirmwareVersion(
+	    deluge::project_compatibility::earliestCompatibleFirmware(requiredSaveSchema).data());
 
 	writer.writeAttribute("previewNumPads", 144);
 	writer.insertCommaIfNeeded();

@@ -1847,6 +1847,14 @@ bool SoundEditor::noteOnReceivedForMidiLearn(MIDICable& cable, int32_t channel, 
 	return getCurrentMenuItem()->learnNoteOn(cable, channel, note);
 }
 
+bool SoundEditor::midiLearnUsesPhysicalChannel() {
+	return currentUIMode == UI_MODE_MIDI_LEARN && getCurrentMenuItem()->midiLearnUsesPhysicalChannel();
+}
+
+bool SoundEditor::midiCCLearnConsumesBeforeRPN() {
+	return midiLearnUsesPhysicalChannel() && !Buttons::isShiftButtonPressed();
+}
+
 // Returns true if some use was made of the message here
 bool SoundEditor::midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value) {
 

@@ -38,6 +38,7 @@
 #include "hid/led/pad_leds.h"
 #include "hid/matrix/matrix_driver.h"
 #include "io/debug/log.h"
+#include "io/midi/external_step_midi_input.h"
 #include "io/midi/midi_device.h"
 #include "io/midi/midi_engine.h"
 #include "io/midi/midi_follow.h"
@@ -84,6 +85,59 @@ extern "C" {
 }
 
 PlaybackHandler playbackHandler{};
+
+namespace {
+
+using deluge::midi::ExternalStepMIDIInput;
+using deluge::midi::ExternalStepMIDIMessageType;
+
+[[nodiscard]] int32_t learnedMIDIChannelForExternalStep(const ExternalStepMIDIInput& input) {
+	int32_t channel = input.channel;
+	if (input.messageType == ExternalStepMIDIMessageType::CC) {
+		channel += IS_A_CC;
+	}
+	else if (input.messageType == ExternalStepMIDIMessageType::PROGRAM_CHANGE) {
+		channel += IS_A_PC;
+	}
+	return channel;
+}
+
+[[nodiscard]] bool modControllableHasMappedCC(const ModControllableAudio& modControllable, MIDICable& cable,
+                                              uint8_t channel, uint8_t ccNumber) {
+	for (const MIDIKnob& knob : modControllable.midi_knobs) {
+		if (knob.midiInput.equalsNoteOrCC(&cable, channel, ccNumber)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+[[nodiscard]] bool clipIsActiveExternalStepMIDIOut(InstrumentClip& clip) {
+	return currentSong && clip.isExternalStepMode() && clip.output && clip.output->type == OutputType::MIDI_OUT
+	       && !clip.isArrangementOnlyClip() && currentSong->isClipActive(&clip) && clip.isActiveOnOutput();
+}
+
+[[nodiscard]] bool clipCanReceiveExternalStepInput(InstrumentClip& clip) {
+	return clipIsActiveExternalStepMIDIOut(clip)
+	       && clip.getExternalStepEligibility(true, currentSong) == deluge::external_step::Eligibility::ELIGIBLE;
+}
+
+[[nodiscard]] bool clipCanReceiveExternalResetInput(InstrumentClip& clip) {
+	const ExternalStepMIDIInput& reset = clip.externalResetInput;
+	return clipIsActiveExternalStepMIDIOut(clip) && reset.isAssigned() && reset.cable->connectionFlags != 0
+	       && !reset.conflict && !reset.hasSameAssignmentAs(clip.externalStepInput);
+}
+
+void updateExternalStepConflict(InstrumentClip& clip, bool conflict) {
+	const bool newlyConflicting = clip.externalStepInput.updateConflictState(conflict) && conflict;
+	if (newlyConflicting && clipIsActiveExternalStepMIDIOut(clip)) {
+		char modelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+		clip.cutExternalStepNotesPreservePhase(modelStack->addTimelineCounter(&clip));
+	}
+}
+
+} // namespace
 
 extern void songLoaded(Song* song);
 
@@ -156,6 +210,8 @@ void PlaybackHandler::routine() {
 	    && (int32_t)(AudioEngine::audioSampleTimer - timeLastAnalogClockInputRisingEdge) > (kSampleRate >> 1)) {
 		endPlayback();
 	}
+
+	serviceExternalStepTimeouts(AudioEngine::audioSampleTimer);
 }
 
 void PlaybackHandler::slowRoutine() {
@@ -2952,17 +3008,347 @@ bool PlaybackHandler::tryGlobalMIDICommandsOff(MIDICable& cable, int32_t channel
 	return foundAnything;
 }
 
-void PlaybackHandler::programChangeReceived(MIDICable& cable, int32_t channel, int32_t program) {
+bool PlaybackHandler::externalStepMIDIInputHasConflict(const ExternalStepMIDIInput& input) const {
+	if (!currentSong || !input.isAssigned()) {
+		return false;
+	}
+
+	MIDICable& cable = *input.cable;
+	const int32_t learnedChannel = learnedMIDIChannelForExternalStep(input);
+
+	for (int32_t c = 0; c < kNumGlobalMIDICommands; c++) {
+		const GlobalMIDICommand command = static_cast<GlobalMIDICommand>(c);
+		const LearnedMIDI& learned = midiEngine.globalMIDICommands[c];
+		if ((command == GlobalMIDICommand::TRANSPOSE && learned.equalsChannelOrZone(&cable, learnedChannel))
+		    || learned.equalsNoteOrCC(&cable, learnedChannel, input.number)) {
+			return true;
+		}
+	}
+
+	for (int32_t section = 0; section < kMaxNumSections; section++) {
+		if (currentSong->sections[section].launchMIDICommand.equalsNoteOrCC(&cable, learnedChannel, input.number)) {
+			return true;
+		}
+	}
+
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
+		if (currentSong->sessionClips.getClipAtIndex(c)->muteMIDICommand.equalsNoteOrCC(&cable, learnedChannel,
+		                                                                                input.number)) {
+			return true;
+		}
+	}
+
+	if (input.messageType == ExternalStepMIDIMessageType::CC) {
+		if (modControllableHasMappedCC(currentSong->globalEffectable, cable, input.channel, input.number)) {
+			return true;
+		}
+
+		for (Output* output = currentSong->firstOutput; output; output = output->next) {
+			switch (output->type) {
+			case OutputType::SYNTH:
+				if (modControllableHasMappedCC(*static_cast<SoundInstrument*>(output), cable, input.channel,
+				                               input.number)) {
+					return true;
+				}
+				break;
+
+			case OutputType::KIT: {
+				auto* kit = static_cast<Kit*>(output);
+				if (modControllableHasMappedCC(*kit, cable, input.channel, input.number)) {
+					return true;
+				}
+				for (Drum* drum = kit->firstDrum; drum; drum = drum->next) {
+					if (drum->type == DrumType::SOUND
+					    && modControllableHasMappedCC(*static_cast<SoundDrum*>(drum), cable, input.channel,
+					                                  input.number)) {
+						return true;
+					}
+				}
+				break;
+			}
+
+			case OutputType::AUDIO:
+				if (modControllableHasMappedCC(*static_cast<AudioOutput*>(output), cable, input.channel,
+				                               input.number)) {
+					return true;
+				}
+				break;
+
+			default:
+				break;
+			}
+		}
+	}
+	else if (input.messageType == ExternalStepMIDIMessageType::NOTE) {
+		// Kit-row mute commands are routed later than the other learned commands, but retain priority over External
+		// Step.
+		for (Output* output = currentSong->firstOutput; output; output = output->next) {
+			if (output->type != OutputType::KIT) {
+				continue;
+			}
+			for (Drum* drum = static_cast<Kit*>(output)->firstDrum; drum; drum = drum->next) {
+				if (drum->muteMIDICommand.equalsNoteOrCC(&cable, input.channel, input.number)) {
+					return true;
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
+void PlaybackHandler::refreshExternalStepMIDIConflicts() {
+	if (!currentSong) {
+		return;
+	}
+
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
+		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
+		if (clip->type != ClipType::INSTRUMENT) {
+			continue;
+		}
+		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+		const bool externalStepMode = instrumentClip->isExternalStepMode();
+		const bool stepConflict =
+		    externalStepMode && externalStepMIDIInputHasConflict(instrumentClip->externalStepInput);
+		const bool resetConflict =
+		    externalStepMode && externalStepMIDIInputHasConflict(instrumentClip->externalResetInput);
+		updateExternalStepConflict(*instrumentClip, stepConflict);
+		(void)instrumentClip->externalResetInput.updateConflictState(resetConflict);
+	}
+}
+
+bool PlaybackHandler::refreshExternalStepMIDIConflictsForMessage(MIDICable& cable, uint8_t channel,
+                                                                 ExternalStepMIDIMessageType messageType,
+                                                                 uint8_t number) {
+	if (!currentSong) {
+		return false;
+	}
+
+	bool found = false;
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements() && !found; c++) {
+		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
+		if (clip->type != ClipType::INSTRUMENT) {
+			continue;
+		}
+		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+		if (!instrumentClip->isExternalStepMode()) {
+			continue;
+		}
+		found = instrumentClip->externalStepInput.matches(cable, channel, messageType, number)
+		        || instrumentClip->externalResetInput.matches(cable, channel, messageType, number);
+	}
+	if (!found) {
+		return false;
+	}
+
+	ExternalStepMIDIInput input;
+	input.cable = &cable;
+	input.channel = channel;
+	input.messageType = messageType;
+	input.number = number;
+	const bool conflict = externalStepMIDIInputHasConflict(input);
+
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
+		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
+		if (clip->type != ClipType::INSTRUMENT) {
+			continue;
+		}
+		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+		if (!instrumentClip->isExternalStepMode()) {
+			continue;
+		}
+		if (instrumentClip->externalStepInput.matches(cable, channel, messageType, number)) {
+			updateExternalStepConflict(*instrumentClip, conflict);
+		}
+		if (instrumentClip->externalResetInput.matches(cable, channel, messageType, number)) {
+			(void)instrumentClip->externalResetInput.updateConflictState(conflict);
+		}
+	}
+	return true;
+}
+
+bool PlaybackHandler::willConsumeExternalStepCC(MIDICable& cable, uint8_t channel, uint8_t ccNumber) {
+	if (!currentSong) {
+		return false;
+	}
+	if (currentUIMode == UI_MODE_MIDI_LEARN) {
+		return getCurrentUI() == &soundEditor && soundEditor.midiCCLearnConsumesBeforeRPN();
+	}
+	if (!runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
+	    || currentPlaybackMode != &session) {
+		return false;
+	}
+
+	if (!refreshExternalStepMIDIConflictsForMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber)) {
+		return false;
+	}
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
+		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
+		if (clip->type != ClipType::INSTRUMENT) {
+			continue;
+		}
+		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+		if ((instrumentClip->externalResetInput.matches(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber)
+		     && clipCanReceiveExternalResetInput(*instrumentClip))
+		    || (instrumentClip->externalStepInput.matches(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber)
+		        && clipCanReceiveExternalStepInput(*instrumentClip))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool PlaybackHandler::processExternalStepMIDIMessage(MIDICable& cable, uint8_t channel,
+                                                     ExternalStepMIDIMessageType messageType, uint8_t number,
+                                                     bool asserted, bool* doingMidiThru) {
+	if (!currentSong || !runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
+	    || currentPlaybackMode != &session) {
+		return false;
+	}
+
+	bool consumed = false;
+	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+
+	// Reset is a separate pass so a shared message always resets every matching Clip before any Clip steps.
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
+		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
+		if (clip->type != ClipType::INSTRUMENT) {
+			continue;
+		}
+		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+		if (!instrumentClip->isExternalStepMode()
+		    || !instrumentClip->externalResetInput.matches(cable, channel, messageType, number)) {
+			continue;
+		}
+
+		const bool edge = instrumentClip->externalResetInput.observeMessage(asserted);
+		if (!clipCanReceiveExternalResetInput(*instrumentClip)) {
+			continue;
+		}
+		consumed = true;
+		if (edge) {
+			instrumentClip->resetExternalStep(modelStack->addTimelineCounter(instrumentClip));
+		}
+	}
+
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
+		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
+		if (clip->type != ClipType::INSTRUMENT) {
+			continue;
+		}
+		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+		if (!instrumentClip->isExternalStepMode()
+		    || !instrumentClip->externalStepInput.matches(cable, channel, messageType, number)) {
+			continue;
+		}
+
+		const bool edge = instrumentClip->externalStepInput.observeMessage(asserted);
+		if (!clipCanReceiveExternalStepInput(*instrumentClip)) {
+			continue;
+		}
+		consumed = true;
+		if (edge && isEitherClockActive()) {
+			instrumentClip->processExternalStep(modelStack->addTimelineCounter(instrumentClip),
+			                                    AudioEngine::audioSampleTimer, true);
+			considerExternalStepTimeoutDeadline(*instrumentClip);
+		}
+	}
+
+	if (consumed && doingMidiThru) {
+		*doingMidiThru = false;
+	}
+	return consumed;
+}
+
+void PlaybackHandler::considerExternalStepTimeoutDeadline(const InstrumentClip& clip) {
+	if (!clip.hasExternalStepTimeoutDeadline()) {
+		return;
+	}
+	const uint32_t deadline = clip.getExternalStepTimeoutDeadline();
+	if (!externalStepTimeoutScheduled || static_cast<int32_t>(deadline - externalStepTimeoutDeadline) < 0) {
+		externalStepTimeoutDeadline = deadline;
+		externalStepTimeoutScheduled = true;
+	}
+}
+
+void PlaybackHandler::serviceExternalStepTimeouts(uint32_t sampleTime) {
+	if (!externalStepTimeoutScheduled || static_cast<int32_t>(sampleTime - externalStepTimeoutDeadline) < 0) {
+		return;
+	}
+
+	externalStepTimeoutScheduled = false;
+	if (!currentSong || !runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)) {
+		return;
+	}
+
+	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
+		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
+		if (clip->type != ClipType::INSTRUMENT) {
+			continue;
+		}
+		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+		if (instrumentClip->hasExternalStepTimeoutDeadline()) {
+			instrumentClip->serviceExternalStepTimeout(modelStack->addTimelineCounter(instrumentClip), sampleTime);
+			considerExternalStepTimeoutDeadline(*instrumentClip);
+		}
+	}
+}
+
+void PlaybackHandler::midiInputDisconnected(MIDICable& cable) {
+	if (!currentSong || cable.connectionFlags != 0) {
+		return;
+	}
+
+	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
+		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
+		if (clip->type != ClipType::INSTRUMENT) {
+			continue;
+		}
+		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
+		const bool stepDisconnected = instrumentClip->externalStepInput.cable == &cable;
+		const bool resetDisconnected = instrumentClip->externalResetInput.cable == &cable;
+		if (!stepDisconnected && !resetDisconnected) {
+			continue;
+		}
+		if (stepDisconnected) {
+			instrumentClip->externalStepInput.clearHeldState();
+		}
+		if (resetDisconnected) {
+			instrumentClip->externalResetInput.clearHeldState();
+		}
+		if (instrumentClip->isExternalStepMode()) {
+			instrumentClip->cutExternalStepNotesPreservePhase(modelStack->addTimelineCounter(instrumentClip));
+		}
+	}
+}
+
+void PlaybackHandler::programChangeReceived(MIDICable& cable, int32_t channel, int32_t program, bool* doingMidiThru) {
 	// If user assigning MIDI commands, do that
 	if (currentUIMode == UI_MODE_MIDI_LEARN) {
 		if (getCurrentUI()->pcReceivedForMidiLearn(cable, channel, program)) {}
 		else {
 			view.pcReceivedForMIDILearn(cable, channel, program);
 		}
+		refreshExternalStepMIDIConflicts();
 	}
 	else {
 		// we build ontop of the CC hack
-		offerNoteToLearnedThings(cable, true, channel + IS_A_PC, program);
+		bool externalStepBindingMatches = false;
+		if (runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
+		    && currentPlaybackMode == &session) {
+			externalStepBindingMatches = refreshExternalStepMIDIConflictsForMessage(
+			    cable, channel, ExternalStepMIDIMessageType::PROGRAM_CHANGE, program);
+		}
+		if (!offerNoteToLearnedThings(cable, true, channel + IS_A_PC, program) && externalStepBindingMatches) {
+			processExternalStepMIDIMessage(cable, channel, ExternalStepMIDIMessageType::PROGRAM_CHANGE, program, true,
+			                               doingMidiThru);
+		}
 	}
 }
 bool PlaybackHandler::offerNoteToLearnedThings(MIDICable& cable, bool on, int32_t channel, int32_t note) {
@@ -3023,18 +3409,34 @@ void PlaybackHandler::noteMessageReceived(MIDICable& cable, bool on, int32_t cha
 	if (currentUIMode == UI_MODE_MIDI_LEARN && on) {
 		// Checks velocity to let note-offs pass through,
 		// so no risk of stuck note if they pressed learn while holding a note
-		int32_t channelOrZone = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].channelToZone(channel);
+		int32_t channelOrZone = channel;
+		if (getCurrentUI() != &soundEditor || !soundEditor.midiLearnUsesPhysicalChannel()) {
+			channelOrZone = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].channelToZone(channel);
+		}
 
 		if (getCurrentUI()->noteOnReceivedForMidiLearn(cable, channelOrZone, note, velocity)) {}
 		else {
 			view.noteOnReceivedForMidiLearn(cable, channelOrZone, note, velocity);
 		}
+		refreshExternalStepMIDIConflicts();
 		return;
 	}
 
 	// Otherwise, enact the relevant MIDI command, if it can be found
+	const bool isChannelNote = channel >= 0 && channel < ExternalStepMIDIInput::kChannelCount && note >= 0
+	                           && note < ExternalStepMIDIInput::kNoteCount;
+	bool externalStepBindingMatches = false;
+	if (isChannelNote && runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
+	    && currentPlaybackMode == &session) {
+		externalStepBindingMatches =
+		    refreshExternalStepMIDIConflictsForMessage(cable, channel, ExternalStepMIDIMessageType::NOTE, note);
+	}
 
 	if (offerNoteToLearnedThings(cable, on, channel, note)) {
+		return;
+	}
+	if (externalStepBindingMatches
+	    && processExternalStepMIDIMessage(cable, channel, ExternalStepMIDIMessageType::NOTE, note, on, doingMidiThru)) {
 		return;
 	}
 
@@ -3181,26 +3583,57 @@ void PlaybackHandler::pitchBendReceived(MIDICable& cable, uint8_t channel, uint8
 
 void PlaybackHandler::midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value,
                                      bool* doingMidiThru) {
+	// External Step controls remain tied to the physical channel even when the cable has an MPE zone.
+	if (getCurrentUI() == &soundEditor && soundEditor.midiLearnUsesPhysicalChannel()
+	    && soundEditor.midiCCReceived(cable, channel, ccNumber, value)) {
+		refreshExternalStepMIDIConflicts();
+		return;
+	}
+
 	// true only if it's an MPE member channel, and therefore only used for per note expression
 	bool isMPE = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].isChannelPartOfAnMPEZone(channel);
 
 	if (isMPE) {
+		bool externalStepBindingMatches = false;
+		if (runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
+		    && currentPlaybackMode == &session) {
+			externalStepBindingMatches =
+			    refreshExternalStepMIDIConflictsForMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber);
+		}
+		if (externalStepBindingMatches
+		    && processExternalStepMIDIMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber, value >= 64,
+		                                      doingMidiThru)) {
+			return;
+		}
 		cable.inputChannels[channel].defaultInputMPEValues[1] = (value - 64) << 9;
 	}
 	else {
 		int32_t channelOrZone = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].channelToZone(channel);
 		// If the SoundEditor is the active UI, give it first dibs on the message
 		if (getCurrentUI() == &soundEditor && soundEditor.midiCCReceived(cable, channelOrZone, ccNumber, value)) {
+			refreshExternalStepMIDIConflicts();
 			return;
 		}
 		// then midi learn is second priority
 		else if (currentUIMode == UI_MODE_MIDI_LEARN) {
 			view.ccReceivedForMIDILearn(cable, channelOrZone, ccNumber, value);
+			refreshExternalStepMIDIConflicts();
 			// we don't want this learn to immediately trigger the thing it was learnt to so just return
 			return;
 		}
+		bool externalStepBindingMatches = false;
+		if (runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
+		    && currentPlaybackMode == &session) {
+			externalStepBindingMatches =
+			    refreshExternalStepMIDIConflictsForMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber);
+		}
 		// check if it was learned to on/off commands (loop, drums, section launch etc.)
-		else if (offerNoteToLearnedThings(cable, value > 0, channelOrZone + IS_A_CC, ccNumber)) {
+		if (offerNoteToLearnedThings(cable, value > 0, channelOrZone + IS_A_CC, ccNumber)) {
+			return;
+		}
+		if (externalStepBindingMatches
+		    && processExternalStepMIDIMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber, value >= 64,
+		                                      doingMidiThru)) {
 			return;
 		}
 	}

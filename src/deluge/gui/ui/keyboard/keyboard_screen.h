@@ -18,6 +18,7 @@
 #pragma once
 
 #include "definitions_cxx.hpp"
+#include "gui/note_input_recording.h"
 #include "gui/ui/keyboard/notes_state.h"
 #include "gui/ui/root_ui.h"
 #include "gui/ui/ui.h"
@@ -41,6 +42,7 @@ public:
 	ActionResult verticalEncoderAction(int32_t offset, bool inCardRoutine) override;
 	ActionResult horizontalEncoderAction(int32_t offset) override;
 	void selectEncoderAction(int8_t offset) override;
+	void playbackEnded() override;
 
 	bool renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth],
@@ -82,7 +84,9 @@ private:
 	void graphicsRoutine() override;
 	bool getAffectEntire() override;
 
-	void unscrolledPadAudition(int32_t velocity, int32_t note, bool shiftButtonDown);
+	void unscrolledPadAudition(int32_t velocity, int32_t note, bool shiftButtonDown,
+	                           deluge::gui::note_input::RecordingTransition recordingTransition,
+	                           bool* noteOnRecorded = nullptr);
 
 	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
 
@@ -96,6 +100,7 @@ private:
 	PressedPad pressedPads[kMaxNumKeyboardPadPresses];
 	NotesState lastNotesState;
 	NotesState currentNotesState;
+	deluge::gui::note_input::RecordingLifecycle<kHighestKeyboardNote> noteRecordingLifecycle_;
 	NotesState::NotePressOrder physicalNotePressOrder = {};
 	uint32_t nextPhysicalNotePressOrder = 0;
 	bool chordNameDisplayed = false;

@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains twenty-three deviations:
+The local stack currently contains twenty-four deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -29,6 +29,7 @@ The local stack currently contains twenty-three deviations:
 21. Make Waveform Editor entry and bound selection explicit.
 22. Add selectable velocity profiles to Velocity Drums.
 23. Let Session MIDI-Out Clips advance from independent external steps.
+24. Make held-Horizontal preview-only note input release-order safe across Clip and Keyboard views.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -753,6 +754,40 @@ Let the Deluge act as several independent MIDI step sequencers for modular softw
 - Compatibility checks cover schema 0 and 1 acceptance, future and malformed schema refusal, unchanged ordinary-version comparison, and Songs saved with and without External Step Clips. Current firmware reloads both, an unsupported Community build refuses only the guarded Song, converting every affected Clip to Song removes the stronger compatibility requirement, and an older P45 `c1.3.1` file loads and resaves with schema 1.
 - Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
 - On a physical Deluge connected to VCV Rack, check Note, Control Change, and Program Change Step and Reset controls; independent and shared clocks; first step, wrap, Reset, Stop, Panic, clock loss, reconnect, Clip switching, UI feedback, save and reload, and ordinary Song Clips. Physical verification remains human-controlled and does not authorize flashing or installation.
+
+## 24. Release-order-safe preview-only note input
+
+### Intent
+
+Let a player hold the Horizontal encoder while trying notes or drums, hear the ordinary instrument output, and be certain that the complete gesture remains outside the Clip recording. Use the same gesture in Instrument Clip View audition rows and Keyboard View without making its result depend on which control is released first.
+
+### Required behavior
+
+- In Instrument Clip View, holding Horizontal before pressing an audition-column pad marks that note gesture as preview-only for Kit, Synth, MIDI-Out, and CV Clips.
+- In every Keyboard View layout that produces instrument notes, including Velocity Drums and melodic, chord, MIDI-Out, and CV layouts, holding Horizontal before a main-grid note press marks every resulting note-on or retrigger as preview-only.
+- A preview-only note sounds and releases through the same instrument, MIDI, CV, choke, arpeggiator, effect, velocity, and expression path as ordinary auditioning. It may select the same Drum or note row and show the same note, chord, layout, or recording feedback that does not claim a note was written.
+- A preview-only note never records a note-on, count-in early note, retrigger, or note-off into the Clip. It does not create, extend, shorten, or close an existing sequencer note.
+- The preview decision is fixed when each note-on or retrigger begins and remains in force until its matching note-off. Releasing Horizontal before the pad cannot create a recorded note-off without a matching recorded note-on.
+- A note begun without Horizontal remains an ordinary recording gesture through its matching note-off. Pressing Horizontal after that note begins cannot suppress its required recorded note-off or turn the already sounding note into a preview.
+- Repeated notes, overlapping physical pads that produce the same pitch, generated chord notes, encoder-driven note remapping, and Kit retriggers retain balanced sounding and recording lifecycles. Leaving the view, stopping playback, changing Clips or Outputs, or invoking Panic cannot leave a preview note sounding or leave stale preview ownership that affects a later gesture.
+- Preview-owned MIDI-Out and CV notes still transmit normally. Only Deluge Clip recording is suppressed.
+- When Horizontal is not held as a note begins, audition and Keyboard recording retain their established behavior.
+
+### Compatibility and boundaries
+
+- Preserve Instrument Clip note-grid editing, Horizontal zoom, scroll, note nudge, multiply, row rotation, clipboard shortcuts, and audition-row selection.
+- Preserve every Keyboard layout's Horizontal rotation and pressed-Horizontal behavior, including Chord Library voicing, Velocity Drums scroll and zoom, and the separate Scale-modified velocity-profile controls.
+- Preserve normal audition silence for an already sequenced row and for established Shift or Vertical modifiers. This deviation does not make a row audible when the existing conflict-avoidance rules require silence.
+- Preserve resampling, MIDI Learn, external MIDI input, ordinary live recording, automation, undo history, project data, and firmware compatibility. The preview gesture adds no saved setting.
+- Do not change Audio Clip recording, Song or Arranger launch behavior, Slicer audition, Waveform Editor audition, or external-controller note input.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused checks cover preview and ordinary note ownership, both Horizontal and pad release orders, Horizontal pressed after an ordinary note-on, note retriggers, overlapping same-pitch pads, generated chords, encoder-driven remapping, count-in early notes, and cleanup when leaving or stopping.
+- Source review confirms that Clip View and Keyboard View decide ownership at note-on or retrigger, pair every sounding and recorded note-off with the correct start, keep preview output audible, and do not disturb Horizontal encoder controls.
+- Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
+- On a physical Deluge, check stopped audition, playback, armed recording, and count-in in Kit and melodic Clips; both release orders; Horizontal pressed after a normal note starts; repeated and overlapping notes; chords; held pads while turning Horizontal; MIDI-Out and CV output; view exit; Stop; and Panic. Confirm no stuck sound, stray note, shortened prior note, lost note-off, or changed encoder gesture. Physical verification remains human-controlled and does not authorize flashing.
 
 ## Maintaining this document
 

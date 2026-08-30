@@ -337,9 +337,14 @@ void KeyboardScreen::updateActiveNotes() {
 			}
 		}
 
+		auto recordingTransition =
+		    noteRecordingLifecycle_.noteOn(newNote, Buttons::isButtonPressed(deluge::hid::button::X_ENC));
+		bool noteOnRecorded = false;
+
 		// Actually sounding the note
 		if (activeInstrument->type == OutputType::KIT) {
-			unscrolledPadAudition(currentNotesState.notes[idx].velocity, newNote, false);
+			unscrolledPadAudition(currentNotesState.notes[idx].velocity, newNote, false, recordingTransition,
+			                      &noteOnRecorded);
 		}
 		else {
 			((MelodicInstrument*)activeInstrument)
@@ -363,7 +368,8 @@ void KeyboardScreen::updateActiveNotes() {
 		}
 
 		// Recording - this only works *if* the Clip that we're viewing right now is the Instrument's activeClip
-		if (activeInstrument->type != OutputType::KIT && clipIsActiveOnInstrument
+		if (recordingTransition == deluge::gui::note_input::RecordingTransition::NOTE_ON
+		    && activeInstrument->type != OutputType::KIT && clipIsActiveOnInstrument
 		    && playbackHandler.shouldRecordNotesNow() && currentSong->isClipActive(getCurrentClip())
 		    && getCurrentClip()->armedForRecording) {
 			ModelStackWithTimelineCounter* modelStackWithTimelineCounter =
@@ -378,6 +384,7 @@ void KeyboardScreen::updateActiveNotes() {
 				    .velocity = static_cast<uint8_t>(currentNotesState.notes[idx].velocity),
 				    .still_active = getCurrentInstrumentClip()->allowNoteTails(modelStackWithNoteRow),
 				};
+				noteOnRecorded = true;
 			}
 
 			else {
@@ -391,6 +398,7 @@ void KeyboardScreen::updateActiveNotes() {
 				if (thisNoteRow) {
 					getCurrentInstrumentClip()->recordNoteOn(modelStackWithNoteRow,
 					                                         currentNotesState.notes[idx].velocity);
+					noteOnRecorded = true;
 
 					// If this caused the scale to change, update scroll
 					if (action && scaleAltered) {
@@ -399,6 +407,7 @@ void KeyboardScreen::updateActiveNotes() {
 				}
 			}
 		}
+		noteRecordingLifecycle_.noteOnRecordingResult(newNote, noteOnRecorded);
 	}
 
 	// Handle removed notes
@@ -484,6 +493,7 @@ void KeyboardScreen::displayHeldChord() {
 
 void KeyboardScreen::noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument,
                              int32_t note) {
+	auto recordingTransition = noteRecordingLifecycle_.noteOff(note);
 	NoteRow* noteRow = (static_cast<InstrumentClip*>(activeInstrument.getActiveClip()))->getNoteRowForYNote(note);
 	if (noteRow) {
 		if (noteRow->sequenced) {
@@ -492,15 +502,16 @@ void KeyboardScreen::noteOff(ModelStack& modelStack, Instrument& activeInstrumen
 	}
 
 	if (activeInstrument.type == OutputType::KIT) {
-		unscrolledPadAudition(0, note, false);
+		unscrolledPadAudition(0, note, false, recordingTransition);
 	}
 	else {
 		(static_cast<MelodicInstrument*>(&activeInstrument))->endAuditioningForNote(&modelStack, note);
 	}
 
 	// Recording - this only works *if* the Clip that we're viewing right now is the Instrument's activeClip
-	if (activeInstrument.type != OutputType::KIT && clipIsActiveOnInstrument && playbackHandler.shouldRecordNotesNow()
-	    && currentSong->isClipActive(getCurrentClip())) {
+	if (recordingTransition == deluge::gui::note_input::RecordingTransition::NOTE_OFF
+	    && activeInstrument.type != OutputType::KIT && clipIsActiveOnInstrument
+	    && playbackHandler.shouldRecordNotesNow() && currentSong->isClipActive(getCurrentClip())) {
 		ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack.addTimelineCounter(getCurrentClip());
 		ModelStackWithNoteRow* modelStackWithNoteRow =
 		    getCurrentInstrumentClip()->getNoteRowForYNote(note, modelStackWithTimelineCounter);
@@ -911,11 +922,16 @@ void KeyboardScreen::exitAuditionMode() {
 	nextPhysicalNotePressOrder = 0;
 	evaluateActiveNotes();
 	updateActiveNotes();
+	noteRecordingLifecycle_.clear();
 
 	exitUIMode(UI_MODE_AUDITIONING);
 	if (display->have7SEG()) {
 		redrawNumericDisplay();
 	}
+}
+
+void KeyboardScreen::playbackEnded() {
+	noteRecordingLifecycle_.clear();
 }
 
 bool KeyboardScreen::opened() {
@@ -1059,14 +1075,16 @@ bool KeyboardScreen::getAffectEntire() {
 	return getCurrentInstrumentClip()->affectEntire;
 }
 
-void KeyboardScreen::unscrolledPadAudition(int32_t velocity, int32_t note, bool shiftButtonDown) {
+void KeyboardScreen::unscrolledPadAudition(int32_t velocity, int32_t note, bool shiftButtonDown,
+                                           deluge::gui::note_input::RecordingTransition recordingTransition,
+                                           bool* noteOnRecorded) {
 	// Ideally evaluateActiveNotes and InstrumentClipView::auditionPadAction should be harmonized
 	// (even in the original keyboard_screen most of the non kit sounding was a copy from auditionPadAction)
 	// but this refactor needs to wait for another day.
 	// Until then we set the scroll to 0 during the auditioning
 	int32_t yScrollBackup = getCurrentInstrumentClip()->yScroll;
 	getCurrentInstrumentClip()->yScroll = trunc(note / 8) * 8;
-	instrumentClipView.auditionPadAction(velocity, note % 8, shiftButtonDown);
+	instrumentClipView.auditionPadAction(velocity, note % 8, shiftButtonDown, recordingTransition, noteOnRecorded);
 	getCurrentInstrumentClip()->yScroll = yScrollBackup;
 }
 

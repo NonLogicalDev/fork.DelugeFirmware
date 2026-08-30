@@ -18,6 +18,7 @@
 #pragma once
 
 #include "definitions_cxx.hpp"
+#include "gui/note_input_recording.h"
 #include "gui/views/clip_view.h"
 #include "hid/button.h"
 #include "model/clip/instrument_clip_minder.h"
@@ -153,15 +154,20 @@ public:
 	void offsetNoteCodeAction(int32_t newOffset);
 	int32_t getYVisualFromYDisplay(int32_t yDisplay);
 	int32_t getYVisualWithinOctaveFromYDisplay(int32_t yDisplay);
-	ActionResult auditionPadAction(int32_t velocity, int32_t yDisplay, bool shiftButtonDown);
+	ActionResult auditionPadAction(int32_t velocity, int32_t yDisplay, bool shiftButtonDown,
+	                               deluge::gui::note_input::RecordingTransition recordingTransition =
+	                                   deluge::gui::note_input::RecordingTransition::FOLLOW_UI,
+	                               bool* noteOnRecorded = nullptr);
 	void potentiallyUpdateMultiRangeMenu(int32_t velocity, int32_t yDisplay, Instrument* instrument);
-	void potentiallyRecordAuditionPadAction(bool clipIsActiveOnInstrument, int32_t velocity, int32_t yDisplay,
+	bool potentiallyRecordAuditionPadAction(bool clipIsActiveOnInstrument, int32_t velocity, int32_t yDisplay,
 	                                        Instrument* instrument, bool isKit,
 	                                        ModelStackWithTimelineCounter* modelStackWithTimelineCounter,
-	                                        ModelStackWithNoteRow* modelStackWithNoteRowOnCurrentClip, Drum* drum);
-	void recordNoteOnEarly(int32_t velocity, int32_t yDisplay, Instrument* instrument, bool isKit,
+	                                        ModelStackWithNoteRow* modelStackWithNoteRowOnCurrentClip, Drum* drum,
+	                                        deluge::gui::note_input::RecordingTransition recordingTransition =
+	                                            deluge::gui::note_input::RecordingTransition::FOLLOW_UI);
+	bool recordNoteOnEarly(int32_t velocity, int32_t yDisplay, Instrument* instrument, bool isKit,
 	                       ModelStackWithNoteRow* modelStackWithNoteRowOnCurrentClip, Drum* drum);
-	void recordNoteOn(int32_t velocity, int32_t yDisplay, Instrument* instrument,
+	bool recordNoteOn(int32_t velocity, int32_t yDisplay, Instrument* instrument,
 	                  ModelStackWithTimelineCounter* modelStackWithTimelineCounter,
 	                  ModelStackWithNoteRow* modelStackWithNoteRowOnCurrentClip);
 	NoteRow* getNoteRowOnActiveClip(int32_t yDisplay, Instrument* instrument, bool clipIsActiveOnInstrument,
@@ -358,6 +364,7 @@ public:
 	ModControllableAudio* getModControllableAudioOrNone() override;
 
 private:
+	deluge::gui::note_input::RecordingLifecycle<kDisplayHeight> auditionRecordingLifecycle_;
 	bool doneAnyNudgingSinceFirstEditPadPress{};
 	bool offsettingNudgeNumberDisplay{};
 

@@ -2282,7 +2282,20 @@ possiblyAuditionPad:
 
 			// Actual basic audition pad press:
 			else if (!velocity || isUIModeWithinRange(auditionPadActionUIModes)) {
-				return auditionPadAction(velocity, y, Buttons::isShiftButtonPressed());
+				if (sdRoutineLock && !allowSomeUserActionsEvenWhenInCardRoutine) {
+					return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+				}
+				auto recordingTransition =
+				    velocity
+				        ? auditionRecordingLifecycle_.noteOn(y, Buttons::isButtonPressed(deluge::hid::button::X_ENC))
+				        : auditionRecordingLifecycle_.noteOff(y);
+				bool noteOnRecorded = false;
+				ActionResult result = auditionPadAction(velocity, y, Buttons::isShiftButtonPressed(),
+				                                        recordingTransition, &noteOnRecorded);
+				if (velocity) {
+					auditionRecordingLifecycle_.noteOnRecordingResult(y, noteOnRecorded);
+				}
+				return result;
 			}
 		}
 	}
@@ -3973,8 +3986,10 @@ bool InstrumentClipView::enterNoteRowEditor() {
 				// let's cancel the previous audition and re-audition silently
 				// this prevents any re-auditioning from happening
 				if (!auditioningSilently) {
-					auditionPadAction(0, lastAuditionedYDisplay, true);
-					auditionPadAction(1, lastAuditionedYDisplay, true);
+					auditionPadAction(0, lastAuditionedYDisplay, true,
+					                  deluge::gui::note_input::RecordingTransition::SUPPRESS);
+					auditionPadAction(1, lastAuditionedYDisplay, true,
+					                  deluge::gui::note_input::RecordingTransition::SUPPRESS);
 				}
 				blinkSelectedNoteRow();
 				return true;
@@ -3993,7 +4008,11 @@ bool InstrumentClipView::enterNoteRowEditor() {
 
 void InstrumentClipView::exitNoteRowEditor() {
 	if (isUIModeActive(UI_MODE_AUDITIONING)) {
-		auditionPadAction(0, lastAuditionedYDisplay, true);
+		auto recordingTransition = deluge::gui::note_input::RecordingTransition::SUPPRESS;
+		if (auditionRecordingLifecycle_.isActive(lastAuditionedYDisplay)) {
+			recordingTransition = auditionRecordingLifecycle_.noteOff(lastAuditionedYDisplay);
+		}
+		auditionPadAction(0, lastAuditionedYDisplay, true, recordingTransition);
 	}
 	resetSelectedNoteRowBlinking();
 }
@@ -4077,7 +4096,7 @@ void InstrumentClipView::handleNoteRowEditorAuditionPadAction(int32_t y) {
 			exitNoteRowEditor();
 
 			// now make new press for new note row selection
-			auditionPadAction(1, y, true);
+			auditionPadAction(1, y, true, deluge::gui::note_input::RecordingTransition::SUPPRESS);
 
 			// update menu selection
 			soundEditor.getCurrentMenuItem()->readValueAgain();
@@ -5316,12 +5335,16 @@ void InstrumentClipView::setSelectedDrum(Drum* drum, bool shouldRedrawStuff, Kit
 	}
 }
 
-ActionResult InstrumentClipView::auditionPadAction(int32_t velocity, int32_t yDisplay, bool shiftButtonDown) {
+ActionResult InstrumentClipView::auditionPadAction(int32_t velocity, int32_t yDisplay, bool shiftButtonDown,
+                                                   deluge::gui::note_input::RecordingTransition recordingTransition,
+                                                   bool* noteOnRecorded) {
+	if (noteOnRecorded != nullptr) {
+		*noteOnRecorded = false;
+	}
 	exitUIMode(UI_MODE_DRAGGING_KIT_NOTEROW);
 	if (sdRoutineLock && !allowSomeUserActionsEvenWhenInCardRoutine) {
 		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE; // Allowable sometimes if in card routine.
 	}
-
 	if (editedAnyPerNoteRowStuffSinceAuditioningBegan && !velocity) {
 		actionLogger.closeAction(ActionType::NOTE_NUDGE);
 	}
@@ -5356,8 +5379,12 @@ ActionResult InstrumentClipView::auditionPadAction(int32_t velocity, int32_t yDi
 		potentiallyUpdateMultiRangeMenu(velocity, yDisplay, instrument);
 	}
 
-	potentiallyRecordAuditionPadAction(clipIsActiveOnInstrument, velocity, yDisplay, instrument, isKit,
-	                                   modelStackWithTimelineCounter, modelStackWithNoteRowOnCurrentClip, drum);
+	bool recorded = potentiallyRecordAuditionPadAction(clipIsActiveOnInstrument, velocity, yDisplay, instrument, isKit,
+	                                                   modelStackWithTimelineCounter,
+	                                                   modelStackWithNoteRowOnCurrentClip, drum, recordingTransition);
+	if (noteOnRecorded != nullptr) {
+		*noteOnRecorded = recorded;
+	}
 
 	NoteRow* noteRowOnActiveClip = getNoteRowOnActiveClip(yDisplay, instrument, clipIsActiveOnInstrument,
 	                                                      modelStackWithNoteRowOnCurrentClip, drum);
@@ -5386,12 +5413,22 @@ ActionResult InstrumentClipView::auditionPadAction(int32_t velocity, int32_t yDi
 	return ActionResult::DEALT_WITH;
 }
 
-void InstrumentClipView::potentiallyRecordAuditionPadAction(
+bool InstrumentClipView::potentiallyRecordAuditionPadAction(
     bool clipIsActiveOnInstrument, int32_t velocity, int32_t yDisplay, Instrument* instrument, bool isKit,
     ModelStackWithTimelineCounter* modelStackWithTimelineCounter,
-    ModelStackWithNoteRow* modelStackWithNoteRowOnCurrentClip, Drum* drum) {
+    ModelStackWithNoteRow* modelStackWithNoteRowOnCurrentClip, Drum* drum,
+    deluge::gui::note_input::RecordingTransition recordingTransition) {
+	using deluge::gui::note_input::RecordingTransition;
+	bool transitionMatchesEvent = recordingTransition == RecordingTransition::FOLLOW_UI
+	                              || (velocity != 0 && recordingTransition == RecordingTransition::NOTE_ON)
+	                              || (velocity == 0 && recordingTransition == RecordingTransition::NOTE_OFF);
+	if (!transitionMatchesEvent || recordingTransition == RecordingTransition::SUPPRESS) {
+		return false;
+	}
+
+	bool allowHorizontalEncoderButton = recordingTransition == RecordingTransition::NOTE_OFF;
 	// Recording - only allowed if currentClip is activeClip
-	if (clipIsActiveOnInstrument && playbackHandler.shouldRecordNotesNow()
+	if (clipIsActiveOnInstrument && playbackHandler.shouldRecordNotesNow(allowHorizontalEncoderButton)
 	    && currentSong->isClipActive(getCurrentClip()) && getCurrentClip()->armedForRecording) {
 
 		// Note-on
@@ -5401,11 +5438,12 @@ void InstrumentClipView::potentiallyRecordAuditionPadAction(
 			// This is basic. For MIDI input, we do this in a couple more cases - see noteMessageReceived()
 			// in MelodicInstrument and Kit
 			if (isUIModeActive(UI_MODE_RECORD_COUNT_IN)) {
-				recordNoteOnEarly(velocity, yDisplay, instrument, isKit, modelStackWithNoteRowOnCurrentClip, drum);
+				return recordNoteOnEarly(velocity, yDisplay, instrument, isKit, modelStackWithNoteRowOnCurrentClip,
+				                         drum);
 			}
 			else {
-				recordNoteOn(velocity, yDisplay, instrument, modelStackWithTimelineCounter,
-				             modelStackWithNoteRowOnCurrentClip);
+				return recordNoteOn(velocity, yDisplay, instrument, modelStackWithTimelineCounter,
+				                    modelStackWithNoteRowOnCurrentClip);
 			}
 		}
 
@@ -5414,6 +5452,7 @@ void InstrumentClipView::potentiallyRecordAuditionPadAction(
 			recordNoteOff(yDisplay, modelStackWithNoteRowOnCurrentClip);
 		}
 	}
+	return false;
 }
 
 // sub-function of AuditionPadAction
@@ -5504,13 +5543,15 @@ Drum* InstrumentClipView::getAuditionedDrum(int32_t velocity, int32_t yDisplay, 
 
 // sub-function of AuditionPadAction
 // record note on early if count in is on
-void InstrumentClipView::recordNoteOnEarly(int32_t velocity, int32_t yDisplay, Instrument* instrument, bool isKit,
+bool InstrumentClipView::recordNoteOnEarly(int32_t velocity, int32_t yDisplay, Instrument* instrument, bool isKit,
                                            ModelStackWithNoteRow* modelStackWithNoteRowOnCurrentClip, Drum* drum) {
 	if (isKit) {
 		if (drum) {
 			drum->recordNoteOnEarly((velocity == USE_DEFAULT_VELOCITY) ? instrument->defaultVelocity : velocity,
 			                        getCurrentInstrumentClip()->allowNoteTails(modelStackWithNoteRowOnCurrentClip));
+			return true;
 		}
+		return false;
 	}
 	else {
 		// NoteRow is allowed to be NULL in this case.
@@ -5520,12 +5561,13 @@ void InstrumentClipView::recordNoteOnEarly(int32_t velocity, int32_t yDisplay, I
 		        (velocity == USE_DEFAULT_VELOCITY) ? instrument->defaultVelocity : static_cast<uint8_t>(velocity),
 		    .still_active = getCurrentInstrumentClip()->allowNoteTails(modelStackWithNoteRowOnCurrentClip),
 		};
+		return true;
 	}
 }
 
 // sub-function of AuditionPadAction
 // if count in is not on, record note on as per usual
-void InstrumentClipView::recordNoteOn(int32_t velocity, int32_t yDisplay, Instrument* instrument,
+bool InstrumentClipView::recordNoteOn(int32_t velocity, int32_t yDisplay, Instrument* instrument,
                                       ModelStackWithTimelineCounter* modelStackWithTimelineCounter,
                                       ModelStackWithNoteRow* modelStackWithNoteRowOnCurrentClip) {
 
@@ -5542,7 +5584,9 @@ void InstrumentClipView::recordNoteOn(int32_t velocity, int32_t yDisplay, Instru
 		if (!(currentUIMode & UI_MODE_HORIZONTAL_SCROLL)) { // What about zoom too?
 			uiNeedsRendering(getRootUI(), 1 << yDisplay, 0);
 		}
+		return true;
 	}
+	return false;
 }
 
 // sub-function of AuditionPadAction
@@ -5728,6 +5772,14 @@ void InstrumentClipView::finishAuditioningRow(int32_t yDisplay, ModelStackWithNo
 }
 
 void InstrumentClipView::cancelAllAuditioning() {
+	for (int32_t yDisplay = 0; yDisplay < kDisplayHeight; ++yDisplay) {
+		if (!auditionRecordingLifecycle_.isActive(yDisplay)) {
+			continue;
+		}
+		auto recordingTransition = auditionRecordingLifecycle_.noteOff(yDisplay);
+		auditionPadAction(0, yDisplay, false, recordingTransition);
+	}
+	auditionRecordingLifecycle_.clear();
 	if (isUIModeActive(UI_MODE_AUDITIONING)) {
 		memset(auditionPadIsPressed, 0, sizeof(auditionPadIsPressed));
 		reassessAllAuditionStatus();
@@ -7708,6 +7760,7 @@ void InstrumentClipView::performActualRender(uint32_t whichRows, RGB* image,
 }
 
 void InstrumentClipView::playbackEnded() {
+	auditionRecordingLifecycle_.clear();
 
 	// Easter egg - if user's holding down a note, we want it to be edit-auditioned again now
 	reassessAllAuditionStatus();

@@ -178,7 +178,7 @@ public:
 	void tapTempoAutoSwitchOff();
 	void reassessInputTickScaling();
 	void resyncInternalTicksToInputTicks(Song* song);
-	bool shouldRecordNotesNow();
+	bool shouldRecordNotesNow(bool allowHorizontalEncoderButton = false);
 	void stopAnyRecording();
 	uint32_t getTimePerInternalTick();
 	uint64_t getTimePerInternalTickBig();

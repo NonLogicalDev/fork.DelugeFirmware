@@ -2826,9 +2826,17 @@ void PlaybackHandler::finishTempolessRecording(bool shouldStartPlaybackAgain, in
 
 static const uint32_t noteRecordingUIModes[] = {UI_MODE_HORIZONTAL_ZOOM, UI_MODE_HORIZONTAL_SCROLL, UI_MODE_AUDITIONING,
                                                 UI_MODE_RECORD_COUNT_IN, 0};
+static const uint32_t noteRecordingUIModesWithHorizontalEncoder[] = {UI_MODE_HORIZONTAL_ZOOM,
+                                                                     UI_MODE_HORIZONTAL_SCROLL,
+                                                                     UI_MODE_AUDITIONING,
+                                                                     UI_MODE_RECORD_COUNT_IN,
+                                                                     UI_MODE_HOLDING_HORIZONTAL_ENCODER_BUTTON,
+                                                                     0};
 
-bool PlaybackHandler::shouldRecordNotesNow() {
-	return (isEitherClockActive() && recording != RecordingMode::OFF && isUIModeWithinRange(noteRecordingUIModes)
+bool PlaybackHandler::shouldRecordNotesNow(bool allowHorizontalEncoderButton) {
+	const uint32_t* allowedUIModes =
+	    allowHorizontalEncoderButton ? noteRecordingUIModesWithHorizontalEncoder : noteRecordingUIModes;
+	return (isEitherClockActive() && recording != RecordingMode::OFF && isUIModeWithinRange(allowedUIModes)
 	        && (!playbackHandler.ticksLeftInCountIn
 	            || getTimeLeftInCountIn()
 	                   <= kLinearRecordingEarlyFirstNoteAllowance) // If doing a count-in, only allow notes to be

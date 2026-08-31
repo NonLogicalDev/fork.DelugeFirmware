@@ -21,15 +21,16 @@
 #include "storage/cluster/cluster.h"
 #include "storage/storage_manager.h"
 #include "util/d_string.h"
+#include "util/d_stringbuf.h"
 #include "util/firmware_version.h"
 #include "util/functions.h"
 #include "util/try.h"
-#include <string.h>
+#include <algorithm>
+#include <cctype>
+#include <cstring>
 
-extern "C" {
-#include "RZA1/oled/oled_low_level.h"
-#include "fatfs/diskio.h"
-#include "fatfs/ff.h"
+namespace AudioEngine {
+void logAudioAction(char const* string, char const* file, int line);
 }
 
 /*******************************************************************************
@@ -525,40 +526,90 @@ void JsonDeserializer::exitTag(char const* exitTagName, bool closeObject) {
 	// matching closing character. This can involve counting open and close characters until
 	// we get a match.
 	D_PRINTLN("Unread value detected");
-	readState = JsonState::ValueRead; // declare victory prematurely.
-	skipWhiteSpace();
-	char leadingChar, trailingChar, currentChar, balanceCtr = 1;
-	readChar(&leadingChar);
-	// Strings are easy.
-	if (leadingChar == '"') {
-		skipUntilChar('"');
+	readState = JsonState::ValueRead;
+	if (!skipWhiteSpace()) {
 		return;
-	}
-	if (leadingChar == '[')
-		trailingChar = ']';
-	else if (leadingChar == '{')
-		trailingChar = '}';
-	else if ((leadingChar == '-') || (leadingChar >= '0' && leadingChar <= '9')) {
-		// The other possibility is a number
-		readInt(); // skip the number.
-		return;
-	}
-	else {
-		D_PRINTLN("Malformed value encountered.");
 	}
 
-	while ((balanceCtr > 0) && readChar(&currentChar)) {
-		if (currentChar == leadingChar)
-			balanceCtr++;
-		else if (currentChar == trailingChar)
-			balanceCtr--;
+	char leadingChar;
+	if (!readChar(&leadingChar)) {
+		return;
+	}
+
+	// A string ends at the first unescaped quote.
+	if (leadingChar == '"') {
+		bool escaped = false;
+		char currentChar;
+		while (readChar(&currentChar)) {
+			if (escaped) {
+				escaped = false;
+			}
+			else if (currentChar == '\\') {
+				escaped = true;
+			}
+			else if (currentChar == '"') {
+				break;
+			}
+		}
+		return;
+	}
+
+	// Primitive values end before whitespace or their parent's delimiter. This preserves the
+	// delimiter so the next read can close the parent object or array normally.
+	if (leadingChar != '[' && leadingChar != '{') {
+		char currentChar;
+		while (peekChar(&currentChar) && currentChar != ',' && currentChar != '}' && currentChar != ']'
+		       && !std::isspace(static_cast<unsigned char>(currentChar))) {
+			readChar(&currentChar);
+		}
+		return;
+	}
+
+	int32_t objectBalance = leadingChar == '{' ? 1 : 0;
+	int32_t arrayBalance = leadingChar == '[' ? 1 : 0;
+	bool inString = false;
+	bool escaped = false;
+	char currentChar;
+	while ((objectBalance > 0 || arrayBalance > 0) && readChar(&currentChar)) {
+		if (inString) {
+			if (escaped) {
+				escaped = false;
+			}
+			else if (currentChar == '\\') {
+				escaped = true;
+			}
+			else if (currentChar == '"') {
+				inString = false;
+			}
+			continue;
+		}
+
+		switch (currentChar) {
+		case '"':
+			inString = true;
+			break;
+		case '{':
+			objectBalance++;
+			break;
+		case '}':
+			objectBalance--;
+			break;
+		case '[':
+			arrayBalance++;
+			break;
+		case ']':
+			arrayBalance--;
+			break;
+		default:
+			break;
+		}
 	}
 }
 
 Error JsonDeserializer::openJsonFile(FilePointer* filePointer, char const* firstTagName, char const* altTagName,
                                      bool ignoreIncorrectFirmware) {
 
-	AudioEngine::logAction("openJsonFile");
+	AudioEngine::logAudioAction("openJsonFile", __FILE__, __LINE__);
 
 	reset();
 
@@ -579,7 +630,6 @@ Error JsonDeserializer::openJsonFile(FilePointer* filePointer, char const* first
 		exitTag(tagName);
 	}
 
-	closeWriter();
 	return Error::FILE_CORRUPTED;
 }
 
@@ -595,7 +645,6 @@ Error JsonDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool 
 		char const* firmware_version_string = readTagOrAttributeValue();
 		auto earliestFirmware = FirmwareVersion::parse(firmware_version_string);
 		if (earliestFirmware > FirmwareVersion::current() && !ignoreIncorrectFirmware) {
-			closeWriter();
 			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
 		}
 	}

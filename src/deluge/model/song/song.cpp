@@ -60,6 +60,7 @@
 #include "processing/sound/sound_instrument.h"
 #include "processing/stem_export/stem_export.h"
 #include "storage/flash_storage.h"
+#include "storage/song_load.h"
 #include "storage/storage_manager.h"
 #include "util/lookuptables/lookuptables.h"
 #include "util/try.h"
@@ -1612,8 +1613,10 @@ Error Song::readFromFile(Deserializer& reader) {
 		default:
 unknownTag:
 			if (!strcmp(tagName, "firmwareVersion") || !strcmp(tagName, "earliestCompatibleFirmware")) {
-				reader.tryReadingFirmwareTagFromFile(tagName, false);
-				reader.exitTag(tagName);
+				Error result = deluge::song_load::readFirmwareTag(reader, tagName);
+				if (result != Error::NONE) {
+					return result;
+				}
 			}
 			else if (!strcmp(tagName, "preview") || !strcmp(tagName, "previewNumPads")) {
 				reader.tryReadingFirmwareTagFromFile(tagName, false);

@@ -39,6 +39,7 @@
 #include "processing/sound/sound_instrument.h"
 #include "storage/audio/audio_file_manager.h"
 #include "storage/file_item.h"
+#include "storage/song_load.h"
 
 #include "util/firmware_version.h"
 #include "util/functions.h"
@@ -728,7 +729,7 @@ Error StorageManager::openXMLFile(FilePointer* filePointer, XMLDeserializer& rea
 		return Error::NONE;
 	reader.closeWriter();
 
-	return Error::FILE_CORRUPTED;
+	return err;
 }
 
 Error StorageManager::openJsonFile(FilePointer* filePointer, JsonDeserializer& reader, char const* firstTagName,
@@ -744,7 +745,7 @@ Error StorageManager::openJsonFile(FilePointer* filePointer, JsonDeserializer& r
 		return Error::NONE;
 	reader.closeWriter();
 
-	return Error::FILE_CORRUPTED;
+	return err;
 }
 
 Error StorageManager::openDelugeFile(FileItem* currentFileItem, char const* firstTagName, char const* altTagName,
@@ -759,6 +760,23 @@ Error StorageManager::openDelugeFile(FileItem* currentFileItem, char const* firs
 		                                    ignoreIncorrectFirmware);
 	}
 	return error;
+}
+
+Error StorageManager::preflightDelugeFileFirmware(FileItem* currentFileItem, char const* firstTagName,
+                                                  char const* altTagName) {
+	Error error = openDelugeFile(currentFileItem, firstTagName, altTagName);
+	if (error != Error::NONE) {
+		return error;
+	}
+
+	error = activeDeserializer == &smJsonDeserializer
+	            ? deluge::song_load::readJsonRootFirmwareCompatibility(*activeDeserializer)
+	            : deluge::song_load::readRootFirmwareCompatibility(*activeDeserializer);
+	FRESULT closeResult = activeDeserializer->closeWriter();
+	if (error != Error::NONE) {
+		return error;
+	}
+	return closeResult == FR_OK ? Error::NONE : Error::SD_CARD;
 }
 
 bool StorageManager::buildPathToFile(const char* fileName) {

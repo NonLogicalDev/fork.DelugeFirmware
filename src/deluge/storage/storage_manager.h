@@ -377,6 +377,7 @@ Error openJsonFile(FilePointer* filePointer, JsonDeserializer& reader, char cons
                    char const* altTagName = "", bool ignoreIncorrectFirmware = false);
 Error openDelugeFile(FileItem* currentFileItem, char const* firstTagName, char const* altTagName = "",
                      bool ignoreIncorrectFirmware = false);
+Error preflightDelugeFileFirmware(FileItem* currentFileItem, char const* firstTagName, char const* altTagName = "");
 Error initSD();
 
 bool fileExists(char const* pathName);

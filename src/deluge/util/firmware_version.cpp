@@ -4,6 +4,10 @@
 #include <string_view>
 
 FirmwareVersion FirmwareVersion::parse(std::string_view version_string) {
+	if (version_string.empty()) {
+		return {Type::UNKNOWN, {0, 0, 0}};
+	}
+
 	Type type;
 
 	if (version_string[0] == 'c') {

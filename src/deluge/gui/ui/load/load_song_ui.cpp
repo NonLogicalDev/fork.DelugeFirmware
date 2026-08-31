@@ -44,6 +44,7 @@
 #include "storage/audio/audio_file_manager.h"
 #include "storage/file_item.h"
 #include "storage/flash_storage.h"
+#include "storage/song_load.h"
 #include "storage/storage_manager.h"
 #include "util/try.h"
 #include <string.h>
@@ -308,7 +309,6 @@ void LoadSongUI::doQueueLoadNextSongIfAvailable(int8_t offset) {
 
 // Before calling this, you must set loadButtonReleased.
 void LoadSongUI::performLoad() {
-	performingLoad = true;
 	FileItem* currentFileItem = getCurrentFileItem();
 
 	if (!currentFileItem) {
@@ -316,19 +316,24 @@ void LoadSongUI::performLoad() {
 		                          ? Error::FILE_NOT_FOUND
 		                          : Error::NO_FURTHER_FILES_THIS_DIRECTION); // Make it say "NONE" on numeric Deluge,
 		                                                                     // for consistency with old times.
-		performingLoad = false;
 		return;
 	}
+
+	Error error = deluge::song_load::preflightAndReopen(
+	    [&]() { return StorageManager::preflightDelugeFileFirmware(currentFileItem, "song"); },
+	    [&]() { return StorageManager::openDelugeFile(currentFileItem, "song"); });
+	if (error != Error::NONE) {
+		display->displayError(error);
+		return;
+	}
+
+	performingLoad = true;
 
 	actionLogger.deleteAllLogs();
 
 	if (arrangement.hasPlaybackActive()) {
 		playbackHandler.switchToSession();
 	}
-	Error error;
-
-	error = StorageManager::openDelugeFile(currentFileItem, "song");
-
 	currentUIMode = UI_MODE_LOADING_SONG_ESSENTIAL_SAMPLES;
 	indicator_leds::setLedState(IndicatorLED::LOAD, false);
 	indicator_leds::setLedState(IndicatorLED::BACK, false);

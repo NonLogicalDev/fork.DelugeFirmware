@@ -48,6 +48,12 @@ endfunction()
 
 create_specs_driver(all_specs ${CMAKE_CURRENT_LIST_DIR})
 target_link_libraries(all_specs PUBLIC deluge_spec)
+target_sources(all_specs PRIVATE
+  ../../src/deluge/storage/JsonDeserializer.cpp
+  ../../src/deluge/util/firmware_version.cpp
+  json_deserializer_test_support.cpp
+)
+target_include_directories(all_specs BEFORE PRIVATE ../32bit_unit_tests/mocks/)
 
 # Visual harness for the OLED starfield. Renders frames as ASCII so the ported
 # animation can be checked by eye without hardware. Deliberately has no add_test:

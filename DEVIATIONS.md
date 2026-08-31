@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains twenty-five deviations:
+The local stack currently contains twenty-seven deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -31,6 +31,8 @@ The local stack currently contains twenty-five deviations:
 23. Let Session MIDI-Out Clips advance from independent external steps.
 24. Make held-Horizontal preview-only note input release-order safe across Clip and Keyboard views.
 25. Keep playheads legible on full-screen waveform displays.
+26. Refuse incompatible Songs before changing playback or project state.
+27. Add independent persistent choke groups to Kit Sound Drum rows.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -823,6 +825,73 @@ Make the current playback position immediately readable on every full-screen sin
 - Source review confirms that the browser, editor, Slicer, and Clip each use their own authoritative playback source; excluded thumbnails are unchanged; dynamic display work is fixed and bounded; and no display path allocates, accesses storage or samples, renders audio, creates a timer, or sends the OLED directly.
 - Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
 - On a physical OLED Deluge, check each included surface with sparse and dense waveforms, forward and reverse playback, loop wrap, start and end edits, Slicer Region and Manual audition, browser preview, markers, popups, scrolling, zooming, stop, source replacement, and exit. Confirm that the waveform is still readable, the playhead is more obvious, no stale cursor remains, and audio, storage streaming, recording, and display response do not regress. Physical verification remains human-controlled and does not authorize flashing.
+
+## 26. Non-destructive Song compatibility preflight
+
+### Intent
+
+Refuse a Song that requires unsupported firmware or a newer local save schema before loading can stop playback, change the interface, clear Undo history, replace the current Song, or otherwise mutate live project state.
+
+### Required behavior
+
+- Every XML and JSON Song load performs an initial compatibility-only read before any destructive load action. The file is closed after that read and reopened from the beginning only when it is compatible.
+- The compatibility read recognizes the established official and Community firmware fields and the exact local save-schema sentinel stored in the existing compatibility field. Local schema 0, 1, and 2 are supported. A future schema, malformed local sentinel, or empty local sentinel is rejected.
+- Compatibility fields may appear anywhere in the Song root. Unknown fields before them, including nested arrays or objects and strings containing braces, brackets, escaped quotes, or escaped backslashes, cannot hide a later incompatibility marker or corrupt the second read.
+- Canonical Songs with leading compatibility fields stop the initial read as soon as the complete compatibility requirement is known. Legacy Songs without a compatibility field remain loadable after the root has been checked.
+- An empty ordinary firmware-version value is treated as the established unknown version instead of causing an invalid memory access. Other invalid ordinary version strings retain their established unknown-version meaning.
+- An incompatible Song preserves the exact incompatibility error and leaves playback, the current Song, the active interface, Undo and Redo history, and all loaded project state unchanged.
+- A read, close, reopen, malformed-file, or storage-removal failure preserves its own error. Each successful file open has one matching close, and a failed reopen cannot reuse stale parser state or an earlier file handle.
+- The normal load performs its established defensive compatibility checks again. A compatibility error found there is propagated rather than discarded.
+
+### Compatibility and boundaries
+
+- Preserve compatible XML and JSON Song loading, legacy Song loading, ordinary official and Community version comparison, browser behavior, file selection, error reporting, and the complete normal deserialization path after reopen.
+- Kit presets and saved-row presets continue using their established compatibility reads and error propagation. This deviation does not add a second preflight to those non-Song files.
+- Do not rewrite, repair, migrate, resave, or otherwise modify a refused file. Do not change Song contents, project formats, playback semantics, Undo semantics, or storage ownership beyond the compatibility-only first read and required reopen.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Production XML and JSON reader checks cover canonical and reordered compatible headers, too-new ordinary versions, local schemas 0 through 2, future schemas, malformed and empty sentinels, legacy files without markers, empty and invalid ordinary versions, malformed input, nested unknown payloads with structural characters inside escaped strings, and storage failure between the two opens.
+- State-order checks prove that refusal occurs before playback, interface, Undo, Redo, and current-Song mutation; compatible files close and reopen exactly once; and the normal reader still propagates a defensive incompatibility result.
+- Format every affected source, compile the changed storage and Song-loading units with the target ARM Release toolchain, run the complete configured host suite, and complete a local Release firmware build.
+- A physical Deluge check loads representative compatible, legacy, unsupported, malformed, and storage-interrupted Songs and confirms that every refusal leaves the playing project and Undo history intact. Physical verification remains human-controlled and does not authorize flashing or installation.
+
+## 27. Kit Sound Drum choke groups
+
+### Intent
+
+Let one Kit contain several independent sets of mutually exclusive samples while keeping the existing Polyphony control as the one clear switch for whether a row participates in choking.
+
+### Required behavior
+
+- Every audio Sound Drum owns one choke-group value from 1 through 16. Missing, zero, or otherwise invalid saved values normalize to group 1. New Sound Drums and newly sliced rows begin with group 1 and their established non-CHOKE Polyphony default.
+- Polyphony `CHOKE` is the only participation switch. A Sound Drum retains its saved group while Polyphony is another mode, but it neither chokes nor is choked until Polyphony returns to `CHOKE`.
+- Starting an ordinary audio Sound Drum releases every currently sounding `CHOKE` Sound Drum in the same Kit and same group before the replacement starts. This includes the triggering row's previous voice, so self-retriggers remain click-safe.
+- Ordinary sequencer notes, held row audition, incoming Kit MIDI notes, and Cut, Once, Loop, and Stretch playback all use the same group behavior. Different groups, non-CHOKE Sound Drums, MIDI rows, and Gate rows never release one another.
+- A normal trigger applies the group release only when it resolves to an immediate Sound Drum start. Direct starts, Kit-arpeggiator bypass, one-shot fallback, and an immediate Kit-arpeggiator output release the group exactly once immediately before starting. Duplicate, deferred, probability-suppressed, or otherwise no-output Kit-arpeggiator inputs do not release the group. Later starts generated internally by that arpeggiator do not rescan or mutate Kit rows.
+- Releasing a matching row stops only MIDI notes currently tracked as belonging to that row, resets that row's arpeggiator and inversion state so it cannot retrigger later, fast-releases its active audio, and updates its render eligibility before the replacement begins. It never sends channel-wide All Notes Off. Delay and reverb tails continue through the established fast-release behavior.
+- The dedicated held-Select Kit Waveform Editor preview from deviation 19 does not trigger group release and is protected from unrelated group release while that dedicated preview owns the row. Normal held row audition remains a participating ordinary trigger.
+- Group identity follows the Sound Drum through Song save and load, Kit presets, saved-row presets, full Sound Drum copy and paste, row reorder, and deletion. Notes-only operations do not invent or change group identity. Deleting a row destroys its group with that Sound Drum; reordering requires no group-specific remapping.
+- Replacing an existing Slicer anchor Sound Drum preserves that Sound Drum's group and Polyphony according to the established in-place replacement behavior. Newly appended Slicer rows use group 1 and the ordinary non-CHOKE default.
+- A stored group 2 through 16 requires local save schema 2 even when that Sound Drum is not currently `CHOKE`. Group 1 alone adds no new requirement. External Step alone requires schema 1; a file containing both records the maximum requirement, schema 2.
+- Songs, Kit presets, and saved-row presets write a non-default group value and the appropriate compatibility marker. Schema-2 firmware accepts schemas 0, 1, and 2 and rejects future, malformed, or empty local schema sentinels. An unsupported build must refuse protected data rather than silently collapsing every row into group 1.
+- With a selected Kit Sound Drum set to Polyphony `CHOKE`, pressing Select on that value opens a group selector from 1 through 16. OLED shows `Choke group` and values `1` through `16`; seven-segment displays show `CHGP` and `G01` through `G16`. Other Polyphony values, Synths, MIDI rows, Gate rows, and non-Kit contexts do not expose the selector.
+
+### Compatibility and boundaries
+
+- Preserve the established Polyphony meanings, ordinary Kit triggering, row and Kit arpeggiators, sample playback modes, MIDI and Gate behavior, effects tails, audition selection, Sound Drum clipboard behavior, row reorder and deletion, Slicer placement, and project data unrelated to the new group field.
+- Do not add a pad shortcut, another Polyphony value, a second enable switch, a bulk group editor, a horizontal menu slot, group lighting, MIDI or Gate groups, channel-wide All Notes Off, global effects cancellation, or render-time Kit-list traversal.
+- Keep group scanning at the ordinary resolved Sound Drum start boundary. It must not allocate memory, access storage, change Kit row membership, or run from an audio render or arpeggiator tick callback.
+- No local behavior authorizes flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused checks cover group normalization, group membership, self-retrigger, independent groups, inactive saved groups, exact tracked MIDI note-off cleanup, row-arpeggiator reset, ordinary-start versus internal-arpeggiator ownership, copy and clone behavior, persistence defaults, schema aggregation, menu visibility, and OLED and seven-segment formatting.
+- Persistence checks cover Songs, Kit presets, saved-row presets, missing and invalid group values, group 1 without a stronger marker, groups 2 through 16 with schema 2 even while non-CHOKE, External Step alone with schema 1, combined features with schema 2, and refusal of unsupported or malformed schemas.
+- Source review confirms that reorder and deletion rely on existing Sound Drum identity, Slicer anchors preserve existing state, new Slicer rows use defaults, direct Waveform Editor preview remains protected, no channel-wide MIDI message is sent, and no cross-row scan occurs from render or tick callbacks.
+- Format every affected source and localization input, regenerate localization through the established generator, compile the changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
+- On a physical OLED and seven-segment Deluge, check groups 1 and 2 in one Kit, self-retrigger, held audition, sequencer and incoming MIDI triggers, Cut, Once, Loop, Stretch, row and Kit arpeggiators, external MIDI echo shared with unrelated rows, delay and reverb tails, the dedicated Waveform Editor preview, copy and paste, reorder, deletion, Slicer anchor replacement, new slices, menu navigation, save and reload, schema refusal on older firmware, and malformed-file refusal. Physical verification remains human-controlled and does not authorize flashing or installation.
 
 ## Maintaining this document
 

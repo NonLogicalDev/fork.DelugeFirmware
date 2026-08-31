@@ -19,10 +19,12 @@ namespace deluge::project_compatibility {
 
 inline constexpr std::string_view kLegacySongMinimumFirmware = "4.1.0-alpha";
 inline constexpr std::string_view kExternalStepMinimumFirmware = deluge::firmware_compatibility::kLocalSaveSchema1;
+inline constexpr std::string_view kChokeGroupsMinimumFirmware = deluge::firmware_compatibility::kLocalSaveSchema2;
 
 enum class LocalSaveSchema : uint8_t {
 	NONE = 0,
 	EXTERNAL_STEP = 1,
+	CHOKE_GROUPS = 2,
 };
 
 [[nodiscard]] constexpr LocalSaveSchema maximumRequiredSchema(LocalSaveSchema first, LocalSaveSchema second) {
@@ -33,15 +35,39 @@ enum class LocalSaveSchema : uint8_t {
 	return containsExternalStepClip ? LocalSaveSchema::EXTERNAL_STEP : LocalSaveSchema::NONE;
 }
 
-/// Older firmware ignores unknown InstrumentClip fields and would run an External Step Clip from Song time.
+[[nodiscard]] constexpr LocalSaveSchema requiredSchemaForChokeGroup(uint8_t group) {
+	return group >= 2 && group <= 16 ? LocalSaveSchema::CHOKE_GROUPS : LocalSaveSchema::NONE;
+}
+
+class LocalSaveSchemaRequirement {
+public:
+	void include(LocalSaveSchema schema) { requiredSchema_ = maximumRequiredSchema(requiredSchema_, schema); }
+	void includeExternalStep(bool containsExternalStepClip) {
+		include(requiredSchemaForExternalStep(containsExternalStepClip));
+	}
+	void includeChokeGroup(uint8_t group) { include(requiredSchemaForChokeGroup(group)); }
+	[[nodiscard]] LocalSaveSchema value() const { return requiredSchema_; }
+
+private:
+	LocalSaveSchema requiredSchema_ = LocalSaveSchema::NONE;
+};
+
+/// Returns the oldest reader that understands every local field represented by requiredSchema.
 [[nodiscard]] constexpr std::string_view earliestCompatibleFirmware(LocalSaveSchema requiredSchema) {
 	switch (requiredSchema) {
 	case LocalSaveSchema::NONE:
 		return kLegacySongMinimumFirmware;
 	case LocalSaveSchema::EXTERNAL_STEP:
 		return kExternalStepMinimumFirmware;
+	case LocalSaveSchema::CHOKE_GROUPS:
+		return kChokeGroupsMinimumFirmware;
 	}
 	__builtin_unreachable();
+}
+
+template <typename Writer>
+inline void writeCompatibilityMarker(Writer& writer, LocalSaveSchema requiredSchema) {
+	writer.writeEarliestCompatibleFirmwareVersion(earliestCompatibleFirmware(requiredSchema).data());
 }
 
 } // namespace deluge::project_compatibility

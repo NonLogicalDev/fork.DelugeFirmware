@@ -1153,14 +1153,16 @@ void Song::writeToFile() {
 	writer.writeOpeningTagBeginning("song", true, false);
 
 	writer.writeFirmwareVersion();
-	auto requiredSaveSchema = deluge::project_compatibility::LocalSaveSchema::NONE;
+	deluge::project_compatibility::LocalSaveSchemaRequirement requirement;
 	for (InstrumentClip* clip : InstrumentClips::everywhere(this)) {
-		requiredSaveSchema = deluge::project_compatibility::maximumRequiredSchema(
-		    requiredSaveSchema,
-		    deluge::project_compatibility::requiredSchemaForExternalStep(clip->isExternalStepMode()));
+		requirement.includeExternalStep(clip->isExternalStepMode());
 	}
-	writer.writeEarliestCompatibleFirmwareVersion(
-	    deluge::project_compatibility::earliestCompatibleFirmware(requiredSaveSchema).data());
+	for (Output* output = firstOutput; output; output = output->next) {
+		if (output->type == OutputType::KIT) {
+			requirement.include(static_cast<Kit*>(output)->requiredSaveSchema());
+		}
+	}
+	deluge::project_compatibility::writeCompatibilityMarker(writer, requirement.value());
 
 	writer.writeAttribute("previewNumPads", 144);
 	writer.insertCommaIfNeeded();

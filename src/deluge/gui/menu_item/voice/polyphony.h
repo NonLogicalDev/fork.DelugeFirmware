@@ -17,7 +17,9 @@
 #pragma once
 
 #include "definitions_cxx.hpp"
+#include "gui/menu_item/integer.h"
 #include "gui/menu_item/selection.h"
+#include "gui/menu_item/voice/polyphony_policy.h"
 #include "gui/ui/sound_editor.h"
 #include "model/drum/drum.h"
 #include "model/instrument/kit.h"
@@ -28,6 +30,37 @@
 #include <hid/display/oled.h>
 
 namespace deluge::gui::menu_item::voice {
+class ChokeGroup final : public Integer {
+public:
+	using Integer::Integer;
+	void readCurrentValue() override {
+		auto* soundDrum = static_cast<SoundDrum*>(soundEditor.currentSound);
+		this->setValue(deluge::choke_group::normalize(soundDrum->chokeGroup));
+	}
+	void writeCurrentValue() override {
+		auto* soundDrum = static_cast<SoundDrum*>(soundEditor.currentSound);
+		deluge::choke_group::assignNormalized(soundDrum->chokeGroup, this->getValue());
+	}
+	[[nodiscard]] int32_t getMinValue() const override { return deluge::choke_group::kMinimum; }
+	[[nodiscard]] int32_t getMaxValue() const override { return deluge::choke_group::kMaximum; }
+	[[nodiscard]] RenderingStyle getRenderingStyle() const override { return NUMBER; }
+	[[nodiscard]] std::string_view getName() const override {
+		return l10n::getView(polyphony_policy::chokeGroupTitle(display->haveOLED()));
+	}
+	bool isRelevant(ModControllableAudio*, int32_t) const override {
+		return soundEditor.editingKitRow() && soundEditor.currentSound->polyphonic == PolyphonyMode::CHOKE;
+	}
+
+protected:
+	void drawValue() override {
+		char text[4];
+		deluge::choke_group::formatSevenSegmentValue(this->getValue(), text);
+		display->setText(text);
+	}
+};
+
+extern ChokeGroup chokeGroupMenu;
+
 class VoiceCount : public IntegerWithOff {
 public:
 	using IntegerWithOff::IntegerWithOff;
@@ -137,10 +170,15 @@ public:
 		return options;
 	}
 	MenuItem* selectButtonPress() override {
-		if (this->getValue<PolyphonyMode>() == PolyphonyMode::POLY) {
+		switch (polyphony_policy::detailMenuFor(this->getValue<PolyphonyMode>(), soundEditor.editingKitRow())) {
+		case polyphony_policy::DetailMenu::VOICE_COUNT:
 			return &polyphonicVoiceCountMenu;
+		case polyphony_policy::DetailMenu::CHOKE_GROUP:
+			return &chokeGroupMenu;
+		case polyphony_policy::DetailMenu::NONE:
+			return Selection::selectButtonPress();
 		}
-		return Selection::selectButtonPress();
+		__builtin_unreachable();
 	}
 
 	void getColumnLabel(StringBuf& label) override {

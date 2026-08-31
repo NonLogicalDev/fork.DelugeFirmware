@@ -109,8 +109,17 @@ describe song_load_preflight("Song load compatibility preflight", $ {
 		expect(result).to_equal(Error::NONE);
 	});
 
-	it("rejects a too-new JSON Song root with the production in-memory deserializer", _ {
+	it("reads a schema-two JSON Song root with the production in-memory deserializer", _ {
 		char json[] = R"({"firmwareVersion":"c1.3.1","earliestCompatibleFirmware":"nl-save-schema-2","previewNumPads":144})";
+		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
+
+		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
+
+		expect(result).to_equal(Error::NONE);
+	});
+
+	it("rejects a future schema JSON Song root with the production in-memory deserializer", _ {
+		char json[] = R"({"firmwareVersion":"c1.3.1","earliestCompatibleFirmware":"nl-save-schema-3","previewNumPads":144})";
 		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
 
 		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);

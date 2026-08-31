@@ -49,9 +49,17 @@ endfunction()
 create_specs_driver(all_specs ${CMAKE_CURRENT_LIST_DIR})
 target_link_libraries(all_specs PUBLIC deluge_spec)
 target_sources(all_specs PRIVATE
+  ../../src/deluge/gui/l10n/g_english.cpp
+  ../../src/deluge/gui/l10n/g_seven_segment.cpp
+  ../../src/deluge/gui/l10n/l10n.cpp
   ../../src/deluge/storage/JsonDeserializer.cpp
   ../../src/deluge/util/firmware_version.cpp
   json_deserializer_test_support.cpp
+)
+set_source_files_properties(
+  ../../src/deluge/gui/l10n/g_english.cpp
+  ../../src/deluge/gui/l10n/g_seven_segment.cpp
+  PROPERTIES COMPILE_DEFINITIONS IN_UNIT_TESTS
 )
 target_include_directories(all_specs BEFORE PRIVATE ../32bit_unit_tests/mocks/)
 

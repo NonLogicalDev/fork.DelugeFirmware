@@ -841,6 +841,8 @@ PLACE_SDRAM_DATA Language english{
         {STRING_FOR_MONOPHONIC, "Monophonic"},
         {STRING_FOR_LEGATO, "Legato"},
         {STRING_FOR_CHOKE, "Choke"},
+        {STRING_FOR_CHOKE_GROUP, "Choke group"},
+        {STRING_FOR_CHOKE_GROUP_SHORT, "CHGP"},
         {STRING_FOR_MODULATE_WITH, "Modulate with"},
         {STRING_FOR_MODULATE_DEPTH, "Modulate depth"},
         {STRING_FOR_FORWARD, "Forward"},

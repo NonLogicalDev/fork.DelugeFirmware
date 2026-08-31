@@ -22,7 +22,8 @@ namespace deluge::firmware_compatibility {
 inline constexpr std::string_view kLocalCompatibilityNamespace = "nl-";
 inline constexpr std::string_view kLocalSaveSchemaPrefix = "nl-save-schema-";
 inline constexpr std::string_view kLocalSaveSchema1 = "nl-save-schema-1";
-inline constexpr uint32_t kSupportedLocalSaveSchema = 1;
+inline constexpr std::string_view kLocalSaveSchema2 = "nl-save-schema-2";
+inline constexpr uint32_t kSupportedLocalSaveSchema = 2;
 
 [[nodiscard]] inline Error evaluateEarliestCompatibleFirmware(std::string_view requirement,
                                                               FirmwareVersion currentFirmware,

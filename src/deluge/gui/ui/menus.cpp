@@ -454,6 +454,7 @@ PLACE_SDRAM_BSS Submenu kitArpMenu{
 
 PLACE_SDRAM_BSS voice::PolyphonyType polyphonyMenu{STRING_FOR_POLYPHONY};
 PLACE_SDRAM_BSS voice::VoiceCount voice::polyphonicVoiceCountMenu{STRING_FOR_MAX_VOICES};
+PLACE_SDRAM_BSS voice::ChokeGroup voice::chokeGroupMenu{STRING_FOR_CHOKE_GROUP};
 PLACE_SDRAM_BSS voice::Portamento portaMenu{STRING_FOR_PORTAMENTO};
 PLACE_SDRAM_BSS voice::Priority priorityMenu{STRING_FOR_PRIORITY};
 

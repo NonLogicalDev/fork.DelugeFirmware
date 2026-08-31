@@ -74,16 +74,20 @@ describe external_step_menu("External Step menu and compatibility", $ {
 
 	it("guards only Songs that still contain External Step Clips", _ {
 		using namespace deluge::project_compatibility;
-		auto requiredSchema = LocalSaveSchema::NONE;
-		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(false));
-		expect(requiredSchema).to_equal(LocalSaveSchema::NONE);
-		expect(earliestCompatibleFirmware(requiredSchema)).to_equal(kLegacySongMinimumFirmware);
+		LocalSaveSchemaRequirement requirement;
+		requirement.includeExternalStep(false);
+		expect(requirement.value()).to_equal(LocalSaveSchema::NONE);
+		expect(earliestCompatibleFirmware(requirement.value())).to_equal(kLegacySongMinimumFirmware);
 
-		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(true));
-		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(false));
-		expect(requiredSchema).to_equal(LocalSaveSchema::EXTERNAL_STEP);
-		expect(earliestCompatibleFirmware(requiredSchema)).to_equal(kExternalStepMinimumFirmware);
+		requirement.includeExternalStep(true);
+		requirement.includeExternalStep(false);
+		expect(requirement.value()).to_equal(LocalSaveSchema::EXTERNAL_STEP);
+		expect(earliestCompatibleFirmware(requirement.value())).to_equal(kExternalStepMinimumFirmware);
 		expect(kExternalStepMinimumFirmware).to_equal(std::string_view{"nl-save-schema-1"});
+
+		requirement.includeChokeGroup(2);
+		expect(requirement.value()).to_equal(LocalSaveSchema::CHOKE_GROUPS);
+		expect(earliestCompatibleFirmware(requirement.value())).to_equal(kChokeGroupsMinimumFirmware);
 	});
 });
 

@@ -17,13 +17,11 @@
 
 #include "processing/sound/sound_drum.h"
 #include "definitions_cxx.hpp"
-#include "gui/views/automation_view.h"
-#include "gui/views/instrument_clip_view.h"
-#include "gui/views/view.h"
 #include "mem_functions.h"
 #include "model/action/action_logger.h"
 #include "model/clip/clip.h"
 #include "model/instrument/kit.h"
+#include "model/song/project_compatibility.h"
 #include "model/song/song.h"
 #include "model/voice/voice.h"
 #include "processing/engines/audio_engine.h"
@@ -35,6 +33,10 @@ bool SoundDrum::readTagFromFile(Deserializer& reader, char const* tagName) {
 	if (!strcmp(tagName, "path")) {
 		reader.readTagOrAttributeValueString(&path);
 		reader.exitTag("path");
+	}
+	else if (!strcmp(tagName, "chokeGroup")) {
+		deluge::choke_group::assignNormalized(chokeGroup, reader.readTagOrAttributeValueInt());
+		reader.exitTag("chokeGroup");
 	}
 	else if (readDrumTagFromFile(reader, tagName)) {
 		// Delegation is also considered a success.
@@ -62,6 +64,7 @@ Error SoundDrum::clonePersistentStateFrom(SoundDrum& other) {
 	drumName = other.drumName;
 	path.set(&other.path);
 	nameIsDiscardable = other.nameIsDiscardable;
+	deluge::choke_group::assignNormalized(chokeGroup, other.chokeGroup);
 	midiInput = other.midiInput;
 	muteMIDICommand = other.muteMIDICommand;
 	arpSettings.cloneFrom(&other.arpSettings);
@@ -71,11 +74,6 @@ Error SoundDrum::clonePersistentStateFrom(SoundDrum& other) {
 
 void SoundDrum::noteOn(ModelStackWithThreeMainThings* modelStack, uint8_t velocity, int16_t const* mpeValues,
                        int32_t fromMIDIChannel, uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate) {
-
-	// If part of a Kit, and in choke mode, choke other drums
-	if (polyphonic == PolyphonyMode::CHOKE && (kit != nullptr)) {
-		kit->choke();
-	}
 
 	Sound::noteOn(modelStack, &arpeggiator, kNoteForDrum, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
 	              fromMIDIChannel);
@@ -136,7 +134,11 @@ void SoundDrum::writeToFileAsInstrument(bool savingSong, ParamManager* paramMana
 	Serializer& writer = GetSerializer();
 	writer.writeOpeningTagBeginning("sound", true);
 	writer.writeFirmwareVersion();
-	writer.writeEarliestCompatibleFirmwareVersion("4.1.0-alpha");
+	uint8_t savedChokeGroup = deluge::choke_group::normalize(chokeGroup);
+	deluge::project_compatibility::writeCompatibilityMarker(
+	    writer, deluge::project_compatibility::requiredSchemaForChokeGroup(savedChokeGroup));
+	deluge::choke_group::writeIfNonDefault(savedChokeGroup,
+	                                       [&](uint8_t group) { writer.writeAttribute("chokeGroup", group); });
 	Sound::writeToFile(writer, savingSong, paramManager, &arpSettings, NULL);
 
 	if (savingSong) {}
@@ -147,6 +149,8 @@ void SoundDrum::writeToFileAsInstrument(bool savingSong, ParamManager* paramMana
 void SoundDrum::writeToFile(Serializer& writer, bool savingSong, ParamManager* paramManager) {
 	writer.writeOpeningTagBeginning("sound", true);
 	writeDrumTagsToFile(writer);
+	deluge::choke_group::writeIfNonDefault(chokeGroup,
+	                                       [&](uint8_t group) { writer.writeAttribute("chokeGroup", group); });
 
 	Sound::writeToFile(writer, savingSong, paramManager, &arpSettings, path.get());
 
@@ -165,20 +169,27 @@ Error SoundDrum::readFromFile(Deserializer& reader, Song* song, Clip* clip, int3
 	return Sound::readFromFile(reader, modelStack, readAutomationUpToPos, &arpSettings);
 }
 
-// modelStack may be NULL
-void SoundDrum::choke(ModelStackWithSoundFlags* modelStack) {
-	if (polyphonic == PolyphonyMode::CHOKE) {
-
-		// Don't choke it if it's auditioned
-		bool normalRowAudition = (getRootUI() == &instrumentClipView || getRootUI() == &automationView)
-		                         && instrumentClipView.isDrumAuditioned(this);
-		if (normalRowAudition || (kit && kit->isDirectSoundDrumAuditionActive(this))) {
-			return;
+void SoundDrum::releaseForChokeGroup(ModelStackWithSoundFlags* modelStack) {
+	for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
+		int16_t noteCode = arpeggiator.glideNoteCodeCurrentlyOnPostArp[n];
+		if (noteCode != ARP_NOTE_NONE) {
+			noteOffPostArpeggiator(modelStack, noteCode);
 		}
-
-		// Ok, choke it
-		fastReleaseAllVoices(modelStack); // Accepts NULL
 	}
+	for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
+		int16_t noteCode = arpeggiator.active_note.noteCodeOnPostArp[n];
+		if (noteCode != ARP_NOTE_NONE) {
+			noteOffPostArpeggiator(modelStack, noteCode);
+		}
+	}
+
+	arpeggiator.glideNoteCodeCurrentlyOnPostArp.fill(ARP_NOTE_NONE);
+	arpeggiator.outputMIDIChannelForGlideNoteCurrentlyOnPostArp.fill(MIDI_CHANNEL_NONE);
+	arpeggiator.reset();
+	arpeggiator.invertReversedFromKitArp = false;
+	invertReversed = false;
+	fastReleaseAllVoices(modelStack);
+	reassessRenderSkippingStatus(modelStack);
 }
 
 void SoundDrum::setSkippingRendering(bool newSkipping) {

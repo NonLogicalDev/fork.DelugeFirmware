@@ -21,6 +21,7 @@
 #include "dsp/stereo_sample.h"
 #include "model/global_effectable/global_effectable_for_clip.h"
 #include "model/instrument/instrument.h"
+#include "model/song/project_compatibility.h"
 #include "modulation/arpeggiator.h"
 class InstrumentClip;
 class Drum;
@@ -41,6 +42,7 @@ public:
 	Drum* getNextDrum(Drum* fromSoundSource);
 	Drum* getPrevDrum(Drum* fromSoundSource);
 	bool writeDataToFile(Serializer& writer, Clip* clipForSavingOutputOnly, Song* song) override;
+	[[nodiscard]] deluge::project_compatibility::LocalSaveSchema requiredSaveSchema() const;
 	void addDrum(Drum* newDrum);
 	Error readFromFile(Deserializer& reader, Song* song, Clip* clip, int32_t readAutomationUpToPos) override;
 	Drum* getFirstUnassignedDrum(InstrumentClip* clip);
@@ -104,7 +106,6 @@ public:
 	                                      ModelStackWithTimelineCounter* modelStack) override {}
 
 	void beenEdited(bool shouldMoveToEmptySlot = true) override;
-	void choke();
 	void resyncLFOs() override;
 	void removeDrumFromKitArpeggiator(int32_t drumIndex);
 	void removeDrum(Drum* drum);
@@ -183,6 +184,7 @@ private:
 	void removeDrumFromLinkedList(Drum* drum);
 	void drumRemoved(Drum* drum);
 	void possiblySetSelectedDrumAndRefreshUI(Drum* thisDrum);
+	void releaseChokeGroupBeforeImmediateStart(ModelStackWithThreeMainThings* modelStack, SoundDrum* triggeredDrum);
 
 	// Kit Arp
 	void setupAndRenderArpPreOutput(ModelStackWithTimelineCounter* modelStackWithTimelineCounter,

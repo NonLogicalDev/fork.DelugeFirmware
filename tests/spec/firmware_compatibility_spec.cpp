@@ -15,6 +15,9 @@ describe firmware_compatibility("Firmware compatibility", $ {
 			expect(compatibility::evaluateEarliestCompatibleFirmware("nl-save-schema-1", current,
 			                                                           ignoreIncorrectFirmware))
 			    .to_equal(Error::NONE);
+			expect(compatibility::evaluateEarliestCompatibleFirmware("nl-save-schema-2", current,
+			                                                           ignoreIncorrectFirmware))
+			    .to_equal(Error::NONE);
 		}
 	});
 
@@ -32,7 +35,7 @@ describe firmware_compatibility("Firmware compatibility", $ {
 			         "nl-save-schema1",
 			         "nl-save-schemax-1",
 			         "nl-other-1",
-			         "nl-save-schema-2",
+			         "nl-save-schema-3",
 			         "nl-save-schema-",
 			         "nl-save-schema-01",
 			         "nl-save-schema-one",

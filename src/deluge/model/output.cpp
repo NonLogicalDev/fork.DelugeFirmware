@@ -23,9 +23,11 @@
 #include "model/clip/clip_instance.h"
 #include "model/clip/instrument_clip.h"
 #include "model/consequence/consequence_clip_existence.h"
+#include "model/instrument/kit.h"
 #include "model/model_stack.h"
 #include "model/output_colour.h"
 #include "model/song/clip_iterators.h"
+#include "model/song/project_compatibility.h"
 #include "model/song/song.h"
 #include "processing/engines/audio_engine.h"
 #include "storage/storage_manager.h"
@@ -254,7 +256,9 @@ void Output::writeToFile(Clip* clipForSavingOutputOnly, Song* song) {
 
 	if (clipForSavingOutputOnly) {
 		writer.writeFirmwareVersion();
-		writer.writeEarliestCompatibleFirmwareVersion("4.1.0-alpha");
+		auto requiredSchema = type == OutputType::KIT ? static_cast<Kit*>(this)->requiredSaveSchema()
+		                                              : deluge::project_compatibility::LocalSaveSchema::NONE;
+		deluge::project_compatibility::writeCompatibilityMarker(writer, requiredSchema);
 	}
 
 	bool endedOpeningTag = writeDataToFile(writer, clipForSavingOutputOnly, song);

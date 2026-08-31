@@ -250,6 +250,17 @@ moveOn:
 	return true;
 }
 
+deluge::project_compatibility::LocalSaveSchema Kit::requiredSaveSchema() const {
+	deluge::project_compatibility::LocalSaveSchemaRequirement requirement;
+	for (Drum* drum = firstDrum; drum; drum = drum->next) {
+		if (drum->type == DrumType::SOUND) {
+			auto* soundDrum = static_cast<SoundDrum*>(drum);
+			requirement.includeChokeGroup(soundDrum->chokeGroup);
+		}
+	}
+	return requirement.value();
+}
+
 void Kit::writeDrumToFile(Serializer& writer, Drum* thisDrum, ParamManager* paramManagerForDrum, bool savingSong,
                           int32_t* selectedDrumIndex, int32_t* drumIndex, Song* song) {
 	if (thisDrum == selectedDrum) {
@@ -905,12 +916,6 @@ bool Kit::offerReceivedPitchBendToLearnedParams(MIDICable& cable, uint8_t channe
 	return messageUsed;
 }
 
-void Kit::choke() {
-	for (Drum* thisDrum = firstDrum; thisDrum; thisDrum = thisDrum->next) {
-		thisDrum->choke(nullptr);
-	}
-}
-
 void Kit::resyncLFOs() {
 	for (Drum* thisDrum = firstDrum; thisDrum; thisDrum = thisDrum->next) {
 		if (thisDrum && thisDrum->type == DrumType::SOUND) {
@@ -1296,20 +1301,35 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
 		endDirectSoundDrumAudition(modelStack->song, static_cast<SoundDrum*>(drum));
 	}
 
+	auto startImmediately = [&](bool hasResolvedStart, Drum* drumToStart, auto&& start) {
+		return deluge::choke_group::performImmediateStart(
+		    hasResolvedStart,
+		    [&]() {
+			    if (drumToStart->type == DrumType::SOUND) {
+				    releaseChokeGroupBeforeImmediateStart(modelStack, static_cast<SoundDrum*>(drumToStart));
+			    }
+		    },
+		    start);
+	};
+
 	ArpeggiatorSettings* arpSettings = getArpSettings();
 	ArpReturnInstruction kitInstruction;
 	// Run everything by the Kit Arp...
 	int32_t drumIndex = -1;
 	if (activeClip == nullptr || arpSettings == nullptr) {
-		drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate, samplesLate);
+		startImmediately(true, drum, [&]() {
+			drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate, samplesLate);
+		});
 		return;
 	}
 	NoteRow* thisNoteRow = ((InstrumentClip*)activeClip)->getNoteRowForDrum(drum, &drumIndex);
 	if (drumIndex != -1 && thisNoteRow->drum != nullptr) {
 		// Check if kit arp is bypassed
 		if (!thisNoteRow->drum->arpSettings.includeInKitArp) {
-			thisNoteRow->drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate,
-			                          samplesLate);
+			startImmediately(true, thisNoteRow->drum, [&]() {
+				thisNoteRow->drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate,
+				                          samplesLate);
+			});
 			return;
 		}
 		else if (thisNoteRow->drum->type == DrumType::SOUND) {
@@ -1317,22 +1337,70 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
 			if (!((SoundDrum*)thisNoteRow->drum)->allowNoteTails(modelStackWithSoundFlags, true)) {
 				// If sound doesn't allow note tails, it cannot be included in the kit arp, as it doesn't produce note
 				// offs and will get us stuck notes
-				thisNoteRow->drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate,
-				                          samplesLate);
+				startImmediately(true, thisNoteRow->drum, [&]() {
+					thisNoteRow->drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength,
+					                          ticksLate, samplesLate);
+				});
 				return;
 			}
 		}
 
 		// If kit arp not bypassed, execute instruction
 		arpeggiator.noteOn(arpSettings, drumIndex, velocity, &kitInstruction, fromMIDIChannel, mpeValues);
-		if (kitInstruction.arpNoteOn != nullptr && kitInstruction.arpNoteOn->noteCodeOnPostArp[0] != ARP_NOTE_NONE) {
-			// Set the invertReverse flag for the drum arpeggiator
-			thisNoteRow->drum->arpeggiator.invertReversedFromKitArp = kitInstruction.invertReversed;
-			// Do row note on
-			thisNoteRow->drum->noteOn(modelStack, kitInstruction.arpNoteOn->velocity,
-			                          kitInstruction.arpNoteOn->mpeValues, 0, sampleSyncLength, ticksLate, samplesLate);
+		bool hasResolvedStart = deluge::choke_group::hasResolvedImmediateStart(kitInstruction);
+		if (startImmediately(hasResolvedStart, thisNoteRow->drum, [&]() {
+			    // Set the invertReverse flag for the drum arpeggiator
+			    thisNoteRow->drum->arpeggiator.invertReversedFromKitArp = kitInstruction.invertReversed;
+			    // Do row note on
+			    thisNoteRow->drum->noteOn(modelStack, kitInstruction.arpNoteOn->velocity,
+			                              kitInstruction.arpNoteOn->mpeValues, 0, sampleSyncLength, ticksLate,
+			                              samplesLate);
+		    })) {
 			kitInstruction.arpNoteOn->noteStatus[0] = ArpNoteStatus::PLAYING;
 		}
+	}
+}
+
+void Kit::releaseChokeGroupBeforeImmediateStart(ModelStackWithThreeMainThings* modelStack, SoundDrum* triggeredDrum) {
+	if (!deluge::choke_group::participates(triggeredDrum->polyphonic)) {
+		return;
+	}
+
+	for (Drum* drum = firstDrum; drum; drum = drum->next) {
+		if (drum->type != DrumType::SOUND) {
+			continue;
+		}
+
+		auto* soundDrum = static_cast<SoundDrum*>(drum);
+		if (soundDrum == directlyAuditionedSoundDrum
+		    || !deluge::choke_group::matches(soundDrum->polyphonic, soundDrum->chokeGroup, triggeredDrum->chokeGroup)) {
+			continue;
+		}
+
+		if (soundDrum == triggeredDrum) {
+			soundDrum->releaseForChokeGroup(modelStack->addSoundFlags());
+			continue;
+		}
+
+		int32_t noteRowIndex = 0;
+		NoteRow* noteRow = activeClip
+		                       ? static_cast<InstrumentClip*>(activeClip)->getNoteRowForDrum(soundDrum, &noteRowIndex)
+		                       : nullptr;
+		ParamManager* paramManager =
+		    noteRow ? &noteRow->paramManager
+		            : modelStack->song->getBackedUpParamManagerPreferablyWithClip(soundDrum, activeClip);
+		if (!paramManager) {
+			paramManager = modelStack->song->findParamManagerForDrum(this, soundDrum);
+		}
+
+		char targetModelStackMemory[MODEL_STACK_MAX_SIZE];
+		ModelStackWithSoundFlags* targetModelStack =
+		    setupModelStackWithSong(targetModelStackMemory, modelStack->song)
+		        ->addTimelineCounter(activeClip)
+		        ->addNoteRow(noteRowIndex, noteRow)
+		        ->addOtherTwoThings(soundDrum, paramManager ? paramManager : modelStack->paramManager)
+		        ->addSoundFlags();
+		soundDrum->releaseForChokeGroup(targetModelStack);
 	}
 }
 

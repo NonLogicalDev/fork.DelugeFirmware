@@ -21,6 +21,7 @@
 #include "gui/context_menu/slicer_playback_mode.h"
 #include "gui/l10n/l10n.h"
 #include "gui/ui/browser/sample_browser.h"
+#include "gui/ui/slicer_playhead.h"
 #include "gui/ui/sound_editor.h"
 #include "gui/views/instrument_clip_view.h"
 #include "gui/waveform/oled_waveform_renderer.h"
@@ -338,35 +339,40 @@ bool Slicer::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSide
 const uint8_t zeroes[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
 void Slicer::graphicsRoutine() {
-
+	const bool isRegionMode = slicerMode == SLICER_MODE_REGION;
 	int32_t newTickSquare = 255;
 	VoiceSample* voiceSample = nullptr;
 	SamplePlaybackGuide* guide = nullptr;
+	SoundDrum* drum = deluge::gui::slicer_playhead::getSource(isRegionMode, usesExistingKit)
+	                          == deluge::gui::slicer_playhead::Source::BROWSER_PREVIEW
+	                      ? AudioEngine::sampleForPreview
+	                      : static_cast<SoundDrum*>(soundEditor.currentSound);
+	Sample* displayedSample = waveformBasicNavigator.sample;
 
-	MultisampleRange* range;
-	SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
+	if (displayedSample && drum && drum->hasActiveVoices() && drum->sources[0].ranges.getNumElements() > 0) {
+		auto* range = static_cast<MultisampleRange*>(drum->sources[0].ranges.getElement(0));
+		AudioFileHolder* holder = range->getAudioFileHolder();
 
-	if (getCurrentClip()->type == ClipType::INSTRUMENT && drum->hasActiveVoices()) {
-		range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
+		// Slicer can leave both the browser preview and a selected Kit row sounding. Only the source owned by this
+		// Slicer mode may move the cursor, and only while it is playing the waveform currently on screen.
+		if (holder->audioFile == displayedSample) {
+			auto validVoices = drum->voices() | std::views::filter([holder](const Sound::ActiveVoice& voice) {
+				                   return voice->guides[0].audioFileHolder == holder;
+			                   });
 
-		auto valid_voices_view = drum->voices() | std::views::filter([&](const Sound::ActiveVoice& voice) {
-			                         // Ensure correct MultisampleRange.
-			                         return voice->guides[0].audioFileHolder == range->getAudioFileHolder();
-		                         });
-
-		if (!valid_voices_view.empty()) {
-			const Sound::ActiveVoice& voice = *std::ranges::max_element(valid_voices_view, {}, &Voice::orderSounded);
-
-			VoiceUnisonPartSource* part = &voice->unisonParts[drum->numUnison >> 1].sources[0];
-			if (part != nullptr && part->active) {
-				voiceSample = part->voiceSample;
-				guide = &voice->guides[soundEditor.currentSourceIndex];
+			if (!validVoices.empty()) {
+				const Sound::ActiveVoice& voice = *std::ranges::max_element(validVoices, {}, &Voice::orderSounded);
+				VoiceUnisonPartSource* part = &voice->unisonParts[drum->numUnison >> 1].sources[0];
+				if (part->active) {
+					voiceSample = part->voiceSample;
+					guide = &voice->guides[0];
+				}
 			}
 		}
 	}
 
-	if (voiceSample != nullptr) {
-		int32_t samplePos = voiceSample->getPlaySample((Sample*)range->sampleHolder.audioFile, guide);
+	if (voiceSample) {
+		int32_t samplePos = voiceSample->getPlaySample(displayedSample, guide);
 		if (samplePos >= waveformBasicNavigator.xScroll) {
 			newTickSquare = (samplePos - waveformBasicNavigator.xScroll) / waveformBasicNavigator.xZoom;
 			if (newTickSquare >= kDisplayWidth) {
@@ -376,11 +382,9 @@ void Slicer::graphicsRoutine() {
 	}
 
 	uint8_t tickSquares[kDisplayHeight];
-	memset(tickSquares, 255, kDisplayHeight);
-	tickSquares[kDisplayHeight - 1] = newTickSquare;
-	tickSquares[kDisplayHeight - 2] = newTickSquare;
-	tickSquares[kDisplayHeight - 3] = newTickSquare;
-	tickSquares[kDisplayHeight - 4] = newTickSquare;
+	for (int32_t row = 0; row < kDisplayHeight; row++) {
+		tickSquares[row] = deluge::gui::slicer_playhead::isWaveformRow(isRegionMode, row) ? newTickSquare : 255;
+	}
 
 	PadLEDs::setTickSquares(tickSquares, zeroes);
 }
@@ -645,6 +649,8 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 		}
 
 		display->setNextTransitionDirection(-1);
+		// Forget Slicer's cursor before the browser redraws its own pads; that redraw supplies the next LED send.
+		PadLEDs::clearTickSquares(false);
 		close();
 	}
 	else {
@@ -1078,6 +1084,8 @@ ramError2:
 	instrumentClipView.recalculateColours();
 
 	display->setNextTransitionDirection(-1);
+	// This closes both Browser and Slicer, so clear Slicer's cursor before Instrument Clip View redraws.
+	PadLEDs::clearTickSquares(false);
 	sampleBrowser.exitAndNeverDeleteDrum();
 	uiNeedsRendering(&instrumentClipView);
 	return true;

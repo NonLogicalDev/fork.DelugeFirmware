@@ -93,6 +93,7 @@ add_test(NAME UnitTests
         COMMAND UnitTests)
 target_sources(UnitTests PRIVATE ${deluge_SOURCES})
 target_sources(UnitTests PRIVATE slicer_batch_playback_mode_tests.cpp)
+target_sources(UnitTests PRIVATE slicer_playhead_tests.cpp)
 target_include_directories(UnitTests PRIVATE
         # include the non test project source
         mocks

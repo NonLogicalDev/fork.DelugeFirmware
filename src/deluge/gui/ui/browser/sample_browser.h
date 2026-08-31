@@ -54,6 +54,7 @@ public:
 	Error claimAudioFileForInstrument(bool makeWaveTableWorkAtAllCosts = false);
 	Error claimAudioFileForAudioClip();
 	void scrollFinished() override;
+	void graphicsRoutine() override;
 	bool importFolderAsKit();
 	bool importFolderAsMultisamples();
 	ActionResult timerCallback() override;
@@ -99,7 +100,6 @@ private:
 	bool currentlyShowingSamplePreview;
 
 	bool qwertyCurrentlyDrawnOnscreen; // This will linger as true even when qwertyVisible has been set to false
-
 };
 
 extern SampleBrowser sampleBrowser;

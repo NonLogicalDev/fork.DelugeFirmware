@@ -19,6 +19,7 @@
 
 #include "definitions_cxx.hpp"
 #include "gui/ui/ui.h"
+#include "gui/waveform/waveform_playhead.h"
 #include "hid/button.h"
 #include <cstdint>
 
@@ -107,6 +108,7 @@ private:
 	SoundDrum* auditionedKitDrum = nullptr;
 	Kit* auditionedKit = nullptr;
 	bool kitRowAuditionStarted = false;
+	deluge::gui::waveform::OledWaveformPlayheadState oledPlayheadState_{};
 };
 
 extern SampleMarkerEditor sampleMarkerEditor;

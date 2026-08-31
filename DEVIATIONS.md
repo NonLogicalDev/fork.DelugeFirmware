@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains twenty-four deviations:
+The local stack currently contains twenty-five deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -30,6 +30,7 @@ The local stack currently contains twenty-four deviations:
 22. Add selectable velocity profiles to Velocity Drums.
 23. Let Session MIDI-Out Clips advance from independent external steps.
 24. Make held-Horizontal preview-only note input release-order safe across Clip and Keyboard views.
+25. Keep playheads legible on full-screen waveform displays.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -502,13 +503,13 @@ Show sample shape and the edited region on an OLED Deluge without adding sample 
 - Each group of adjacent OLED ranges that occupies one pad column covers exactly the same half-open sample interval as that pad column, including when the visible sample count does not divide evenly into display ranges. When enough distinct source samples are visible to address every range independently, each sample is measured by the same range that its horizontal display projection occupies. At tighter zooms, adjacent ranges deliberately share sample ownership rather than implying detail that does not exist. Ranges with identical half-open sample ownership reuse one collected peak result instead of repeating sample analysis.
 - If cached waveform amplitude is unavailable for part of the view, every successfully measured part remains visible while the unavailable part stays blank and can be retried by the normal editing redraw path. OLED rendering must not initiate sample analysis, decoding, cluster loading, storage access, memory allocation, or audio-engine servicing to fill it.
 - The companion consumes the generic renderer behavior from deviations 15 and 16: valid long recordings remain visible when zoomed out, and reversed views remain inside the same visible half-open range as the pad waveform.
-- A static editor schedules no waveform-driven display refreshes after its current state has been drawn. Playback, audition, marker blinking, and periodic graphics routines do not animate or refresh the OLED waveform.
+- A static editor schedules no waveform-driven display refreshes after its current state has been drawn. Except for the source-matched playhead required by deviation 25, playback, audition, marker blinking, and periodic graphics routines do not animate or refresh the OLED waveform.
 
 ### Compatibility and boundaries
 
 - Preserve the pad waveform's viewport, layout, colors, markers, and navigation, plus marker limits, slice calculations, playback, audition, saving, audio processing, control gestures, and project format. On the two OLED editing surfaces, each pad column may show more precise extrema from the same visible region; this refinement must not trigger a second sample-analysis pass.
 - Preserve all 7SEG behavior. Do not add an OLED waveform to Sample Browser, idle Audio Clip View, Session, Arranger, recording screens, or other unrelated views.
-- Do not add a playback cursor, stereo lanes, filled amplitude bars, inverted selection, a project-persistent or Audio-Clip-wide waveform cache, a timer, or a background waveform task.
+- Except for the bounded source-matched cursor in deviation 25, do not add a playback cursor, stereo lanes, filled amplitude bars, inverted selection, a project-persistent or Audio-Clip-wide waveform cache, a timer, or a background waveform task.
 - OLED waveform rendering remains display-only and must never run from an audio-rendering path. A physical power comparison is required before claiming a battery-life improvement.
 - No local behavior authorizes flashing, installation, publication, or upstream submission.
 
@@ -788,6 +789,40 @@ Let a player hold the Horizontal encoder while trying notes or drums, hear the o
 - Source review confirms that Clip View and Keyboard View decide ownership at note-on or retrigger, pair every sounding and recorded note-off with the correct start, keep preview output audible, and do not disturb Horizontal encoder controls.
 - Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
 - On a physical Deluge, check stopped audition, playback, armed recording, and count-in in Kit and melodic Clips; both release orders; Horizontal pressed after a normal note starts; repeated and overlapping notes; chords; held pads while turning Horizontal; MIDI-Out and CV output; view exit; Stop; and Panic. Confirm no stuck sound, stray note, shortened prior note, lost note-off, or changed encoder gesture. Physical verification remains human-controlled and does not authorize flashing.
+
+## 25. Legible full-screen waveform playheads
+
+### Intent
+
+Make the current playback position immediately readable on every full-screen single-source waveform without letting a dense or strongly colored waveform overpower it. Give the OLED sample-editing waveform the same source-specific playback feedback while keeping the display work bounded.
+
+### Required behavior
+
+- Sample Marker Editor, Region and Manual/Lazy Slicer, Audio Clip View, and Sample Browser render the waveform base moderately dimmer than today. The intended level is seven eighths of the established full waveform intensity. Start and End bounds, loop and slice markers, undefined regions, controls, selections, and playhead colors retain their established strength and draw above the waveform.
+- A playhead appears only when the audio currently sounding is the exact source represented by the displayed waveform. An unrelated voice, an earlier preview, another Drum, another Clip, or a matching filename without matching sample identity must never drive it.
+- Sample Marker Editor follows the newest active voice whose sample holder owns the displayed sample. Audio Clip View follows only the displayed active Clip. Sample Browser follows only its active browser-preview sample. Region and new-Kit Slicer follow only the browser preview, while Manual/Lazy and existing-Kit Slicer follow only the selected Sound.
+- The Region Slicer pad cursor spans all eight waveform rows. The Manual/Lazy Slicer cursor spans only its four waveform rows and never covers its slice pads. Other full-screen pad cursors retain the height already owned by their waveform.
+- Sample Marker Editor and both Slicer modes add a one-column OLED playhead to their existing waveform companion. It maps the raw source position into the complete visible waveform range, draws after every waveform contour and bound marker, and reverses the pixels in its column so it stays visible over both empty and lit areas.
+- The OLED cursor moves only while the exact displayed source is actively playing and its projected display column changes. It disappears after stop, release, source replacement, view exit, or movement outside the visible range. Scrolling or zooming remaps it to the same source position without changing playback or resetting the playhead.
+- Moving OLED feedback is refreshed no more than twenty times per second through an existing display service path. An unchanged projected column produces no OLED work. Hiding or replacing a cursor performs one cleanup update so no stale column remains.
+- Audio Clip View keeps its existing whole-Clip OLED ruler instead of gaining a second waveform cursor. Sample Browser keeps its existing filename display and gains no OLED waveform.
+
+### Compatibility and boundaries
+
+- Preserve waveform shape, sample analysis, color family, Clip and track color ownership, bounds, slice locations, viewports, scrolling, zooming, reverse playback, audition controls, transport behavior, recording, sample data, project data, and audio output.
+- Preserve the established pad cursor color, bound and marker colors, Slicer control colors, grey undefined regions, and every non-waveform pad. Only the full-screen waveform base becomes dimmer.
+- Preserve Session, Row, Grid, Arranger, recorder, transition, cached thumbnail, and single-row waveform brightness and cursor behavior. Those multi-source or overview surfaces are not full-screen single-source editors.
+- Preserve all seven-segment behavior. Do not add a new display timer, background task, playback engine, persistent setting, saved data, or firmware compatibility requirement.
+- OLED drawing consumes only the already cached waveform, marker, viewport, and projected playback state. It performs no sample scan, decoding, cluster load, storage access, memory allocation, audio rendering, or direct display transfer.
+- No behavior in this deviation authorizes firmware flashing, installation, publication, or upstream submission.
+
+### Verification contract
+
+- Focused checks cover included and excluded surface selection, the seven-eighths waveform level, untouched overlay strength, exact source matching, newest matching voice selection, Region and Manual row ownership, first and last visible columns, offscreen positions, stopped and replaced sources, reverse movement, loop wrap, scrolling, zooming, and stale-cursor cleanup on exit.
+- OLED checks cover one-column mapping, contrast over blank and lit waveform pixels, overlap with selected and unselected markers, visibility transitions, the twenty-hertz limit, unchanged-column suppression, viewport changes, and one final cleanup update.
+- Source review confirms that the browser, editor, Slicer, and Clip each use their own authoritative playback source; excluded thumbnails are unchanged; dynamic display work is fixed and bounded; and no display path allocates, accesses storage or samples, renders audio, creates a timer, or sends the OLED directly.
+- Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
+- On a physical OLED Deluge, check each included surface with sparse and dense waveforms, forward and reverse playback, loop wrap, start and end edits, Slicer Region and Manual audition, browser preview, markers, popups, scrolling, zooming, stop, source replacement, and exit. Confirm that the waveform is still readable, the playhead is more obvious, no stale cursor remains, and audio, storage streaming, recording, and display response do not regress. Physical verification remains human-controlled and does not authorize flashing.
 
 ## Maintaining this document
 

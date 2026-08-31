@@ -47,19 +47,20 @@ static_assert(Cluster::kSizeFAT16Max <= std::numeric_limits<int32_t>::max());
 // Returns false if had trouble loading some (will often not be all) Clusters, e.g. cos we're in the card routine
 bool WaveformRenderer::renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
                                         RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
-                                        SampleRecorder* recorder, std::optional<RGB> rgb, bool reversed, int32_t xEnd) {
+                                        SampleRecorder* recorder, std::optional<RGB> rgb, bool reversed, int32_t xEnd,
+                                        deluge::gui::waveform::PadWaveformIntensity intensity) {
 
 	bool completeSuccess = findPeaksPerCol(sample, xScroll, xZoom, data, recorder);
 	if (!completeSuccess) {
 		return false;
 	}
-	renderFullScreenFromData(sample, thisImage, data, rgb, reversed, xEnd);
+	renderFullScreenFromData(sample, thisImage, data, rgb, reversed, xEnd, intensity);
 	return true;
 }
 
 void WaveformRenderer::renderFullScreenFromData(Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth],
                                                 WaveformRenderData* data, std::optional<RGB> rgb, bool reversed,
-                                                int32_t xEnd) {
+                                                int32_t xEnd, deluge::gui::waveform::PadWaveformIntensity intensity) {
 
 	// Clear display
 	for (int32_t y = 0; y < kDisplayHeight; y++) {
@@ -67,7 +68,7 @@ void WaveformRenderer::renderFullScreenFromData(Sample* sample, RGB thisImage[][
 	}
 
 	for (int32_t xDisplay = 0; xDisplay < xEnd; xDisplay++) {
-		renderOneCol(sample, xDisplay, thisImage, data, reversed, rgb);
+		renderOneCol(sample, xDisplay, thisImage, data, reversed, rgb, intensity);
 	}
 }
 
@@ -742,9 +743,10 @@ void WaveformRenderer::drawColBar(int32_t xDisplay, int32_t min24, int32_t max24
 }
 
 void WaveformRenderer::renderOneCol(Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth],
-                                    WaveformRenderData* data, bool reversed, std::optional<RGB> rgb) {
+                                    WaveformRenderData* data, bool reversed, std::optional<RGB> rgb,
+                                    deluge::gui::waveform::PadWaveformIntensity intensity) {
 	int32_t min24, max24;
-	int32_t brightness = rgb ? 256 : 128;
+	int32_t brightness = deluge::gui::waveform::padWaveformBrightness(rgb.has_value(), intensity);
 
 	int32_t xDisplaySource = reversed ? (kDisplayWidth - 1 - xDisplay) : xDisplay;
 

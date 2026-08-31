@@ -20,6 +20,7 @@
 #include "definitions_cxx.hpp"
 #include "gui/ui/slicer_batch_playback_mode.h"
 #include "gui/ui/ui.h"
+#include "gui/waveform/waveform_playhead.h"
 #include "hid/button.h"
 
 #define SLICER_MODE_REGION 0
@@ -79,6 +80,7 @@ private:
 	SampleRepeatMode repeatModeBeforeManualPreview = SampleRepeatMode::CUT;
 	bool manualPreviewChangedRepeatMode = false;
 	SoundDrum* manualSliceDrums[MAX_MANUAL_SLICES]{};
+	deluge::gui::waveform::OledWaveformPlayheadState oledPlayheadState_{};
 
 	// 7SEG Only
 	void redraw();

@@ -19,6 +19,7 @@
 
 #include "definitions_cxx.hpp"
 #include "gui/colour/colour.h"
+#include "gui/waveform/waveform_playhead.h"
 #include <cstdint>
 #include <optional>
 
@@ -41,17 +42,21 @@ class WaveformRenderer {
 public:
 	WaveformRenderer();
 
-	bool renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
-	                      RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
-	                      SampleRecorder* recorder = nullptr, std::optional<RGB> rgb = std::nullopt,
-	                      bool reversed = false, int32_t xEnd = kDisplayWidth);
-	void renderFullScreenFromData(Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth],
-	                              WaveformRenderData* data, std::optional<RGB> rgb = std::nullopt,
-	                              bool reversed = false, int32_t xEnd = kDisplayWidth);
+	bool renderFullScreen(
+	    Sample* sample, int64_t xScroll, uint64_t xZoom, RGB thisImage[][kDisplayWidth + kSideBarWidth],
+	    WaveformRenderData* data, SampleRecorder* recorder = nullptr, std::optional<RGB> rgb = std::nullopt,
+	    bool reversed = false, int32_t xEnd = kDisplayWidth,
+	    deluge::gui::waveform::PadWaveformIntensity intensity = deluge::gui::waveform::PadWaveformIntensity::FULL);
+	void renderFullScreenFromData(
+	    Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
+	    std::optional<RGB> rgb = std::nullopt, bool reversed = false, int32_t xEnd = kDisplayWidth,
+	    deluge::gui::waveform::PadWaveformIntensity intensity = deluge::gui::waveform::PadWaveformIntensity::FULL);
 	bool renderAsSingleRow(Sample* sample, int64_t xScroll, uint64_t xZoom, RGB* thisImage, WaveformRenderData* data,
 	                       SampleRecorder* recorder, RGB rgb, bool reversed, int32_t xStart, int32_t xEnd);
-	void renderOneCol(Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth],
-	                  WaveformRenderData* data, bool reversed = false, std::optional<RGB> rgb = std::nullopt);
+	void renderOneCol(
+	    Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
+	    bool reversed = false, std::optional<RGB> rgb = std::nullopt,
+	    deluge::gui::waveform::PadWaveformIntensity intensity = deluge::gui::waveform::PadWaveformIntensity::FULL);
 	void renderOneColForCollapseAnimation(int32_t xDisplay, int32_t xDisplayOutput, int32_t maxPeakFromZero,
 	                                      int32_t progress, RGB thisImage[][kDisplayWidth + kSideBarWidth],
 	                                      WaveformRenderData* data, std::optional<RGB> rgb, bool reversed,

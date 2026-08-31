@@ -114,6 +114,7 @@ bool Slicer::opened() {
 	requestedInitialMode = SLICER_MODE_REGION;
 	horizontalEncoderPressed = false;
 	horizontalEncoderPressUsed = false;
+	oledPlayheadState_.reset();
 	usesExistingKit = !sampleBrowser.canImportWholeKit();
 	batchPlaybackMode = deluge::gui::slicer_playback::BatchMode::AUTO;
 	manualPreviewChangedRepeatMode = false;
@@ -170,44 +171,41 @@ void Slicer::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
 	if (slicerMode == SLICER_MODE_REGION) {
 		const uint64_t sampleLength = sample->lengthInSamples;
 		const uint64_t regionCount = numClips;
-		if (sampleLength == 0 || regionCount < 2 || viewport.span() == 0) {
-			return;
-		}
+		if (sampleLength != 0 && regionCount >= 2 && viewport.span() != 0) {
+			const uint64_t viewStart = std::max<int64_t>(waveformBasicNavigator.renderData.xScroll, 0);
+			const uint64_t firstBoundary = std::max<uint64_t>(1, divideRoundUp(viewStart * regionCount, sampleLength));
+			if (firstBoundary < regionCount) {
+				const uint64_t boundaryStride = std::max<uint64_t>(
+				    1, divideRoundUp(2 * regionCount * viewport.span(), sampleLength * OLED_MAIN_WIDTH_PIXELS));
 
-		const uint64_t viewStart = std::max<int64_t>(waveformBasicNavigator.renderData.xScroll, 0);
-		const uint64_t firstBoundary = std::max<uint64_t>(1, divideRoundUp(viewStart * regionCount, sampleLength));
-		if (firstBoundary >= regionCount) {
-			return;
-		}
-		const uint64_t boundaryStride = std::max<uint64_t>(
-		    1, divideRoundUp(2 * regionCount * viewport.span(), sampleLength * OLED_MAIN_WIDTH_PIXELS));
+				const uint64_t firstProduct = sampleLength * firstBoundary;
+				uint64_t boundary = firstProduct / regionCount;
+				uint64_t phase = firstProduct - boundary * regionCount;
+				const uint64_t stepProduct = sampleLength * boundaryStride;
+				const uint64_t boundaryStep = stepProduct / regionCount;
+				const uint64_t phaseStep = stepProduct - boundaryStep * regionCount;
+				const uint64_t viewEnd = viewStart + viewport.span();
+				int32_t previousX = -2;
+				uint64_t iterations = 0;
+				for (uint64_t i = firstBoundary; i < regionCount && iterations < kMaxOledRegionBoundaries;
+				     i += boundaryStride, iterations++) {
+					if (boundary >= viewEnd) {
+						break;
+					}
 
-		const uint64_t firstProduct = sampleLength * firstBoundary;
-		uint64_t boundary = firstProduct / regionCount;
-		uint64_t phase = firstProduct - boundary * regionCount;
-		const uint64_t stepProduct = sampleLength * boundaryStride;
-		const uint64_t boundaryStep = stepProduct / regionCount;
-		const uint64_t phaseStep = stepProduct - boundaryStep * regionCount;
-		const uint64_t viewEnd = viewStart + viewport.span();
-		int32_t previousX = -2;
-		uint64_t iterations = 0;
-		for (uint64_t i = firstBoundary; i < regionCount && iterations < kMaxOledRegionBoundaries;
-		     i += boundaryStride, iterations++) {
-			if (boundary >= viewEnd) {
-				break;
-			}
+					int32_t x = viewport.samplePositionToX(boundary);
+					if (x >= 0 && x - previousX >= 2) {
+						drawOledBoundary(canvas, x, false);
+						previousX = x;
+					}
 
-			int32_t x = viewport.samplePositionToX(boundary);
-			if (x >= 0 && x - previousX >= 2) {
-				drawOledBoundary(canvas, x, false);
-				previousX = x;
-			}
-
-			boundary += boundaryStep;
-			phase += phaseStep;
-			if (phase >= regionCount) {
-				boundary++;
-				phase -= regionCount;
+					boundary += boundaryStep;
+					phase += phaseStep;
+					if (phase >= regionCount) {
+						boundary++;
+						phase -= regionCount;
+					}
+				}
 			}
 		}
 	}
@@ -222,6 +220,9 @@ void Slicer::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
 		int32_t endX = viewport.samplePositionToX(currentEnd, true);
 		drawOledBoundary(canvas, endX, true);
 	}
+	deluge::gui::waveform::renderOledWaveformPlayhead(canvas, oledPlayheadState_, sample,
+	                                                  waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
+	                                                  kOledWaveformTop, kOledWaveformBottom);
 }
 
 void Slicer::redraw() {
@@ -238,31 +239,36 @@ bool Slicer::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSid
 
 	if (slicerMode == SLICER_MODE_REGION) {
 		if (useOledWaveformData) {
-			waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, image,
-			                                          &waveformBasicNavigator.renderData);
+			waveformRenderer.renderFullScreenFromData(
+			    waveformBasicNavigator.sample, image, &waveformBasicNavigator.renderData, std::nullopt, false,
+			    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 		}
 		else {
 			if (display->haveOLED()) {
 				waveformBasicNavigator.invalidateOledPadRenderData();
 			}
 			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-			                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData);
+			                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData,
+			                                  nullptr, std::nullopt, false, kDisplayWidth,
+			                                  deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 		}
 	}
 	else if (slicerMode == SLICER_MODE_MANUAL) {
 
 		RGB myImage[kDisplayHeight][kDisplayWidth + kSideBarWidth];
 		if (useOledWaveformData) {
-			waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, myImage,
-			                                          &waveformBasicNavigator.renderData);
+			waveformRenderer.renderFullScreenFromData(
+			    waveformBasicNavigator.sample, myImage, &waveformBasicNavigator.renderData, std::nullopt, false,
+			    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 		}
 		else {
 			if (display->haveOLED()) {
 				waveformBasicNavigator.invalidateOledPadRenderData();
 			}
 			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-			                                  waveformBasicNavigator.xZoom, myImage,
-			                                  &waveformBasicNavigator.renderData);
+			                                  waveformBasicNavigator.xZoom, myImage, &waveformBasicNavigator.renderData,
+			                                  nullptr, std::nullopt, false, kDisplayWidth,
+			                                  deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 		}
 
 		for (int32_t xx = 0; xx < kDisplayWidth; xx++) {
@@ -343,6 +349,7 @@ void Slicer::graphicsRoutine() {
 	int32_t newTickSquare = 255;
 	VoiceSample* voiceSample = nullptr;
 	SamplePlaybackGuide* guide = nullptr;
+	int32_t samplePos = 0;
 	SoundDrum* drum = deluge::gui::slicer_playhead::getSource(isRegionMode, usesExistingKit)
 	                          == deluge::gui::slicer_playhead::Source::BROWSER_PREVIEW
 	                      ? AudioEngine::sampleForPreview
@@ -356,29 +363,43 @@ void Slicer::graphicsRoutine() {
 		// Slicer can leave both the browser preview and a selected Kit row sounding. Only the source owned by this
 		// Slicer mode may move the cursor, and only while it is playing the waveform currently on screen.
 		if (holder->audioFile == displayedSample) {
-			auto validVoices = drum->voices() | std::views::filter([holder](const Sound::ActiveVoice& voice) {
-				                   return voice->guides[0].audioFileHolder == holder;
-			                   });
+			const int32_t centerPart = drum->numUnison >> 1;
+			auto isPlayableVoice = [holder, centerPart](const Sound::ActiveVoice& voice) {
+				const VoiceUnisonPartSource& part = voice->unisonParts[centerPart].sources[0];
+				return deluge::gui::waveform::isWaveformPlayheadCandidate(voice->guides[0].audioFileHolder == holder,
+				                                                          part.active, part.voiceSample != nullptr);
+			};
+			auto validVoices = drum->voices() | std::views::filter(isPlayableVoice);
 
 			if (!validVoices.empty()) {
 				const Sound::ActiveVoice& voice = *std::ranges::max_element(validVoices, {}, &Voice::orderSounded);
-				VoiceUnisonPartSource* part = &voice->unisonParts[drum->numUnison >> 1].sources[0];
-				if (part->active) {
-					voiceSample = part->voiceSample;
-					guide = &voice->guides[0];
-				}
+				VoiceUnisonPartSource* part = &voice->unisonParts[centerPart].sources[0];
+				voiceSample = part->voiceSample;
+				guide = &voice->guides[0];
 			}
 		}
 	}
 
 	if (voiceSample) {
-		int32_t samplePos = voiceSample->getPlaySample(displayedSample, guide);
+		samplePos = voiceSample->getPlaySample(displayedSample, guide);
 		if (samplePos >= waveformBasicNavigator.xScroll) {
 			newTickSquare = (samplePos - waveformBasicNavigator.xScroll) / waveformBasicNavigator.xZoom;
 			if (newTickSquare >= kDisplayWidth) {
 				newTickSquare = 255;
 			}
 		}
+	}
+	if (display->haveOLED()
+	    && oledPlayheadState_.update(
+	        {
+	            .displayedSample = displayedSample,
+	            .playingSample = voiceSample ? displayedSample : nullptr,
+	            .samplePosition = samplePos,
+	            .xScroll = waveformBasicNavigator.xScroll,
+	            .xZoom = waveformBasicNavigator.xZoom,
+	        },
+	        AudioEngine::audioSampleTimer)) {
+		renderUIsForOled();
 	}
 
 	uint8_t tickSquares[kDisplayHeight];
@@ -631,13 +652,15 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 		if (slicerMode == SLICER_MODE_MANUAL) {
 			if (display->haveOLED()) {
 				waveformBasicNavigator.prepareOledWaveformForPadRendering();
-				waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, PadLEDs::image,
-				                                          &waveformBasicNavigator.renderData);
+				waveformRenderer.renderFullScreenFromData(
+				    waveformBasicNavigator.sample, PadLEDs::image, &waveformBasicNavigator.renderData, std::nullopt,
+				    false, kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 			}
 			else {
-				waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-				                                  waveformBasicNavigator.xZoom, PadLEDs::image,
-				                                  &waveformBasicNavigator.renderData);
+				waveformRenderer.renderFullScreen(
+				    waveformBasicNavigator.sample, waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
+				    PadLEDs::image, &waveformBasicNavigator.renderData, nullptr, std::nullopt, false, kDisplayWidth,
+				    deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 			}
 			SoundDrum* soundDrum = (SoundDrum*)soundEditor.currentSound;
 			soundDrum->killAllVoices(); // stop
@@ -651,6 +674,7 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
 		display->setNextTransitionDirection(-1);
 		// Forget Slicer's cursor before the browser redraws its own pads; that redraw supplies the next LED send.
 		PadLEDs::clearTickSquares(false);
+		oledPlayheadState_.reset();
 		close();
 	}
 	else {
@@ -1086,6 +1110,7 @@ ramError2:
 	display->setNextTransitionDirection(-1);
 	// This closes both Browser and Slicer, so clear Slicer's cursor before Instrument Clip View redraws.
 	PadLEDs::clearTickSquares(false);
+	oledPlayheadState_.reset();
 	sampleBrowser.exitAndNeverDeleteDrum();
 	uiNeedsRendering(&instrumentClipView);
 	return true;

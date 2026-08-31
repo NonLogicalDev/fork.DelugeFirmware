@@ -136,6 +136,7 @@ bool SampleMarkerEditor::getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) {
 bool SampleMarkerEditor::opened() {
 	endKitRowAudition();
 	boundSwitchPressActive = false;
+	oledPlayheadState_.reset();
 
 	if (getRootUI() == &keyboardScreen) {
 		PadLEDs::skipGreyoutFade();
@@ -787,6 +788,7 @@ ActionResult SampleMarkerEditor::buttonAction(deluge::hid::Button b, bool on, bo
 ActionResult SampleMarkerEditor::exitUI() {
 	endKitRowAudition();
 	boundSwitchPressActive = false;
+	oledPlayheadState_.reset();
 	if (markerType == MarkerType::START || markerType == MarkerType::END) {
 		selectedPlaybackBound = reverseRemap(markerType);
 	}
@@ -1013,7 +1015,8 @@ ActionResult SampleMarkerEditor::timerCallback() {
 		}
 
 		waveformRenderer.renderOneCol(waveformBasicNavigator.sample, x, PadLEDs::image,
-		                              &waveformBasicNavigator.renderData);
+		                              &waveformBasicNavigator.renderData, false, std::nullopt,
+		                              deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 		renderMarkerInCol(x, PadLEDs::image, markerType, 0, kDisplayHeight, false);
 		PadLEDs::sortLedsForCol(x);
 		break;
@@ -1034,9 +1037,11 @@ ActionResult SampleMarkerEditor::timerCallback() {
 			}
 
 			waveformRenderer.renderOneCol(waveformBasicNavigator.sample, x, PadLEDs::image,
-			                              &waveformBasicNavigator.renderData);
+			                              &waveformBasicNavigator.renderData, false, std::nullopt,
+			                              deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 			waveformRenderer.renderOneCol(waveformBasicNavigator.sample, otherMarkerX, PadLEDs::image,
-			                              &waveformBasicNavigator.renderData);
+			                              &waveformBasicNavigator.renderData, false, std::nullopt,
+			                              deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 
 			renderColumn(x, PadLEDs::image, cols, supressMask);
 			renderColumn(otherMarkerX, PadLEDs::image, cols, supressMask);
@@ -1051,7 +1056,8 @@ ActionResult SampleMarkerEditor::timerCallback() {
 			}
 
 			waveformRenderer.renderOneCol(waveformBasicNavigator.sample, x, PadLEDs::image,
-			                              &waveformBasicNavigator.renderData);
+			                              &waveformBasicNavigator.renderData, false, std::nullopt,
+			                              deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 
 			// render the selected marker solid, and flash the rest of the column with the color for the other marker
 			renderColumn(x, PadLEDs::image, cols, supressMask);
@@ -1190,52 +1196,71 @@ void SampleMarkerEditor::graphicsRoutine() {
 	}
 #endif
 
-	if (PadLEDs::flashCursor == FLASH_CURSOR_OFF) {
-		return;
-	}
-
 	int32_t newTickSquare = 255;
 
 	VoiceSample* voiceSample = nullptr;
 	SamplePlaybackGuide* guide = nullptr;
+	Sample* displayedSample = waveformBasicNavigator.sample;
 
 	// InstrumentClips / Samples
-	if (getCurrentClip()->type == ClipType::INSTRUMENT) {
-		if (soundEditor.currentSound->hasActiveVoices()) {
-			auto valid_voices_view =
-			    soundEditor.currentSound->voices() | std::views::filter([](const Sound::ActiveVoice& voice) {
-				    // Ensure correct MultisampleRange.
-				    return voice->guides[soundEditor.currentSourceIndex].audioFileHolder
-				           == soundEditor.currentMultiRange->getAudioFileHolder();
-			    });
+	if (displayedSample && getCurrentClip()->type == ClipType::INSTRUMENT) {
+		AudioFileHolder* holder =
+		    soundEditor.currentMultiRange ? soundEditor.currentMultiRange->getAudioFileHolder() : nullptr;
+		if (holder && holder->audioFile == displayedSample && soundEditor.currentSound
+		    && soundEditor.currentSound->hasActiveVoices()) {
+			const int32_t sourceIndex = soundEditor.currentSourceIndex;
+			const int32_t centerPart = soundEditor.currentSound->numUnison >> 1;
+			auto isPlayableVoice = [holder, sourceIndex, centerPart](const Sound::ActiveVoice& voice) {
+				const VoiceUnisonPartSource& part = voice->unisonParts[centerPart].sources[sourceIndex];
+				return deluge::gui::waveform::isWaveformPlayheadCandidate(
+				    voice->guides[sourceIndex].audioFileHolder == holder, part.active, part.voiceSample != nullptr);
+			};
+			auto valid_voices_view = soundEditor.currentSound->voices() | std::views::filter(isPlayableVoice);
 
 			if (!valid_voices_view.empty()) {
 				auto& assigned_voice = *std::ranges::max_element(valid_voices_view, {}, &Voice::orderSounded);
 
-				VoiceUnisonPartSource* part = &assigned_voice->unisonParts[soundEditor.currentSound->numUnison >> 1]
-				                                   .sources[soundEditor.currentSourceIndex];
-				if (part != nullptr && part->active) {
-					voiceSample = part->voiceSample;
-					guide = &assigned_voice->guides[soundEditor.currentSourceIndex];
-				}
+				VoiceUnisonPartSource* part = &assigned_voice->unisonParts[centerPart].sources[sourceIndex];
+				voiceSample = part->voiceSample;
+				guide = &assigned_voice->guides[sourceIndex];
 			}
 		}
 	}
 
 	// AudioClips
-	else {
-		voiceSample = getCurrentAudioClip()->voiceSample;
-		guide = &getCurrentAudioClip()->guide;
+	else if (displayedSample) {
+		AudioClip* clip = getCurrentAudioClip();
+		if (clip && clip->sampleHolder.audioFile == displayedSample) {
+			voiceSample = clip->voiceSample;
+			guide = &clip->guide;
+		}
 	}
 
+	int32_t samplePos = 0;
 	if (voiceSample) {
-		int32_t samplePos = voiceSample->getPlaySample(waveformBasicNavigator.sample, guide);
+		samplePos = voiceSample->getPlaySample(displayedSample, guide);
 		if (samplePos >= waveformBasicNavigator.xScroll) {
 			newTickSquare = (samplePos - waveformBasicNavigator.xScroll) / waveformBasicNavigator.xZoom;
 			if (newTickSquare >= kDisplayWidth) {
 				newTickSquare = 255;
 			}
 		}
+	}
+	if (display->haveOLED()
+	    && oledPlayheadState_.update(
+	        {
+	            .displayedSample = displayedSample,
+	            .playingSample = voiceSample ? displayedSample : nullptr,
+	            .samplePosition = samplePos,
+	            .xScroll = waveformBasicNavigator.xScroll,
+	            .xZoom = waveformBasicNavigator.xZoom,
+	        },
+	        AudioEngine::audioSampleTimer)) {
+		renderUIsForOled();
+	}
+
+	if (PadLEDs::flashCursor == FLASH_CURSOR_OFF) {
+		return;
 	}
 
 	uint8_t tickSquares[kDisplayHeight];
@@ -1366,6 +1391,9 @@ void SampleMarkerEditor::renderOLED(deluge::hid::display::oled_canvas::Canvas& c
 		int32_t x = viewport.samplePositionToX(cols[marker].pos, endBoundary);
 		drawOledMarker(canvas, x, type == markerType);
 	}
+	deluge::gui::waveform::renderOledWaveformPlayhead(canvas, oledPlayheadState_, sample,
+	                                                  waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
+	                                                  kOledWaveformTop, kOledWaveformBottom);
 }
 
 void SampleMarkerEditor::loopUnlock() {
@@ -1516,8 +1544,9 @@ bool SampleMarkerEditor::renderMainPads(uint32_t whichRows, RGB image[][kDisplay
 
 	if (display->haveOLED() && image == PadLEDs::image) {
 		const auto oledWaveform = waveformBasicNavigator.prepareOledWaveformForPadRendering();
-		waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, image,
-		                                          &waveformBasicNavigator.renderData);
+		waveformRenderer.renderFullScreenFromData(
+		    waveformBasicNavigator.sample, image, &waveformBasicNavigator.renderData, std::nullopt, false,
+		    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 		if (!oledWaveform.complete) {
 			uiNeedsRendering(this, 0xFFFFFFFF, 0);
 		}
@@ -1530,7 +1559,9 @@ bool SampleMarkerEditor::renderMainPads(uint32_t whichRows, RGB image[][kDisplay
 			waveformBasicNavigator.invalidateOledPadRenderData();
 		}
 		waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-		                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData);
+		                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData,
+		                                  nullptr, std::nullopt, false, kDisplayWidth,
+		                                  deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 	}
 
 	if (markerType != MarkerType::NONE) {

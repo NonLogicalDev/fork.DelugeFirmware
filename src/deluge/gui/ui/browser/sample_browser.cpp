@@ -55,6 +55,8 @@
 #include "model/model_stack.h"
 #include "model/note/note_row.h"
 #include "model/song/song.h"
+#include "model/voice/voice.h"
+#include "model/voice/voice_sample.h"
 #include "modulation/automation/auto_param.h"
 #include "modulation/params/param_manager.h"
 #include "modulation/params/param_set.h"
@@ -71,6 +73,7 @@
 #include "storage/storage_manager.h"
 #include "util/d_string.h"
 #include "util/functions.h"
+#include <algorithm>
 #include <cstring>
 
 namespace params = deluge::modulation::params;
@@ -78,6 +81,10 @@ using namespace deluge;
 using namespace gui;
 
 SampleBrowser sampleBrowser{};
+
+namespace {
+constexpr uint8_t kNoCursorColours[kDisplayHeight]{};
+}
 
 char const* allowedFileExtensionsAudio[] = {"WAV", "AIFF", "AIF", NULL};
 
@@ -257,6 +264,7 @@ void SampleBrowser::currentFileChanged(int32_t movementDirection) {
 
 void SampleBrowser::exitAndNeverDeleteDrum() {
 	display->setNextTransitionDirection(-1);
+	PadLEDs::clearTickSquares(false);
 	close();
 }
 
@@ -265,6 +273,7 @@ void SampleBrowser::exitAction() {
 	UI* redrawUI = nullptr;
 
 	display->setNextTransitionDirection(-1);
+	PadLEDs::clearTickSquares(false);
 	if (!isUIOpen(&soundEditor)) {
 		// If no file was selected, the user wanted to get out of creating this Drum.
 		// Only if some unassigned Drums
@@ -368,6 +377,7 @@ void SampleBrowser::enterKeyPress() {
 
 		if (error != Error::NONE) {
 			display->displayError(error);
+			PadLEDs::clearTickSquares(false);
 			close(); // Don't use goBackToSoundEditor() because that would do a left-scroll
 		}
 	}
@@ -657,9 +667,10 @@ void SampleBrowser::previewIfPossible(int32_t movementDirection) {
 						drawKeys();
 					}
 					else if (!qwertyVisible) {
-						waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-						                                  waveformBasicNavigator.xZoom, PadLEDs::image,
-						                                  &waveformBasicNavigator.renderData);
+						waveformRenderer.renderFullScreen(
+						    waveformBasicNavigator.sample, waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
+						    PadLEDs::image, &waveformBasicNavigator.renderData, nullptr, std::nullopt, false,
+						    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 						PadLEDs::sendOutMainPadColours();
 					}
 					qwertyCurrentlyDrawnOnscreen = qwertyVisible;
@@ -699,6 +710,56 @@ void SampleBrowser::previewIfPossible(int32_t movementDirection) {
 
 void SampleBrowser::scrollFinished() {
 	exitUIMode(UI_MODE_HORIZONTAL_SCROLL);
+	if (currentlyShowingSamplePreview && !qwertyVisible && waveformBasicNavigator.sample) {
+		// Keep the established transition frames, then apply the focused intensity to the resting waveform.
+		waveformRenderer.renderFullScreenFromData(
+		    waveformBasicNavigator.sample, PadLEDs::image, &waveformBasicNavigator.renderData, std::nullopt, false,
+		    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+		PadLEDs::sendOutMainPadColours();
+	}
+}
+
+void SampleBrowser::graphicsRoutine() {
+	if (!currentlyShowingSamplePreview && !qwertyVisible) {
+		UI::graphicsRoutine();
+		return;
+	}
+	if (PadLEDs::flashCursor == FLASH_CURSOR_OFF) {
+		return;
+	}
+
+	int32_t newTickSquare = 255;
+	Sample* displayedSample = currentlyShowingSamplePreview && !qwertyVisible ? waveformBasicNavigator.sample : nullptr;
+	SoundDrum* previewSound = AudioEngine::sampleForPreview;
+	if (displayedSample && previewSound && previewSound->hasActiveVoices()
+	    && previewSound->sources[0].ranges.getNumElements() > 0) {
+		auto* range = static_cast<MultisampleRange*>(previewSound->sources[0].ranges.getElement(0));
+		AudioFileHolder* holder = range->getAudioFileHolder();
+		if (holder->audioFile == displayedSample) {
+			const int32_t centerPart = previewSound->numUnison >> 1;
+			auto validVoices =
+			    previewSound->voices() | std::views::filter([holder, centerPart](const Sound::ActiveVoice& voice) {
+				    const VoiceUnisonPartSource& part = voice->unisonParts[centerPart].sources[0];
+				    return deluge::gui::waveform::isWaveformPlayheadCandidate(
+				        voice->guides[0].audioFileHolder == holder, part.active, part.voiceSample != nullptr);
+			    });
+			if (!validVoices.empty()) {
+				const Sound::ActiveVoice& voice = *std::ranges::max_element(validVoices, {}, &Voice::orderSounded);
+				VoiceUnisonPartSource* part = &voice->unisonParts[centerPart].sources[0];
+				const int32_t samplePos = part->voiceSample->getPlaySample(displayedSample, &voice->guides[0]);
+				if (samplePos >= waveformBasicNavigator.xScroll) {
+					newTickSquare = (samplePos - waveformBasicNavigator.xScroll) / waveformBasicNavigator.xZoom;
+					if (newTickSquare >= kDisplayWidth) {
+						newTickSquare = 255;
+					}
+				}
+			}
+		}
+	}
+
+	uint8_t tickSquares[kDisplayHeight];
+	memset(tickSquares, newTickSquare, sizeof(tickSquares));
+	PadLEDs::setTickSquares(tickSquares, kNoCursorColours);
 }
 
 void SampleBrowser::displayCurrentFilename() {
@@ -2062,8 +2123,8 @@ getOut:
 					}
 
 					kit->addDrum(drum);
-					ModelStackWithNoteRow* newNoteRowModelStack = noteRowModelStack->addNoteRow(
-					    clip->getNoteRowId(newNoteRow, noteRowIndex), newNoteRow);
+					ModelStackWithNoteRow* newNoteRowModelStack =
+					    noteRowModelStack->addNoteRow(clip->getNoteRowId(newNoteRow, noteRowIndex), newNoteRow);
 					newNoteRow->setDrum(drum, kit, newNoteRowModelStack, nullptr, &paramManager);
 				}
 				else {
@@ -2155,9 +2216,10 @@ ActionResult SampleBrowser::horizontalEncoderAction(int32_t offset) {
 			bool success = waveformBasicNavigator.scroll(offset);
 
 			if (success) {
-				waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
-				                                  waveformBasicNavigator.xZoom, PadLEDs::image,
-				                                  &waveformBasicNavigator.renderData);
+				waveformRenderer.renderFullScreen(
+				    waveformBasicNavigator.sample, waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
+				    PadLEDs::image, &waveformBasicNavigator.renderData, nullptr, std::nullopt, false, kDisplayWidth,
+				    deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
 				PadLEDs::sendOutMainPadColours();
 			}
 		}

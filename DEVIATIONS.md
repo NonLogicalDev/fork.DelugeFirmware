@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains twenty-seven deviations:
+The local stack currently contains twenty-eight deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -33,6 +33,7 @@ The local stack currently contains twenty-seven deviations:
 25. Keep playheads legible on full-screen waveform displays.
 26. Refuse incompatible Songs before changing playback or project state.
 27. Add independent persistent choke groups to Kit Sound Drum rows.
+28. Maintain an incremental, searchable keybinding catalog beside the firmware source.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -892,6 +893,35 @@ Let one Kit contain several independent sets of mutually exclusive samples while
 - Source review confirms that reorder and deletion rely on existing Sound Drum identity, Slicer anchors preserve existing state, new Slicer rows use defaults, direct Waveform Editor preview remains protected, no channel-wide MIDI message is sent, and no cross-row scan occurs from render or tick callbacks.
 - Format every affected source and localization input, regenerate localization through the established generator, compile the changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
 - On a physical OLED and seven-segment Deluge, check groups 1 and 2 in one Kit, self-retrigger, held audition, sequencer and incoming MIDI triggers, Cut, Once, Loop, Stretch, row and Kit arpeggiators, external MIDI echo shared with unrelated rows, delay and reverb tails, the dedicated Waveform Editor preview, copy and paste, reorder, deletion, Slicer anchor replacement, new slices, menu navigation, save and reload, schema refusal on older firmware, and malformed-file refusal. Physical verification remains human-controlled and does not authorize flashing or installation.
+
+## 28. Incremental keybinding catalog
+
+### Intent
+
+Keep a source-backed record of physical control bindings that can support forgotten-shortcut lookup and consistency audits as the catalog grows.
+
+### Required behavior
+
+- The repository provides `docs/keybindings/bindings.jsonl`, with one independent JSON object per line. Entries are written incrementally as bindings are reviewed; a complete action inventory is not a prerequisite for adding useful records.
+- Each record identifies the binding, applicable mode, physical gesture, semantic action and arguments, user-facing description, relevant conditions, controlled tags, search keywords, source files and symbols, and verification scope. Relevant timing, partial effects, release ownership, dispatch order, consumed failures, and cancellation remain visible.
+- Multiple bindings for one action retain a shared action identity. Separate bindings and arguments remain distinguishable so contextual reuse and possible inconsistencies can be audited.
+- The catalog declares its incomplete state and records uncertainty. Missing entries do not imply missing firmware functionality. Source review never masquerades as physical-device validation or complete reachability analysis.
+- Coverage spans global dispatch, every view and keyboard layout, inherited handlers, sample editors and slicers, browser/load/save/rename controls, menus, parameter shortcut maps, DX7 and gold-knob behavior. Configurable controls are described as families rather than an invented finite list of user assignments. Disabled or non-user input paths have explicit exclusion reasons. Describe actual local behavior, including current-UI precedence before the Panic counter.
+- Each physical control has one canonical identity. A companion registry explains aliases, the distinction between an encoder switch and rotation, coordinate spaces, and state-dependent pad roles. Holds, triggering events and ordered sequences remain distinguishable; timing and release ownership are not discarded when simplifying the displayed shortcut.
+- A separate coverage ledger maps reviewed handlers and relevant helpers to bindings or explicit exclusions. Source snapshots allow later audits to report changed files. Specific inconsistencies are recorded separately from the firmware behavior being documented.
+- Documentation defines the format and named conditions sufficiently for another agent to add compatible entries. A future search view or report consumes this catalog rather than maintaining competing handwritten records.
+
+### Compatibility and boundaries
+
+- Catalog changes do not alter firmware controls, audio, stored project data, or dispatch behavior. Discovering a discrepancy does not authorize changing that behavior.
+- Keep code and pseudocode examples in the catalog documentation rather than in this deviation contract. Physical validation, flashing, installation, publication, and upstream submission are not part of this documentation change.
+
+### Verification contract
+
+- Every line parses as one JSON object, binding IDs are unique, and referenced files and source anchors are checked against the described checkout.
+- Review representative timing, release, held-control, error, and fallback cases. Report the exact number of catalogued records and known omissions; do not infer completeness from that count.
+- Reconcile discovered input definitions with the coverage ledger, reject unresolved gaps and missing binding references, and detect changes in every referenced source file, including mapping and control-definition sources. Treat matching gestures as review candidates, not proven conflicts without their conditions and dispatch order.
+- Test accepted and rejected gesture forms, duplicate identifiers, uncovered handlers, unresolved review gaps, source drift and physical-control normalization. Keep discovery limitations and untested hardware behavior explicit.
 
 ## Maintaining this document
 

@@ -4,7 +4,7 @@
 
 This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
 
-The local stack currently contains twenty-eight deviations:
+The local stack currently contains twenty-nine deviations:
 
 1. Normalize the Korg MIDI-definition directory casing.
 2. Provide a reproducible Apple Silicon Nix build environment.
@@ -34,6 +34,7 @@ The local stack currently contains twenty-eight deviations:
 26. Refuse incompatible Songs before changing playback or project state.
 27. Add independent persistent choke groups to Kit Sound Drum rows.
 28. Maintain an incremental, searchable keybinding catalog beside the firmware source.
+29. Open a shared Song Root / Mode menu with Shift + Scale.
 
 No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
 
@@ -922,6 +923,36 @@ Keep a source-backed record of physical control bindings that can support forgot
 - Review representative timing, release, held-control, error, and fallback cases. Report the exact number of catalogued records and known omissions; do not infer completeness from that count.
 - Reconcile discovered input definitions with the coverage ledger, reject unresolved gaps and missing binding references, and detect changes in every referenced source file, including mapping and control-definition sources. Treat matching gestures as review candidates, not proven conflicts without their conditions and dispatch order.
 - Test accepted and rejected gesture forms, duplicate identifiers, uncovered handlers, unresolved review gaps, source drift and physical-control normalization. Keep discovery limitations and untested hardware behavior explicit.
+
+## 29. Shared Song Root / Mode menu
+
+### Intent
+
+Make the current musical key inspectable and editable through one small Scale menu, without giving each view a separate key or overriding tool-specific Scale controls.
+
+### Required behavior
+
+- In idle melodic Instrument Clip, Keyboard and Clip Automation views, Shift + Scale opens a menu containing Root and Mode instead of the former immediate scale-cycle action. The same gesture opens the shared Song menu in idle Session Rows and Grid, Arranger, Arranger Automation and Performance views.
+- Root selects one of the twelve pitch classes. Use the established Song root-selection behavior, which preserves note pitches and may infer a different mode from the existing notes. Read both values back from the Song after an edit; do not pretend root and mode are independent or silently transpose the Song.
+- Mode selects an enabled preset or an available saved User scale using the existing Song scale-mapping and validity rules. Display the actual current mode, including custom state, without changing it merely to fit the list. Rejected changes leave the previous musical state intact.
+- Select rotation chooses Root or Mode, Select press enters value editing, and rotation edits the selected value. Back leaves value editing first, then returns to the originating view. OLED shows the two items and their actual values; seven-segment hardware uses readable names and values through its established display conventions.
+- The initiating Scale press is owned through its release, even if Shift is released first or the menu is closed before Scale is released. One menu-opening gesture must not also cycle a scale or toggle Scale mode.
+- Keep Root and Mode compact near the top of the OLED, where the recessed display remains readable. Pads remain undimmed. Pass every pad event and Vertical turn to the underlying native view, preserving that view's modifiers, playing, editing, scrolling and navigation. Do not create a separate audition mode or pad-release policy. Only refresh this menu's display if it remains current after native input.
+- Decline Root and Mode edits while pads or native editing gestures are active, with concise release-pad feedback, so releases continue to refer to the original mapping. Do not stop held notes or synthesize releases to make a key edit possible.
+- Preserve ordinary undo for native actions through the menu, returning to the originating musical view rather than to the menu. If the current keyboard layout cannot represent the edited key, keep that key and select a compatible layout with visible feedback instead of silently replacing the scale.
+- Opening, viewing and closing the menu do not change root, mode, Clip scale-mode membership, notes, playback or undo history. No-op and rejected edits do not clear undo. Actual accepted edits retain the established musical semantics and existing undo limitations; this feature does not add scale-edit undo support.
+
+### Compatibility and boundaries
+
+- Preserve Velocity Drums Scale velocity-profile and fixed-velocity controls, all other Kit Scale behavior, and Sound Editor horizontal-menu page/group navigation. Preserve higher-priority Learn, Load, pad and pressed-encoder combinations.
+- Do not add this menu to an existing menu, browser, sample editor, Slicer or recorder, or use an unrelated current Clip as an implicit Song target. Do not implement Scale-modified Horizontal or Vertical encoder shortcuts as part of this menu.
+- Keep root and mode in their existing Song state. Add no saved field, save schema, timer or audio-path processing. Playing audio continues; opening the menu must not retrigger notes or change recording behavior. Flashing, installation and publication remain outside the feature.
+
+### Verification contract
+
+- Check supported and excluded views, extra held controls, both Shift/Scale release orders, closing before Scale release, and ordinary Scale behavior after returning.
+- Check all roots, current/custom/disabled/User modes, invalid scale transitions, no-op edits and fresh Song state. Verify that opening and rejected edits preserve undo, and that displayed values reflect the actual Song after root inference or scale mapping.
+- Run focused input and menu-state tests, source formatting, the configured host suite, affected target compilation, independent review and one uninterrupted logged local Release build. Check navigation, display readability and live playing behavior on OLED and seven-segment hardware separately with the operator.
 
 ## Maintaining this document
 

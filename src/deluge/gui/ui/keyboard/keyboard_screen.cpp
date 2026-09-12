@@ -957,12 +957,24 @@ void KeyboardScreen::displayOrLanguageChanged() {
 
 void KeyboardScreen::openedInBackground() {
 	getCurrentInstrumentClip()->onKeyboardScreen = true;
+	refreshScaleMapping();
+}
+
+bool KeyboardScreen::refreshScaleMapping(bool preserveSongScale) {
+	bool changedLayout = false;
+	auto& layout = getCurrentInstrumentClip()->keyboardState.currentLayout;
+	if (preserveSongScale && !layout_list[layout]->supportsScale(currentSong->getCurrentScale())) {
+		// Chord precalculation otherwise changes the Song back to its last supported scale.
+		layout = KeyboardLayoutType::KeyboardLayoutTypeInKey;
+		changedLayout = true;
+	}
 
 	// Ensure scroll values are calculated in bounds
 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->handleHorizontalEncoder(0, false, pressedPads,
 	                                                                                              xEncoderActive);
 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->precalculate();
 	requestRendering(); // This one originally also included sidebar, the other ones didn't
+	return changedLayout;
 }
 
 void KeyboardScreen::checkNewInstrument(Instrument* newInstrument) {

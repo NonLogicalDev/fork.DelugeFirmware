@@ -20,6 +20,7 @@
 #include "gui/l10n/l10n.h"
 #include "gui/ui/audio_recorder.h"
 #include "gui/ui/load/load_song_ui.h"
+#include "gui/ui/scale_menu.h"
 #include "gui/ui/ui.h"
 #include "gui/ui_timer_manager.h"
 #include "gui/views/arranger_view.h"
@@ -149,6 +150,19 @@ ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 	}
 
 	ActionResult result;
+	if (b == SCALE_MODE) {
+		bool otherButtonHeld = false;
+		for (int32_t x = 0; x <= NUM_BUTTON_COLS; ++x) {
+			for (int32_t y = 0; y < NUM_BUTTON_ROWS; ++y) {
+				auto held = fromXY(x, y);
+				otherButtonHeld |= buttonStates[x][y] && held != SCALE_MODE && held != SHIFT;
+			}
+		}
+		result = scaleMenu.handleScaleButton(on, inCardRoutine, otherButtonHeld);
+		if (result != ActionResult::NOT_DEALT_WITH) {
+			return result;
+		}
+	}
 
 	// See if it was one of the mod buttons
 	for (int32_t i = 0; i < kNumModButtons; i++) {

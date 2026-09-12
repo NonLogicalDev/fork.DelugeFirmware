@@ -28,6 +28,7 @@ class UI;
 class ClipView : public ClipNavigationTimelineView {
 public:
 	ClipView() = default;
+	void stopShortcutOverview();
 
 	uint32_t getMaxZoom() override;
 	uint32_t getMaxLength() override;
@@ -55,7 +56,6 @@ protected:
 	uint32_t changeClipLength(int32_t offset, uint32_t oldLength, Action*& action);
 
 	void maybeStartShortcutOverview(deluge::hid::Button b, bool on);
-	void stopShortcutOverview();
 	bool shouldRenderShortcutsOverview() const;
 	bool maybeRenderShortcutsOverview(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
 	                                  uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea);

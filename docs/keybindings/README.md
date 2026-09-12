@@ -1,6 +1,6 @@
 # Keybinding catalog
 
-`bindings.jsonl` contains 1,261 source-reviewed binding records from the first full source inventory of this local firmware checkout. The coverage ledger accounts for all 384 definitions discovered by the input-handler scanner, plus manually reviewed helpers and mappings: 508 ledger rows in total. The audit tracks 180 source files across bindings, control definitions and the ledger. This is source documentation, not a hardware-tested guarantee that every possible dispatch path has been found. Firmware source remains authoritative for runtime behavior.
+`bindings.jsonl` contains 1,273 source-reviewed binding records from the full source inventory and subsequent shortcut changes in this local firmware checkout. The coverage ledger accounts for all 391 definitions discovered by the input-handler scanner, plus manually reviewed helpers and mappings: 518 ledger rows in total. The audit tracks 184 source files across bindings, control definitions and the ledger. This is source documentation, not a hardware-tested guarantee that every possible dispatch path has been found. Firmware source remains authoritative for runtime behavior.
 
 Coverage includes global controls, Session Rows/Grid, Arranger, Audio/Instrument Clips, Automation, Performance, keyboard layouts and sidebar controls, sample editors and slicers, browsers/load/save/rename, Sound Editor, context menus, parameter-pad tables, DX7, gold-knob behavior and MIDI-learning gestures. Configurable parameter/assignment families are represented as families; fixed Sound Editor and DX7 pad targets have individual entries. Disabled legacy hardware branches and no-op/forwarding handlers have explicit coverage explanations. Arbitrary user-learned MIDI assignments are not a finite list of physical shortcuts.
 
@@ -39,6 +39,9 @@ Current tags: `transport`, `recording`, `looping`, `clipboard`, `navigation`, `e
 | Predicate | Meaning and source |
 | --- | --- |
 | `shift.active` | Effective `Buttons::isShiftButtonPressed()` state. |
+| `scaleMenu.entryEligible` | `ScaleMenu::canOpen`: a Song exists, current UI is the root, UI mode is NONE, effective Shift is active, no matrix pad or physical button other than Shift/Scale is held, and root is Session, Arranger, Performance, Arranger Automation, or a melodic Instrument Clip/Keyboard/Clip Automation view. Existing overlays, Kit clip views and Audio Clip view are excluded. |
+| `scaleMenu.ownsRelease` | `ScaleMenuGesture::ownsRelease_`, armed when opening is attempted and cleared by the initiating Scale release even after closing the menu. |
+| `scaleMenu.editing`, `scaleMenu.row` | `ScaleMenu::editing_` and `row_`; row 0 is Root and row 1 is Mode. These select field navigation versus immediate value editing. |
 | `slicer.currentSliceValid` | `currentSlice < numManualSlice` in the Vertical press branch. |
 | `output.kind` | `getCurrentOutputType()` in `InstrumentClipView::buttonAction`. |
 | `midiLearn.active` | `isUIModeActive(UI_MODE_MIDI_LEARN)` in that handler. |
@@ -56,6 +59,8 @@ Current tags: `transport`, `recording`, `looping`, `clipboard`, `navigation`, `e
 | `dispatch.shiftReachedGlobalFallback` | The current UI did not consume or defer this Shift event before the Panic counter in `Buttons::buttonAction`. |
 
 These definitions support review; they are not a complete condition solver. Trace the entire forwarding path before claiming that a binding is reachable in every mode or that two conditions cannot overlap.
+
+The Scale menu forwards pads and Vertical rotation to the originating view's native handlers, including their modifiers, actions and no-op cases. Its delegation records are not replacement bindings for every underlying action. Select and Back still navigate the menu. A native pad gesture may open another UI; the Scale menu must not overwrite that UI's display. Normal note and release handling stays with the originating mode, without a separate menu-owned note lifecycle.
 
 ## Incremental maintenance
 
@@ -78,9 +83,9 @@ uv run docs/keybindings/test_catalog.py
 - `validate.py` checks JSON Schema, unique IDs, registered control families/events, and source file, symbol-token and anchor existence. Token checks do not establish symbol ownership or predicate correctness.
 - `coverage.jsonl` records reviewed handlers, their binding IDs, exclusions, reasons and file hashes. `inventory.py` discovers likely input definitions, including inline headers; it is a name-based scanner, not a C++ parser. Overloads in one file reconcile by method name, so ledger review is still necessary.
 - `source-snapshot.json` records hashes of all binding and control-registry source references. `audit.py` fails for uncovered scanner candidates, changed files, unresolved ledger gaps, or unknown binding references. Refresh hashes only after reviewing the source changes; replacing hashes alone is not a review.
-- `audit.py --json` lists 190 same-context/gesture groups for follow-up. These are potential overlaps, not 190 bugs: conditions and dispatch precedence often distinguish them. It does not yet resolve inherited contexts, overlapping pad roles, or arbitrary pseudocode conditions.
+- `audit.py --json` lists 193 same-context/gesture groups for follow-up. These are potential overlaps, not 193 bugs: conditions and dispatch precedence often distinguish them. It does not yet resolve inherited contexts, overlapping pad roles, or arbitrary pseudocode conditions.
 - `findings.jsonl` records specific source observations separately from desired firmware behavior. No fixes are implied.
 - `test_catalog.py` tests valid/invalid gestures, duplicate IDs, missing coverage, source drift (including helper-only references), unresolved gaps and gesture hold-order normalization.
 - `merge.py` emits an `apply_patch` patch for incremental worker-shard integration; it never writes or silently removes records. Reconcile aliases and semantics after merging.
 
-The searchable local page and executable context/condition resolver remain pending. No firmware behavior changed and no firmware rebuild is needed for this catalog.
+The searchable local page and executable context/condition resolver remain pending. Catalog-only changes do not require a firmware rebuild; new firmware shortcuts still require their own build and device validation.

@@ -147,6 +147,8 @@ public:
 	void learnScaleFromCurrentNotes();
 	/// Returns true if the song has a user scale.
 	bool hasUserScale();
+	/// Saved User scale, including when a preset is currently selected. Empty means unavailable.
+	const NoteSet& getUserScaleNotes() const { return userScaleNotes; }
 	/// Sets root note of key. If the previous scale no longer fits, changes to a new implied scale, which
 	/// can result in a new user scale being set.
 	void setRootNote(int32_t newRootNote, InstrumentClip* clipToAvoidAdjustingScrollFor = nullptr);

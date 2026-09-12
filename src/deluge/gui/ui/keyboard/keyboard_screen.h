@@ -38,6 +38,8 @@ public:
 	KeyboardScreen();
 
 	ActionResult padAction(int32_t x, int32_t y, int32_t velocity) override;
+	// A Song-key editor must preserve its selected scale even when Chord layout cannot display it.
+	bool refreshScaleMapping(bool preserveSongScale = false);
 	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
 	ActionResult verticalEncoderAction(int32_t offset, bool inCardRoutine) override;
 	ActionResult horizontalEncoderAction(int32_t offset) override;

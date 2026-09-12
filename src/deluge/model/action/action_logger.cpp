@@ -19,6 +19,7 @@
 #include "definitions_cxx.hpp"
 #include "gui/ui/keyboard/keyboard_screen.h"
 #include "gui/ui/load/load_pattern_ui.h"
+#include "gui/ui/scale_menu.h"
 #include "gui/ui/ui.h"
 #include "gui/views/arranger_view.h"
 #include "gui/views/audio_clip_view.h"
@@ -103,13 +104,16 @@ Action* ActionLogger::getNewActionInternal(ActionType newActionType, ActionAddit
 		return nullptr;
 	}
 
+	// ScaleMenu forwards native pad/encoder actions unchanged, including their undo navigation and coalescing.
+	bool scaleMenuContext = getCurrentUI() == &scaleMenu;
+	UI* actionView = scaleMenuContext ? static_cast<UI*>(getRootUI()) : getCurrentUI();
 	// If not on a View, not allowed!
 	// Exception for sound editor note editor UI which can edit notes on the grid
 	// Exception for sound editor note row editor UI which can edit note rows on the grid
 	// Exception for loadPatternUI which does edit note rows on the grid
 	if ((getCurrentUI() != getRootUI())
 	    && (!(getCurrentUI() == &soundEditor && (soundEditor.inNoteEditor() || soundEditor.inNoteRowEditor())))
-	    && (getCurrentUI() != &loadPatternUI)) {
+	    && (getCurrentUI() != &loadPatternUI) && !scaleMenuContext) {
 		return nullptr;
 	}
 
@@ -139,7 +143,7 @@ Action* ActionLogger::getNewActionInternal(ActionType newActionType, ActionAddit
 	// See if we can add to an existing action...
 	else if (addToExistingIfPossible != ActionAddition::NOT_ALLOWED && firstAction[BEFORE]
 	         && firstAction[BEFORE]->openForAdditions && firstAction[BEFORE]->type == newActionType
-	         && firstAction[BEFORE]->view == getCurrentUI()
+	         && firstAction[BEFORE]->view == actionView
 	         && (!clipRequiredForAddition || firstAction[BEFORE]->currentClip == clipRequiredForAddition)
 	         && (addToExistingIfPossible == ActionAddition::ALLOWED
 	             || firstAction[BEFORE]->creationTime == AudioEngine::audioSampleTimer)) {
@@ -194,7 +198,7 @@ Action* ActionLogger::getNewActionInternal(ActionType newActionType, ActionAddit
 		// newAction->modKnobModeSongView = currentSong->modKnobMode;
 		newAction->affectEntireSongView = currentSong->affectEntire;
 
-		newAction->view = getCurrentUI();
+		newAction->view = actionView;
 		newAction->currentClip = getCurrentClip();
 		actionNeedsCommit = true;
 	}

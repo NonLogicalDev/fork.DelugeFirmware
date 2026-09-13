@@ -76,6 +76,7 @@ add_executable(UnitTests
         lfo_tests.cpp
         scale_tests.cpp
         value_scaling_tests.cpp
+        envelope_time_tests.cpp
         clip_iterator_tests.cpp
         function_tests.cpp
         sync_tests.cpp

@@ -1,5 +1,9 @@
 # Deluge Community Firmware
 
+## About this fork
+
+See [Features and changes in this fork](DEVIATIONS.md) for the behavior, compatibility guarantees, and limitations of our additions to upstream firmware.
+
 ## Dear Deluge owners
 If you want to start using the community firmware please visit https://delugecommunity.com/ for all relevant details.
 

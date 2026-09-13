@@ -27,6 +27,9 @@ public:
 	    : PatchedParam(newName, title, newP, source_id), FormattedTitle(title, source_id + 1) {}
 
 	[[nodiscard]] std::string_view getTitle() const override { return FormattedTitle::title(); }
+	void selectEncoderAction(int32_t offset) override;
+	void drawValue() override;
+	[[nodiscard]] int32_t getMaxValue() const override { return isTime() ? 5000 : 50; }
 
 	void getColumnLabel(StringBuf& label) override {
 		const auto& shortNameString = getShortEnvelopeParamName(menu_item::PatchedParam::getP());
@@ -34,6 +37,16 @@ public:
 	}
 
 private:
+	bool isTime() const { return timeSegment_; }
+	void readCurrentValue() override;
+	int32_t getFinalValue() override;
+	void drawPixelsForOled() override;
+	void renderInHorizontalMenu(const SlotPosition& slot) override;
+	void getNotificationValue(StringBuf& value) override;
+	void appendTime(StringBuf& value);
+	int32_t rawValue_ = 0;
+	bool timeSegment_ = menu_item::PatchedParam::getP() != modulation::params::LOCAL_ENV_0_SUSTAIN;
+
 	static l10n::String getShortEnvelopeParamName(uint8_t param) {
 		using namespace deluge::modulation;
 		switch (param) {

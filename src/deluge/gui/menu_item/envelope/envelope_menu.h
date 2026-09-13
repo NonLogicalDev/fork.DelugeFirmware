@@ -19,6 +19,7 @@
 #include "gui/menu_item/horizontal_menu.h"
 #include "hid/display/oled.h"
 #include "segment.h"
+#include "time_value.h"
 
 using namespace deluge::hid::display;
 
@@ -32,11 +33,15 @@ public:
 	[[nodiscard]] std::string_view getTitle() const override { return FormattedTitle::title(); }
 
 	void renderMenuItems(std::span<MenuItem*> items, const MenuItem* currentItem) override {
-		// Get the values in 0-50 range
-		const int32_t attack = static_cast<Segment*>(items[0])->getValue();
-		const int32_t decay = static_cast<Segment*>(items[1])->getValue();
-		const int32_t sustain = static_cast<Segment*>(items[2])->getValue();
-		const int32_t release = static_cast<Segment*>(items[3])->getValue();
+		// Time segments use hundredths; Sustain still uses whole units. Keep fine fractions in the graph.
+		const auto valueForGraph = [](MenuItem* item) {
+			auto* segment = static_cast<Segment*>(item);
+			return graphValue(segment->getValue(), segment->getMaxValue());
+		};
+		const float attack = valueForGraph(items[0]);
+		const float decay = valueForGraph(items[1]);
+		const float sustain = valueForGraph(items[2]);
+		const float release = valueForGraph(items[3]);
 
 		// Constants
 		constexpr int32_t padding_x = 4;

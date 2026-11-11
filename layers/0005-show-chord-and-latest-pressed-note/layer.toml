@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "show chord and latest pressed note\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,296 @@
+diff --git a/src/deluge/gui/ui/keyboard/chords.cpp b/src/deluge/gui/ui/keyboard/chords.cpp
+index 1a863982dbda36ee9978c3531dff93ea756e8fd2..82f26a2282ee641973499c27336e1816d4beb113 100644
+--- a/src/deluge/gui/ui/keyboard/chords.cpp
++++ b/src/deluge/gui/ui/keyboard/chords.cpp
+@@ -147,10 +147,10 @@ PLACE_SDRAM_DATA const Chord kDim = {"DIM",
+ PLACE_SDRAM_DATA const Chord kFullDim = {
+     "FULLDIM", NoteSet({ROOT, MIN3, DIM5, DIM7}), {{ROOT, MIN3, DIM5, DIM7, NONE, NONE, NONE}}};
+ PLACE_SDRAM_DATA const Chord kAug = {"AUG",
+-                                     NoteSet({ROOT, MIN3, AUG5}),
+-                                     {{ROOT, MIN3, AUG5, NONE, NONE, NONE, NONE},
+-                                      {ROOT, OCT + MIN3, AUG5, NONE, NONE, NONE, NONE},
+-                                      {ROOT, OCT + MIN3, AUG5, -OCT, NONE, NONE, NONE}}};
++                                     NoteSet({ROOT, MAJ3, AUG5}),
++                                     {{ROOT, MAJ3, AUG5, NONE, NONE, NONE, NONE},
++                                      {ROOT, OCT + MAJ3, AUG5, NONE, NONE, NONE, NONE},
++                                      {ROOT, OCT + MAJ3, AUG5, -OCT, NONE, NONE, NONE}}};
+ PLACE_SDRAM_DATA const Chord kSus2 = {"SUS2",
+                                       NoteSet({ROOT, MAJ2, P5}),
+                                       {{ROOT, MAJ2, P5, NONE, NONE, NONE, NONE},
+@@ -286,6 +286,58 @@ PLACE_SDRAM_DATA const Chord kMinor6 = {"-6",
+                                             {ROOT, MIN3, P5, MAJ6, NONE, NONE, NONE},
+                                         }};
+ 
++namespace {
++
++const std::array<const Chord*, kUniqueChords - 1> kDetectableChords = {
++    &kMajor,  &kMinor,  &k6,         &k2,        &k69,       &kSus2,       &kSus4,       &k7,
++    &k7Sus4,  &k7Sus2,  &kM7,        &kMinor7,   &kMinor2,   &kMinor4,     &kDim,        &kFullDim,
++    &kAug,    &kMinor6, &kMinorMaj7, &kMinor7b5, &kMinor9b5, &kMinor7b5b9, &k9,          &kM9,
++    &kMinor9, &k11,     &kM11,       &kMinor11,  &k13,       &kM13,        &kM13Sharp11, &kMinor13,
++};
++
++ChordMatch findMatchAtRoot(NoteSet heldPitchClasses, uint8_t rootPitchClass) {
++	NoteSet intervals = heldPitchClasses.modulateByOffset(kOctaveSize - rootPitchClass);
++	for (const Chord* chord : kDetectableChords) {
++		if (chord->intervalSet == intervals) {
++			return {.root = static_cast<int8_t>(rootPitchClass), .suffix = chord->name};
++		}
++	}
++	return {};
++}
++
++} // namespace
++
++ChordMatch findExactChord(NoteSet heldPitchClasses, uint8_t bassPitchClass) {
++	if (heldPitchClasses.count() < 3) {
++		return {};
++	}
++
++	bassPitchClass %= kOctaveSize;
++	if (heldPitchClasses.has(bassPitchClass)) {
++		ChordMatch bassMatch = findMatchAtRoot(heldPitchClasses, bassPitchClass);
++		if (bassMatch.found()) {
++			return bassMatch;
++		}
++	}
++
++	ChordMatch inversionMatch;
++	for (uint8_t rootPitchClass = 0; rootPitchClass < kOctaveSize; ++rootPitchClass) {
++		if (rootPitchClass == bassPitchClass || !heldPitchClasses.has(rootPitchClass)) {
++			continue;
++		}
++
++		ChordMatch match = findMatchAtRoot(heldPitchClasses, rootPitchClass);
++		if (!match.found()) {
++			continue;
++		}
++		if (inversionMatch.found()) {
++			return {};
++		}
++		inversionMatch = match;
++	}
++	return inversionMatch;
++}
++
+ PLACE_SDRAM_DATA const std::array<const Chord, 10> majorChords = {kMajor, kM7,  k6,    k2,    k69,
+                                                                   kM9,    kM13, kSus4, kSus2, kM13Sharp11};
+ 
+diff --git a/src/deluge/gui/ui/keyboard/chords.h b/src/deluge/gui/ui/keyboard/chords.h
+index be34ef822d596852789ef19eccb0170c6916d312..f5fe3e02df6140e025ca9f0bd22dec2197fdab1f 100644
+--- a/src/deluge/gui/ui/keyboard/chords.h
++++ b/src/deluge/gui/ui/keyboard/chords.h
+@@ -88,6 +88,17 @@ struct Chord {
+ 	Voicing voicings[kUniqueVoicings] = {0};
+ };
+ 
++struct ChordMatch {
++	int8_t root = -1;
++	const char* suffix = nullptr;
++
++	[[nodiscard]] bool found() const { return root >= 0 && suffix != nullptr; }
++};
++
++/// Identify an exact chord from its held pitch classes. The bass is preferred when it is a valid root; otherwise,
++/// a unique matching inversion is accepted.
++ChordMatch findExactChord(NoteSet heldPitchClasses, uint8_t bassPitchClass);
++
+ // ChordList
+ extern const Chord kEmptyChord;
+ extern const Chord kMajor;
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+index 89202e7d962a341bf2b11d0d2a9470779d1ff673..e0ea5cb2acb6338574f5f8aa9fd26db82b56bd66 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+@@ -19,6 +19,7 @@
+ #include "extern.h"
+ #include "gui/menu_item/multi_range.h"
+ #include "gui/ui/audio_recorder.h"
++#include "gui/ui/keyboard/chords.h"
+ #include "gui/ui/sound_editor.h"
+ #include "gui/ui_timer_manager.h"
+ #include "gui/views/arranger_view.h"
+@@ -185,6 +186,7 @@ ActionResult KeyboardScreen::padAction(int32_t x, int32_t y, int32_t velocity) {
+ 	}
+ 	else {
+ 		updateActiveNotes();
++		displayHeldChord();
+ 	}
+ 
+ 	// The main pad grid only changes when the set of active notes changes, but rendering it re-transmits the whole
+@@ -384,6 +386,54 @@ void KeyboardScreen::updateActiveNotes() {
+ 	}
+ }
+ 
++void KeyboardScreen::displayHeldChord() {
++	KeyboardLayoutType layout = getCurrentInstrumentClip()->keyboardState.currentLayout;
++	if (getCurrentOutputType() == OutputType::KIT || layout == KeyboardLayoutType::KeyboardLayoutTypeChord
++	    || layout == KeyboardLayoutType::KeyboardLayoutTypeChordLibrary) {
++		chordNameDisplayed = false;
++		return;
++	}
++	if (currentNotesState.count == 0) {
++		chordNameDisplayed = false;
++		return;
++	}
++
++	ChordMatch match = findExactChord(currentNotesState.toPitchClasses(), currentNotesState.lowestNote());
++	if (!match.found()) {
++		if (!chordNameDisplayed) {
++			return;
++		}
++
++		chordNameDisplayed = false;
++		if (currentNotesState.count == 1 && !currentNotesState.notes[0].generatedNote) {
++			drawNoteCode(currentNotesState.notes[0].note);
++		}
++		else if (currentNotesState.count > 1) {
++			if (display->haveOLED()) {
++				deluge::hid::display::OLED::removePopup();
++			}
++			else {
++				redrawNumericDisplay();
++			}
++		}
++		return;
++	}
++
++	char rootName[3] = {0};
++	int32_t isNatural = 1;
++	noteCodeToString(match.root, rootName, &isNatural, false);
++
++	char chordName[16];
++	snprintf(chordName, sizeof(chordName), "%s%s", rootName, match.suffix);
++	if (display->haveOLED()) {
++		display->popupTextTemporary(chordName);
++	}
++	else {
++		display->setScrollingText(chordName, 0);
++	}
++	chordNameDisplayed = true;
++}
++
+ void KeyboardScreen::noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument,
+                              int32_t note) {
+ 	NoteRow* noteRow = (static_cast<InstrumentClip*>(activeInstrument.getActiveClip()))->getNoteRowForYNote(note);
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.h b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+index af65d480e2b90f8cec443b2da96c7d82cf77f559..39d0ca283c762ed4816cd0b7985eeef5c16fb193 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.h
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+@@ -72,6 +72,7 @@ private:
+ 
+ 	void evaluateActiveNotes();
+ 	void updateActiveNotes();
++	void displayHeldChord();
+ 
+ 	void noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument, int32_t note);
+ 
+@@ -94,6 +95,7 @@ private:
+ 	PressedPad pressedPads[kMaxNumKeyboardPadPresses];
+ 	NotesState lastNotesState;
+ 	NotesState currentNotesState;
++	bool chordNameDisplayed = false;
+ 
+ 	bool keyboardButtonActive = false;
+ 	bool keyboardButtonUsed = false;
+diff --git a/src/deluge/gui/ui/keyboard/notes_state.h b/src/deluge/gui/ui/keyboard/notes_state.h
+index 5ffb037d0e9e7e8e15310e657142d5e8e0c2a7f0..a8663f3fb38477b7607f0ef4d65ce9d938f06d0f 100644
+--- a/src/deluge/gui/ui/keyboard/notes_state.h
++++ b/src/deluge/gui/ui/keyboard/notes_state.h
+@@ -18,6 +18,8 @@
+ #pragma once
+ 
+ #include "definitions_cxx.hpp"
++#include "model/scale/note_set.h"
++#include <algorithm>
+ #include <array>
+ #include <bitset>
+ #include <climits>
+@@ -103,6 +105,22 @@ struct NotesState {
+ 	}
+ 
+ 	[[nodiscard]] constexpr bool noteEnabled(uint8_t note) const { return note < kHighestKeyboardNote && states[note]; }
++
++	[[nodiscard]] NoteSet toPitchClasses() const {
++		NoteSet pitchClasses;
++		for (const NoteState& state : *this) {
++			pitchClasses.add(state.note % kOctaveSize);
++		}
++		return pitchClasses;
++	}
++
++	[[nodiscard]] uint8_t lowestNote() const {
++		uint8_t lowest = kHighestKeyboardNote;
++		for (const NoteState& state : *this) {
++			lowest = std::min(lowest, state.note);
++		}
++		return lowest;
++	}
+ };
+ 
+ }; // namespace deluge::gui::ui::keyboard
+diff --git a/tests/unit/chord_tests.cpp b/tests/unit/chord_tests.cpp
+index 8696ee96a4e3ae7f7fcb837a3398eb36bc0df3c0..054efc24f579b5348c6e5c0584cc9cf8661ae830 100644
+--- a/tests/unit/chord_tests.cpp
++++ b/tests/unit/chord_tests.cpp
+@@ -1,9 +1,13 @@
+ #include "CppUTest/TestHarness.h"
+ #include "definitions_cxx.hpp"
+ #include "gui/ui/keyboard/chords.h"
++#include "gui/ui/keyboard/notes_state.h"
+ 
+ using deluge::gui::ui::keyboard::ChordList;
++using deluge::gui::ui::keyboard::ChordMatch;
++using deluge::gui::ui::keyboard::findExactChord;
+ using deluge::gui::ui::keyboard::NONE;
++using deluge::gui::ui::keyboard::NotesState;
+ using deluge::gui::ui::keyboard::Voicing;
+ 
+ TEST_GROUP(ChordTests) {
+@@ -90,3 +94,46 @@ TEST(ChordTests, adjustVoicingOffsetBoundsCheck) {
+ 		CHECK_EQUAL(kUniqueVoicings - 2, chordList.voicingOffset[chordNo]);
+ 	}
+ }
++
++TEST(ChordTests, findsMajorChordAcrossInversionAndDuplicateOctaves) {
++	NotesState notes;
++	notes.enableNote(64, 64); // E
++	notes.enableNote(67, 64); // G
++	notes.enableNote(72, 64); // C
++	notes.enableNote(84, 64); // C, one octave higher
++
++	CHECK_EQUAL(64, notes.lowestNote());
++	ChordMatch match = findExactChord(notes.toPitchClasses(), notes.lowestNote());
++	CHECK_TRUE(match.found());
++	CHECK_EQUAL(0, match.root);
++	STRCMP_EQUAL("M", match.suffix);
++}
++
++TEST(ChordTests, prefersTheBassWhenAChordHasMultipleNames) {
++	NoteSet heldPitchClasses({0, 4, 7, 9}); // C6 / Am7
++
++	ChordMatch c6 = findExactChord(heldPitchClasses, 0);
++	CHECK_TRUE(c6.found());
++	CHECK_EQUAL(0, c6.root);
++	STRCMP_EQUAL("6", c6.suffix);
++
++	ChordMatch aMinor7 = findExactChord(heldPitchClasses, 9);
++	CHECK_TRUE(aMinor7.found());
++	CHECK_EQUAL(9, aMinor7.root);
++	STRCMP_EQUAL("-7", aMinor7.suffix);
++
++	CHECK_FALSE(findExactChord(heldPitchClasses, 4).found());
++}
++
++TEST(ChordTests, findsStandardAugmentedChord) {
++	ChordMatch match = findExactChord(NoteSet({0, 4, 8}), 0); // C augmented
++
++	CHECK_TRUE(match.found());
++	CHECK_EQUAL(0, match.root);
++	STRCMP_EQUAL("AUG", match.suffix);
++}
++
++TEST(ChordTests, rejectsIncompleteAndUnknownChordSets) {
++	CHECK_FALSE(findExactChord(NoteSet({0, 4}), 0).found());
++	CHECK_FALSE(findExactChord(NoteSet({0, 1, 7}), 0).found());
++}

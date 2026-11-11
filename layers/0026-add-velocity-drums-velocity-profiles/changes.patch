@@ -1,0 +1,795 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 2a217a453885e295ce511a0b876c868e3095df7b..61dda6ad2c9a3cafa257f8a7aa246cda4822f13f 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -661,6 +661,42 @@ Keep whole-sample information and the graphical Waveform Editor as two predictab
+ - Compile every affected menu and graphical editor source with the target ARM Release toolchain, run formatting checks, run the complete configured host suite, and complete a local Release firmware build.
+ - On a physical OLED and seven-segment Deluge, check each launcher, information-to-graph Select, graph-to-information Back, the next Back, both visible bounds, Shift plus Select in both release orders, Start and End movement, loop markers, forward and reverse playback, same-sample re-entry, a different sample, Kit held-Select audition, and storage-busy behavior. Physical verification remains human-controlled and does not authorize flashing.
+ 
++## 22. Velocity Drums velocity profiles
++
++### Intent
++
++Let a player keep large Velocity Drums hit areas while choosing how many distinct velocity targets each drum exposes. The velocity profile belongs to the existing layout rather than creating another drum layout or changing drum placement.
++
++### Required behavior
++
++- Velocity Drums offers four profiles named `FULL`, `4`, `2`, and `FIXED`. Each Clip remembers its active profile and fixed velocity independently of other Clips.
++- `FULL` is the default for new Clips and for projects that do not contain valid profile data. It preserves the established velocity and brightness of every cell exactly.
++- In a four-by-four drum block, `4` divides the pad into four two-by-two quadrants. The bottom-left quadrant emits velocity 32, bottom-right emits 64, top-left emits 96, and top-right emits 127. Every cell in one quadrant has the same brightness and emitted velocity.
++- `2` divides a multi-row drum block into lower and upper halves at velocities 64 and 127. A one-row block instead uses left and right halves at those velocities.
++- `FIXED` makes every cell in the drum block emit the saved fixed velocity. The value is limited to 1 through 127 and defaults to 64 when saved data is missing or invalid.
++- When a block cannot form all requested regions, use its available horizontal or vertical cells to form no more than the selected number of ordered soft-to-loud regions. A one-cell block uses the saved fixed velocity.
++- For `4`, `2`, and `FIXED`, each cell's brightness represents the velocity that the same cell will emit. Disabled drum blocks remain unlit, and an active note retains the established active-note dimming.
++- In a Kit Clip using Velocity Drums, holding Scale and turning Horizontal selects the profile. Holding Scale and turning Vertical changes the fixed velocity and selects `FIXED`. Accelerated encoder offsets remain bounded or wrap only within the four profiles.
++- Pressing and releasing Scale without an encoder turn reports the current profile instead of showing the Kit scale refusal. The matching release remains consumed even if the Output or Keyboard layout changes while Scale is held.
++- A Load chord must not change or report the velocity profile. Scale-modified encoder actions take precedence over Shift color editing, pressed-Horizontal zoom, and Shift zoom only while Velocity Drums owns the Scale press.
++- A profile or fixed-velocity change applies to later pad presses. It does not retrigger, stop, rewrite, or change the velocity of an already sounding or recorded note.
++- Profile and fixed-velocity fields load independently. An invalid field falls back to its own default without resetting the other field or the Clip's existing Velocity Drums scroll and zoom state.
++
++### Compatibility and boundaries
++
++- Preserve drum order, block geometry, scroll, zoom, selected-drum tracking, retrigger choice, recording, note-off behavior, Clip color editing, and the complete legacy `FULL` velocity and brightness behavior.
++- Preserve the established Scale button behavior in every non-Kit surface and every Kit Keyboard layout other than Velocity Drums. Leaving and returning to Keyboard View must not leave a stale Scale gesture.
++- Do not repair the pre-existing widened final block mismatch at the three-cell horizontal zoom or the pre-existing zero-velocity edge at the largest `FULL` zoom as part of this deviation.
++- Do not add a duplicate Keyboard layout, a timer, background work, persistent Song-wide state, Kit-row sample state, sequencer note editing, MIDI velocity processing, or the separate proposed note-length gesture.
++- No local behavior authorizes flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- Focused host checks cover independent saved-field validation, fixed-value clamping, exact `FULL` passthrough, four-by-four quadrant orientation, two-half orientation, fixed velocity, one-cell and single-axis blocks, odd and wide geometries, nonzero new-profile velocities, and brightness mapping.
++- Source review confirms that `FULL` retains its separate legacy render path; Scale ownership, Load suppression, and encoder precedence cannot leak to another layout; profile changes do not touch active notes; and saving and loading use the existing per-Clip Keyboard state without disturbing scroll or zoom.
++- Format every affected source, compile the changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete a local Release firmware build.
++- On a physical Deluge, check every profile and zoom, four-quadrant orientation, two-region orientation, fixed-value limits, accelerated turns, OLED and seven-segment feedback, held notes, retriggering, scroll, zoom, color editing, Load chords, layout changes while Scale is held, and save and reload. Physical verification remains human-controlled and does not authorize flashing.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+index 6cb2511b2d578d43865e526021a4c4dfaabbf594..e1581faef67658e110f1761507cbaffdde4518ea 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+@@ -81,6 +81,17 @@ KeyboardScreen::KeyboardScreen() {
+ 	lastNotesState = {0};
+ }
+ 
++bool KeyboardScreen::velocityDrumsOwnsScaleModifier() {
++	return getCurrentOutputType() == OutputType::KIT
++	       && getCurrentInstrumentClip()->keyboardState.currentLayout == KeyboardLayoutType::KeyboardLayoutTypeDrums;
++}
++
++void KeyboardScreen::clearVelocityDrumsScaleGesture() {
++	velocityDrumsScalePressOwned = false;
++	velocityDrumsScaleGestureUsed = false;
++	velocityDrumsScaleBlockedByLoad = false;
++}
++
+ void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+ 	InstrumentClipMinder::renderOLED(canvas);
+ 	instrumentClipView.renderKeyboardClipProgressRuler(canvas, *this);
+@@ -506,8 +517,30 @@ ActionResult KeyboardScreen::buttonAction(deluge::hid::Button b, bool on, bool i
+ 		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+ 	}
+ 
++	if (b == LOAD && on && velocityDrumsScalePressOwned) {
++		velocityDrumsScaleBlockedByLoad = true;
++	}
++
+ 	// Scale mode button
+ 	if (b == SCALE_MODE) {
++		if (on && velocityDrumsOwnsScaleModifier()) {
++			velocityDrumsScalePressOwned = true;
++			velocityDrumsScaleGestureUsed = false;
++			velocityDrumsScaleBlockedByLoad =
++			    Buttons::isButtonPressed(LOAD) || currentUIMode == UI_MODE_HOLDING_LOAD_BUTTON;
++			return ActionResult::DEALT_WITH;
++		}
++
++		if (!on && velocityDrumsScalePressOwned) {
++			bool shouldReportProfile =
++			    !velocityDrumsScaleGestureUsed && !velocityDrumsScaleBlockedByLoad && velocityDrumsOwnsScaleModifier();
++			clearVelocityDrumsScaleGesture();
++			if (shouldReportProfile) {
++				keyboard_layout_velocity_drums.displayVelocityProfile();
++			}
++			return ActionResult::DEALT_WITH;
++		}
++
+ 		if ((getCurrentOutputType() == OutputType::KIT)) {
+ 			// Kits can't do scales!
+ 			display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_KEYBOARD_VIEW_CANT_ENTER_SCALE));
+@@ -709,6 +742,18 @@ ActionResult KeyboardScreen::verticalEncoderAction(int32_t offset, bool inCardRo
+ 		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE; // Allow sometimes.
+ 	}
+ 
++	if (velocityDrumsScalePressOwned && !Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)) {
++		clearVelocityDrumsScaleGesture();
++	}
++
++	if (offset != 0 && velocityDrumsScalePressOwned && Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)
++	    && !velocityDrumsScaleBlockedByLoad && velocityDrumsOwnsScaleModifier()) {
++		velocityDrumsScaleGestureUsed = true;
++		keyboard_layout_velocity_drums.adjustFixedVelocity(offset);
++		requestRendering();
++		return ActionResult::DEALT_WITH;
++	}
++
+ 	if (Buttons::isShiftButtonPressed() && currentUIMode == UI_MODE_NONE) {
+ 		getCurrentInstrumentClip()->colourOffset += offset;
+ 		layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->precalculate();
+@@ -726,6 +771,17 @@ ActionResult KeyboardScreen::verticalEncoderAction(int32_t offset, bool inCardRo
+ }
+ 
+ ActionResult KeyboardScreen::horizontalEncoderAction(int32_t offset) {
++	if (velocityDrumsScalePressOwned && !Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)) {
++		clearVelocityDrumsScaleGesture();
++	}
++
++	if (offset != 0 && velocityDrumsScalePressOwned && Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)
++	    && !velocityDrumsScaleBlockedByLoad && velocityDrumsOwnsScaleModifier()) {
++		velocityDrumsScaleGestureUsed = true;
++		keyboard_layout_velocity_drums.adjustVelocityProfile(offset);
++		requestRendering();
++		return ActionResult::DEALT_WITH;
++	}
+ 
+ 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->handleHorizontalEncoder(
+ 	    offset, (Buttons::isShiftButtonPressed() && isUIModeWithinRange(padActionUIModes)), pressedPads,
+@@ -869,6 +925,9 @@ bool KeyboardScreen::opened() {
+ }
+ 
+ void KeyboardScreen::focusRegained() {
++	if (!Buttons::isButtonPressed(deluge::hid::button::SCALE_MODE)) {
++		clearVelocityDrumsScaleGesture();
++	}
+ 	keyboardButtonUsed = true; // Ensure we don't leave the mode on button up
+ 	InstrumentClipMinder::focusRegained();
+ 	setLedStates();
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.h b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+index 680ba2c7b327f220b63aca0f4effdb8de9218421..c7ed92158eecca520e5b38160bac63c5285661df 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.h
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+@@ -87,6 +87,8 @@ private:
+ 	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
+ 
+ 	void selectLayout(int8_t offset);
++	bool velocityDrumsOwnsScaleModifier();
++	void clearVelocityDrumsScaleGesture();
+ 	void enterScaleMode(int32_t selectedRootNote = kDefaultCalculateRootNote);
+ 	void exitScaleMode();
+ 	void drawNoteCode(int32_t noteCode);
+@@ -102,6 +104,9 @@ private:
+ 	bool keyboardButtonUsed = false;
+ 	bool yEncoderActive = false;
+ 	bool xEncoderActive = false;
++	bool velocityDrumsScalePressOwned = false;
++	bool velocityDrumsScaleGestureUsed = false;
++	bool velocityDrumsScaleBlockedByLoad = false;
+ };
+ }; // namespace deluge::gui::ui::keyboard
+ 
+diff --git a/src/deluge/gui/ui/keyboard/layout/velocity_drums.cpp b/src/deluge/gui/ui/keyboard/layout/velocity_drums.cpp
+index 3dc7a3cfbe227ffd65c55de96b551f38937b7ca3..0e880dbf25e09b5c570ccebcd5187f01dbbde72d 100644
+--- a/src/deluge/gui/ui/keyboard/layout/velocity_drums.cpp
++++ b/src/deluge/gui/ui/keyboard/layout/velocity_drums.cpp
+@@ -24,6 +24,25 @@
+ 
+ namespace deluge::gui::ui::keyboard::layout {
+ 
++uint8_t KeyboardLayoutVelocityDrums::velocityFromCoords(int32_t x, int32_t y, uint32_t edge_size_x,
++                                                        uint32_t edge_size_y) {
++	uint8_t fullVelocity = legacyVelocityFromCoords(x, y, edge_size_x, edge_size_y) >> 1;
++	uint32_t blockWidth = edge_size_x;
++	uint32_t localX = x % edge_size_x;
++	if (edge_size_x > 1 && edge_size_x % 2 == 1) {
++		uint32_t xLimit = kDisplayWidth - 2 - edge_size_x;
++		bool widenedFinalBlock = x > xLimit;
++		if (widenedFinalBlock) {
++			blockWidth++;
++			localX = x - xLimit - 1;
++		}
++	}
++
++	KeyboardStateDrums& state = getState().drums;
++	return velocityFromDrumsProfile(state.velocity_profile, localX, y % edge_size_y, blockWidth, edge_size_y,
++	                                state.fixed_velocity, fullVelocity);
++}
++
+ void KeyboardLayoutVelocityDrums::evaluatePads(PressedPad presses[kMaxNumKeyboardPadPresses]) {
+ 	currentNotesState = NotesState{}; // Erase active notes
+ 
+@@ -52,8 +71,7 @@ void KeyboardLayoutVelocityDrums::evaluatePads(PressedPad presses[kMaxNumKeyboar
+ 			continue; // save calculation time if press was on an unlit pad. Is there a way to prevent
+ 			          // re-rendering?
+ 		}
+-		uint32_t velocity =
+-		    (velocityFromCoords(x, y, edge_size_x, edge_size_y) >> 1); // uses bitshift to divide by two, to get 0-127
++		uint32_t velocity = velocityFromCoords(x, y, edge_size_x, edge_size_y);
+ 		// D_PRINTLN("note, velocity: %d, %d", note, velocity);
+ 		auto note_on_idx = currentNotesState.enableNote(note, velocity);
+ 		// enableNote returns `count` (>= the number of tracked notes) when the note could not be added - either
+@@ -90,6 +108,61 @@ void KeyboardLayoutVelocityDrums::evaluatePads(PressedPad presses[kMaxNumKeyboar
+ 	}
+ }
+ 
++void KeyboardLayoutVelocityDrums::displayVelocityProfile() {
++	KeyboardStateDrums& state = getState().drums;
++	VelocityDrumsProfile profile = velocityDrumsProfileFromValue(static_cast<int32_t>(state.velocity_profile));
++
++	DEF_STACK_STRING_BUF(buffer, 24);
++	if (display->haveOLED()) {
++		buffer.append("Velocity: ");
++	}
++	switch (profile) {
++	case VelocityDrumsProfile::Full:
++		buffer.append(display->haveOLED() ? "Full" : "FULL");
++		break;
++	case VelocityDrumsProfile::Four:
++		buffer.append("4");
++		break;
++	case VelocityDrumsProfile::Two:
++		buffer.append("2");
++		break;
++	case VelocityDrumsProfile::Fixed:
++		buffer.append(display->haveOLED() ? "Fixed " : "F");
++		buffer.appendInt(velocityDrumsFixedVelocityFromValue(state.fixed_velocity));
++		break;
++	}
++	display->displayPopup(buffer.c_str());
++}
++
++void KeyboardLayoutVelocityDrums::adjustVelocityProfile(int32_t offset) {
++	if (offset == 0) {
++		return;
++	}
++
++	KeyboardStateDrums& state = getState().drums;
++	constexpr int32_t kProfileCount = static_cast<int32_t>(VelocityDrumsProfile::Fixed) + 1;
++	int32_t nextProfile =
++	    static_cast<int32_t>(velocityDrumsProfileFromValue(static_cast<int32_t>(state.velocity_profile)));
++	nextProfile = (nextProfile + offset) % kProfileCount;
++	if (nextProfile < 0) {
++		nextProfile += kProfileCount;
++	}
++	state.velocity_profile = static_cast<VelocityDrumsProfile>(nextProfile);
++	displayVelocityProfile();
++}
++
++void KeyboardLayoutVelocityDrums::adjustFixedVelocity(int32_t offset) {
++	if (offset == 0) {
++		return;
++	}
++
++	KeyboardStateDrums& state = getState().drums;
++	int32_t fixedVelocity = velocityDrumsFixedVelocityFromValue(state.fixed_velocity);
++	state.fixed_velocity = clampVelocityDrumsFixedVelocity(fixedVelocity + offset);
++	state.velocity_profile = VelocityDrumsProfile::Fixed;
++	displayVelocityProfile();
++}
++
+ void KeyboardLayoutVelocityDrums::handleVerticalEncoder(int32_t offset) {
+ 	PressedPad pressedPad{};
+ 	uint32_t edge_size_x = zoom_arr[getState().drums.zoom_level][0];
+@@ -140,9 +213,10 @@ void KeyboardLayoutVelocityDrums::handleHorizontalEncoder(int32_t offset, bool s
+ void KeyboardLayoutVelocityDrums::renderPads(RGB image[][kDisplayWidth + kSideBarWidth]) {
+ 	// D_PRINTLN("render pads");
+ 	uint32_t highest_clip_note = getHighestClipNote();
+-	uint32_t offset = getState().drums.scroll_offset;
++	KeyboardStateDrums& state = getState().drums;
++	uint32_t offset = state.scroll_offset;
+ 	uint32_t offset2 = getCurrentInstrumentClip()->colourOffset + 60;
+-	uint32_t zoom_level = getState().drums.zoom_level;
++	uint32_t zoom_level = state.zoom_level;
+ 	uint32_t edge_size_x = zoom_arr[zoom_level][0];
+ 	uint32_t edge_size_y = zoom_arr[zoom_level][1];
+ 	uint32_t pad_area_1 = edge_size_x * edge_size_y;
+@@ -175,15 +249,47 @@ void KeyboardLayoutVelocityDrums::renderPads(RGB image[][kDisplayWidth + kSideBa
+ 				uint32_t pad_area = x_adjust ? pad_area_2 : pad_area_1;
+ 				float intensity_increment = x_adjust ? intensity_increment_2 : intensity_increment_1;
+ 				float colour_intensity = initial_intensity;
++				std::array<uint8_t, 4> cachedVelocities{};
++				std::array<float, 4> cachedIntensities{};
++				uint32_t cachedIntensityCount = 0;
++				auto intensityForVelocity = [&](uint8_t mappedVelocity) {
++					for (uint32_t index = 0; index < cachedIntensityCount; ++index) {
++						if (cachedVelocities[index] == mappedVelocity) {
++							return cachedIntensities[index];
++						}
++					}
++
++					uint32_t intensityIndex = velocityDrumsIntensityIndex(mappedVelocity, pad_area);
++					float intensity = 1;
++					if (intensityIndex != pad_area - 1) {
++						intensity = initial_intensity;
++						for (uint32_t step = 0; step < intensityIndex; ++step) {
++							intensity *= intensity_increment;
++						}
++					}
++
++					if (cachedIntensityCount < cachedVelocities.size()) {
++						cachedVelocities[cachedIntensityCount] = mappedVelocity;
++						cachedIntensities[cachedIntensityCount] = intensity;
++						cachedIntensityCount++;
++					}
++					return intensity;
++				};
+ 				uint32_t x2 = 0;
+ 				uint32_t y2 = 0;
+ 				for (int32_t i = 0; i < pad_area; ++i) {
++					float renderedIntensity = colour_intensity;
++					if (state.velocity_profile != VelocityDrumsProfile::Full) {
++						uint8_t mappedVelocity = velocityFromDrumsProfile(state.velocity_profile, x2, y2, edge_size_x2,
++						                                                  edge_size_y, state.fixed_velocity, 0);
++						renderedIntensity = intensityForVelocity(mappedVelocity);
++					}
+ 					if (disabled_pad)
+ 						image[y + y2][x + x2] = colours::black;
+ 					else {
+ 						image[y + y2][x + x2] =
+-						    note_colour.transform([brightness_factor, colour_intensity](uint8_t chan) {
+-							    return (chan * brightness_factor * colour_intensity);
++						    note_colour.transform([brightness_factor, renderedIntensity](uint8_t chan) {
++							    return (chan * brightness_factor * renderedIntensity);
+ 						    });
+ 					}
+ 					x2++;
+@@ -200,11 +306,22 @@ void KeyboardLayoutVelocityDrums::renderPads(RGB image[][kDisplayWidth + kSideBa
+ 			else {
+ 				if (note > highest_clip_note)
+ 					image[y][x] = colours::black;
+-				else if (note_enabled)
+-					image[y][x] =
+-					    note_colour.transform([brightness_factor](uint8_t chan) { return (chan * brightness_factor); });
+-				else
+-					image[y][x] = note_colour;
++				else if (state.velocity_profile == VelocityDrumsProfile::Full) {
++					if (note_enabled)
++						image[y][x] = note_colour.transform(
++						    [brightness_factor](uint8_t chan) { return (chan * brightness_factor); });
++					else
++						image[y][x] = note_colour;
++				}
++				else {
++					float velocityBrightness = 1;
++					uint8_t mappedVelocity =
++					    velocityFromDrumsProfile(state.velocity_profile, 0, 0, 1, 1, state.fixed_velocity, 0);
++					velocityBrightness = static_cast<float>(mappedVelocity) / 127;
++					image[y][x] = note_colour.transform([brightness_factor, velocityBrightness](uint8_t chan) {
++						return chan * brightness_factor * velocityBrightness;
++					});
++				}
+ 			}
+ 			note++;
+ 		}
+diff --git a/src/deluge/gui/ui/keyboard/layout/velocity_drums.h b/src/deluge/gui/ui/keyboard/layout/velocity_drums.h
+index 9eff4b65303edff8c302318b5a21bfffb2d2def0..2d1da1538c06ce467571063e4a38a835665dab2d 100644
+--- a/src/deluge/gui/ui/keyboard/layout/velocity_drums.h
++++ b/src/deluge/gui/ui/keyboard/layout/velocity_drums.h
+@@ -18,6 +18,7 @@
+ #pragma once
+ 
+ #include "gui/ui/keyboard/layout.h"
++#include "gui/ui/keyboard/layout/velocity_drums_profile.h"
+ 
+ namespace deluge::gui::ui::keyboard::layout {
+ 
+@@ -38,6 +39,9 @@ public:
+ 	void handleVerticalEncoder(int32_t offset) override;
+ 	void handleHorizontalEncoder(int32_t offset, bool shiftEnabled, PressedPad presses[kMaxNumKeyboardPadPresses],
+ 	                             bool encoderPressed = false) override;
++	void adjustVelocityProfile(int32_t offset);
++	void adjustFixedVelocity(int32_t offset);
++	void displayVelocityProfile();
+ 
+ 	void renderPads(RGB image[][kDisplayWidth + kSideBarWidth]) override;
+ 
+@@ -46,7 +50,9 @@ public:
+ 	bool supportsKit() override { return true; }
+ 
+ private:
+-	inline uint8_t velocityFromCoords(int32_t x, int32_t y, uint32_t edge_size_x, uint32_t edge_size_y) {
++	uint8_t velocityFromCoords(int32_t x, int32_t y, uint32_t edge_size_x, uint32_t edge_size_y);
++
++	inline uint8_t legacyVelocityFromCoords(int32_t x, int32_t y, uint32_t edge_size_x, uint32_t edge_size_y) {
+ 		uint32_t velocity = 0;
+ 		if (edge_size_x == 1) {
+ 			// No need to do a lot of calculations or use max velocity for only one option.
+diff --git a/src/deluge/gui/ui/keyboard/layout/velocity_drums_profile.h b/src/deluge/gui/ui/keyboard/layout/velocity_drums_profile.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..9dc87b659586cc1cf834b3b7c0ffe0246b898b26
+--- /dev/null
++++ b/src/deluge/gui/ui/keyboard/layout/velocity_drums_profile.h
+@@ -0,0 +1,109 @@
++/*
++ * Copyright © 2016-2023 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation,
++ * either version 3 of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
++ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++ * See the GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <cstdint>
++
++namespace deluge::gui::ui::keyboard {
++
++enum class VelocityDrumsProfile : uint8_t {
++	Full = 0,
++	Four,
++	Two,
++	Fixed,
++};
++
++inline constexpr uint8_t kDefaultVelocityDrumsFixedVelocity = 64;
++
++constexpr bool isValidVelocityDrumsProfile(int32_t rawValue) {
++	return rawValue >= static_cast<int32_t>(VelocityDrumsProfile::Full)
++	       && rawValue <= static_cast<int32_t>(VelocityDrumsProfile::Fixed);
++}
++
++constexpr VelocityDrumsProfile velocityDrumsProfileFromValue(int32_t rawValue) {
++	return isValidVelocityDrumsProfile(rawValue) ? static_cast<VelocityDrumsProfile>(rawValue)
++	                                             : VelocityDrumsProfile::Full;
++}
++
++constexpr bool isValidVelocityDrumsFixedVelocity(int32_t rawValue) {
++	return rawValue >= 1 && rawValue <= 127;
++}
++
++constexpr uint8_t velocityDrumsFixedVelocityFromValue(int32_t rawValue) {
++	return isValidVelocityDrumsFixedVelocity(rawValue) ? static_cast<uint8_t>(rawValue)
++	                                                   : kDefaultVelocityDrumsFixedVelocity;
++}
++
++constexpr uint8_t clampVelocityDrumsFixedVelocity(int32_t rawValue) {
++	return static_cast<uint8_t>(rawValue < 1 ? 1 : rawValue > 127 ? 127 : rawValue);
++}
++
++constexpr uint8_t velocityFromOrderedDrumsRegions(uint32_t coordinate, uint32_t length, uint32_t maxRegions) {
++	if (length == 0 || maxRegions == 0) {
++		return 0;
++	}
++
++	uint32_t regionCount = length < maxRegions ? length : maxRegions;
++	uint32_t boundedCoordinate = coordinate < length ? coordinate : length - 1;
++	uint32_t region = boundedCoordinate * regionCount / length;
++	return static_cast<uint8_t>((127 * (region + 1) + regionCount - 1) / regionCount);
++}
++
++constexpr uint8_t velocityFromDrumsProfile(VelocityDrumsProfile profile, uint32_t localX, uint32_t localY,
++                                           uint32_t blockWidth, uint32_t blockHeight, uint8_t fixedVelocity,
++                                           uint8_t fullVelocity) {
++	if (profile == VelocityDrumsProfile::Full || blockWidth == 0 || blockHeight == 0) {
++		return fullVelocity;
++	}
++
++	uint8_t safeFixedVelocity = velocityDrumsFixedVelocityFromValue(fixedVelocity);
++	if (profile == VelocityDrumsProfile::Fixed || (blockWidth == 1 && blockHeight == 1)) {
++		return safeFixedVelocity;
++	}
++
++	if (profile == VelocityDrumsProfile::Two) {
++		if (blockHeight > 1) {
++			return velocityFromOrderedDrumsRegions(localY, blockHeight, 2);
++		}
++		return velocityFromOrderedDrumsRegions(localX, blockWidth, 2);
++	}
++
++	if (profile == VelocityDrumsProfile::Four) {
++		if (blockWidth > 1 && blockHeight > 1) {
++			uint32_t boundedX = localX < blockWidth ? localX : blockWidth - 1;
++			uint32_t boundedY = localY < blockHeight ? localY : blockHeight - 1;
++			uint32_t quadrant = (boundedY * 2 / blockHeight) * 2 + (boundedX * 2 / blockWidth);
++			return quadrant == 3 ? 127 : static_cast<uint8_t>((quadrant + 1) * 32);
++		}
++		if (blockHeight > 1) {
++			return velocityFromOrderedDrumsRegions(localY, blockHeight, 4);
++		}
++		return velocityFromOrderedDrumsRegions(localX, blockWidth, 4);
++	}
++
++	return fullVelocity;
++}
++
++constexpr uint32_t velocityDrumsIntensityIndex(uint8_t velocity, uint32_t cellCount) {
++	if (cellCount <= 1) {
++		return 0;
++	}
++	return static_cast<uint32_t>((static_cast<uint64_t>(velocity) * (cellCount - 1) + 63) / 127);
++}
++
++} // namespace deluge::gui::ui::keyboard
+diff --git a/src/deluge/gui/ui/keyboard/state_data.h b/src/deluge/gui/ui/keyboard/state_data.h
+index d9835ce266fc911c9f76a04f3212ddda841d1268..2751ca883acb774e693b148accb1e2114feffe39 100644
+--- a/src/deluge/gui/ui/keyboard/state_data.h
++++ b/src/deluge/gui/ui/keyboard/state_data.h
+@@ -19,6 +19,7 @@
+ #include "definitions_cxx.hpp"
+ #include "gui/ui/keyboard/chords.h"
+ #include "gui/ui/keyboard/layout/column_control_state.h"
++#include "gui/ui/keyboard/layout/velocity_drums_profile.h"
+ #include "storage/flash_storage.h"
+ 
+ namespace deluge::gui::ui::keyboard {
+@@ -32,6 +33,8 @@ struct KeyboardStateIsomorphic {
+ struct KeyboardStateDrums {
+ 	int32_t scroll_offset = 0;
+ 	int32_t zoom_level = 8;
++	VelocityDrumsProfile velocity_profile = VelocityDrumsProfile::Full;
++	uint8_t fixed_velocity = kDefaultVelocityDrumsFixedVelocity;
+ };
+ 
+ constexpr int32_t kDefaultInKeyRowInterval = 3;
+diff --git a/src/deluge/model/clip/instrument_clip.cpp b/src/deluge/model/clip/instrument_clip.cpp
+index 4efa5456b460b584b6544c4bfaec4f5ee604666a..fffb805cd295ca1bfba7de337a7033c9ec9886f0 100644
+--- a/src/deluge/model/clip/instrument_clip.cpp
++++ b/src/deluge/model/clip/instrument_clip.cpp
+@@ -2392,6 +2392,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
+ 	writer.writeAttribute("keyboardRowInterval", keyboardState.isomorphic.rowInterval);
+ 	writer.writeAttribute("drumsScrollOffset", keyboardState.drums.scroll_offset);
+ 	writer.writeAttribute("drumsZoomLevel", keyboardState.drums.zoom_level);
++	writer.writeAttribute("drumsVelocityProfile", static_cast<int32_t>(keyboardState.drums.velocity_profile));
++	writer.writeAttribute("drumsFixedVelocity", keyboardState.drums.fixed_velocity);
+ 	writer.writeAttribute("inKeyScrollOffset", keyboardState.inKey.scrollOffset);
+ 	writer.writeAttribute("inKeyRowInterval", keyboardState.inKey.rowInterval);
+ 
+@@ -2587,6 +2589,17 @@ someError:
+ 			keyboardState.drums.zoom_level = reader.readTagOrAttributeValueInt();
+ 		}
+ 
++		else if (!strcmp(tagName, "drumsVelocityProfile")) {
++			int32_t rawProfile = reader.readTagOrAttributeValueInt();
++			keyboardState.drums.velocity_profile = deluge::gui::ui::keyboard::velocityDrumsProfileFromValue(rawProfile);
++		}
++
++		else if (!strcmp(tagName, "drumsFixedVelocity")) {
++			int32_t rawFixedVelocity = reader.readTagOrAttributeValueInt();
++			keyboardState.drums.fixed_velocity =
++			    deluge::gui::ui::keyboard::velocityDrumsFixedVelocityFromValue(rawFixedVelocity);
++		}
++
+ 		else if (!strcmp(tagName, "inKeyScrollOffset")) {
+ 			keyboardState.inKey.scrollOffset = reader.readTagOrAttributeValueInt();
+ 		}
+diff --git a/tests/spec/velocity_drums_profile_spec.cpp b/tests/spec/velocity_drums_profile_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..551d1381f991ed5b7e69a5e622cfe54bf3ee975c
+--- /dev/null
++++ b/tests/spec/velocity_drums_profile_spec.cpp
+@@ -0,0 +1,226 @@
++#include "gui/ui/keyboard/layout/velocity_drums_profile.h"
++
++#include "cppspec.hpp"
++
++#include <array>
++#include <cstdint>
++#include <limits>
++
++namespace keyboard = deluge::gui::ui::keyboard;
++
++namespace {
++
++constexpr uint8_t mappedVelocity(keyboard::VelocityDrumsProfile profile, uint32_t x, uint32_t y, uint32_t width,
++                                 uint32_t height, uint8_t fixedVelocity = 73, uint8_t fullVelocity = 99) {
++	return keyboard::velocityFromDrumsProfile(profile, x, y, width, height, fixedVelocity, fullVelocity);
++}
++
++struct Geometry {
++	uint32_t width;
++	uint32_t height;
++};
++
++} // namespace
++
++// clang-format off
++describe velocity_drums_profile("Velocity Drums profiles", $ {
++	it("defaults invalid persisted fields independently", _ {
++		for (int32_t raw = 0; raw <= 3; ++raw) {
++			expect(keyboard::isValidVelocityDrumsProfile(raw)).to_be_true();
++			expect(static_cast<int32_t>(keyboard::velocityDrumsProfileFromValue(raw))).to_equal(raw);
++		}
++		for (int32_t raw : std::array<int32_t, 4>{-1, 4, 255, std::numeric_limits<int32_t>::max()}) {
++			expect(keyboard::isValidVelocityDrumsProfile(raw)).to_be_false();
++			expect(keyboard::velocityDrumsProfileFromValue(raw)).to_equal(keyboard::VelocityDrumsProfile::Full);
++		}
++
++		for (int32_t raw : std::array<int32_t, 3>{1, 64, 127}) {
++			expect(keyboard::isValidVelocityDrumsFixedVelocity(raw)).to_be_true();
++			expect(keyboard::velocityDrumsFixedVelocityFromValue(raw)).to_equal(static_cast<uint8_t>(raw));
++		}
++		for (int32_t raw : std::array<int32_t, 5>{-1, 0, 128, 255, std::numeric_limits<int32_t>::max()}) {
++			expect(keyboard::isValidVelocityDrumsFixedVelocity(raw)).to_be_false();
++			expect(keyboard::velocityDrumsFixedVelocityFromValue(raw))
++			    .to_equal(keyboard::kDefaultVelocityDrumsFixedVelocity);
++		}
++
++		auto profile = keyboard::velocityDrumsProfileFromValue(2);
++		auto fixedVelocity = keyboard::velocityDrumsFixedVelocityFromValue(0);
++		expect(profile).to_equal(keyboard::VelocityDrumsProfile::Two);
++		expect(fixedVelocity).to_equal(keyboard::kDefaultVelocityDrumsFixedVelocity);
++
++		fixedVelocity = keyboard::velocityDrumsFixedVelocityFromValue(77);
++		profile = keyboard::velocityDrumsProfileFromValue(99);
++		expect(profile).to_equal(keyboard::VelocityDrumsProfile::Full);
++		expect(fixedVelocity).to_equal(uint8_t{77});
++	});
++
++	it("clamps interactive FIXED edits without changing persisted-field defaults", _ {
++		expect(keyboard::clampVelocityDrumsFixedVelocity(-100)).to_equal(uint8_t{1});
++		expect(keyboard::clampVelocityDrumsFixedVelocity(0)).to_equal(uint8_t{1});
++		expect(keyboard::clampVelocityDrumsFixedVelocity(1)).to_equal(uint8_t{1});
++		expect(keyboard::clampVelocityDrumsFixedVelocity(73)).to_equal(uint8_t{73});
++		expect(keyboard::clampVelocityDrumsFixedVelocity(127)).to_equal(uint8_t{127});
++		expect(keyboard::clampVelocityDrumsFixedVelocity(128)).to_equal(uint8_t{127});
++		expect(keyboard::clampVelocityDrumsFixedVelocity(1000)).to_equal(uint8_t{127});
++		expect(keyboard::velocityDrumsFixedVelocityFromValue(0))
++		    .to_equal(keyboard::kDefaultVelocityDrumsFixedVelocity);
++	});
++
++	it("delegates FULL and invalid inputs without altering legacy velocities", _ {
++		struct FullCase {
++			uint32_t x;
++			uint32_t y;
++			uint32_t width;
++			uint32_t height;
++			uint8_t legacyVelocity;
++		};
++		const std::array cases{
++		    FullCase{0, 0, 1, 1, 0},
++		    FullCase{1, 0, 2, 1, 7},
++		    FullCase{2, 1, 3, 3, 33},
++		    FullCase{7, 3, 8, 4, 64},
++		    FullCase{15, 7, 16, 8, 100},
++		    FullCase{0, 0, 1, 4, 125},
++		    FullCase{3, 3, 4, 4, 127},
++		};
++		for (const auto& test : cases) {
++			expect(mappedVelocity(keyboard::VelocityDrumsProfile::Full, test.x, test.y, test.width, test.height, 73,
++			                      test.legacyVelocity))
++			    .to_equal(test.legacyVelocity);
++		}
++
++		const auto invalidProfile = static_cast<keyboard::VelocityDrumsProfile>(99);
++		expect(mappedVelocity(invalidProfile, 2, 2, 4, 4, 73, 41)).to_equal(uint8_t{41});
++		expect(mappedVelocity(keyboard::VelocityDrumsProfile::Four, 0, 0, 0, 4, 73, 42)).to_equal(uint8_t{42});
++		expect(mappedVelocity(keyboard::VelocityDrumsProfile::Two, 0, 0, 4, 0, 73, 43)).to_equal(uint8_t{43});
++	});
++
++	it("maps FOUR across every 4x4 quadrant with the documented orientation", _ {
++		constexpr uint8_t expected[4][4] = {
++		    {32, 32, 64, 64},
++		    {32, 32, 64, 64},
++		    {96, 96, 127, 127},
++		    {96, 96, 127, 127},
++		};
++		for (uint32_t y = 0; y < 4; ++y) {
++			for (uint32_t x = 0; x < 4; ++x) {
++				expect(mappedVelocity(keyboard::VelocityDrumsProfile::Four, x, y, 4, 4)).to_equal(expected[y][x]);
++			}
++		}
++	});
++
++	it("maps TWO to bottom and top halves, or left and right on one row", _ {
++		for (uint32_t y = 0; y < 4; ++y) {
++			for (uint32_t x = 0; x < 4; ++x) {
++				uint8_t expected = y < 2 ? 64 : 127;
++				expect(mappedVelocity(keyboard::VelocityDrumsProfile::Two, x, y, 4, 4)).to_equal(expected);
++			}
++		}
++		for (uint32_t x = 0; x < 4; ++x) {
++			uint8_t expected = x < 2 ? 64 : 127;
++			expect(mappedVelocity(keyboard::VelocityDrumsProfile::Two, x, 0, 4, 1)).to_equal(expected);
++		}
++	});
++
++	it("uses one sanitized FIXED velocity throughout each block", _ {
++		for (uint32_t y = 0; y < 8; ++y) {
++			for (uint32_t x = 0; x < 16; ++x) {
++				expect(mappedVelocity(keyboard::VelocityDrumsProfile::Fixed, x, y, 16, 8, 73)).to_equal(uint8_t{73});
++			}
++		}
++		expect(mappedVelocity(keyboard::VelocityDrumsProfile::Fixed, 0, 0, 4, 4, 0))
++		    .to_equal(keyboard::kDefaultVelocityDrumsFixedVelocity);
++		expect(mappedVelocity(keyboard::VelocityDrumsProfile::Fixed, 0, 0, 4, 4, 128))
++		    .to_equal(keyboard::kDefaultVelocityDrumsFixedVelocity);
++	});
++
++	it("handles one-cell, single-axis, odd, and wide block geometries", _ {
++		for (auto profile : std::array{keyboard::VelocityDrumsProfile::Four, keyboard::VelocityDrumsProfile::Two,
++		                               keyboard::VelocityDrumsProfile::Fixed}) {
++			expect(mappedVelocity(profile, 0, 0, 1, 1, 73)).to_equal(uint8_t{73});
++		}
++
++		constexpr uint8_t fourAxis[4] = {32, 64, 96, 127};
++		constexpr uint8_t twoAxis[4] = {64, 64, 127, 127};
++		for (uint32_t coordinate = 0; coordinate < 4; ++coordinate) {
++			expect(mappedVelocity(keyboard::VelocityDrumsProfile::Four, coordinate, 0, 4, 1))
++			    .to_equal(fourAxis[coordinate]);
++			expect(mappedVelocity(keyboard::VelocityDrumsProfile::Four, 0, coordinate, 1, 4))
++			    .to_equal(fourAxis[coordinate]);
++			expect(mappedVelocity(keyboard::VelocityDrumsProfile::Two, coordinate, 0, 4, 1))
++			    .to_equal(twoAxis[coordinate]);
++			expect(mappedVelocity(keyboard::VelocityDrumsProfile::Two, 0, coordinate, 1, 4))
++			    .to_equal(twoAxis[coordinate]);
++		}
++
++		constexpr uint8_t oddExpected[3][3] = {
++		    {32, 32, 64},
++		    {32, 32, 64},
++		    {96, 96, 127},
++		};
++		for (uint32_t y = 0; y < 3; ++y) {
++			for (uint32_t x = 0; x < 3; ++x) {
++				expect(mappedVelocity(keyboard::VelocityDrumsProfile::Four, x, y, 3, 3))
++				    .to_equal(oddExpected[y][x]);
++			}
++		}
++
++		for (uint32_t y = 0; y < 4; ++y) {
++			for (uint32_t x = 0; x < 8; ++x) {
++				uint8_t expected = y < 2 ? (x < 4 ? 32 : 64) : (x < 4 ? 96 : 127);
++				expect(mappedVelocity(keyboard::VelocityDrumsProfile::Four, x, y, 8, 4)).to_equal(expected);
++			}
++		}
++	});
++
++	it("never returns zero for a new profile on a valid block", _ {
++		constexpr std::array geometries{
++		    Geometry{1, 1}, Geometry{4, 1}, Geometry{1, 4}, Geometry{3, 3}, Geometry{8, 4}, Geometry{16, 8},
++		};
++		constexpr std::array profiles{
++		    keyboard::VelocityDrumsProfile::Four,
++		    keyboard::VelocityDrumsProfile::Two,
++		    keyboard::VelocityDrumsProfile::Fixed,
++		};
++		for (const auto& geometry : geometries) {
++			for (auto profile : profiles) {
++				for (uint32_t y = 0; y < geometry.height; ++y) {
++					for (uint32_t x = 0; x < geometry.width; ++x) {
++						expect(mappedVelocity(profile, x, y, geometry.width, geometry.height, 1) > 0).to_be_true();
++					}
++				}
++			}
++		}
++	});
++
++	it("derives new-profile brightness from the same mapped velocity", _ {
++		constexpr uint32_t cellCount = 64;
++		const uint8_t four32 = mappedVelocity(keyboard::VelocityDrumsProfile::Four, 0, 0, 4, 4);
++		const uint8_t four64 = mappedVelocity(keyboard::VelocityDrumsProfile::Four, 2, 0, 4, 4);
++		const uint8_t four96 = mappedVelocity(keyboard::VelocityDrumsProfile::Four, 0, 2, 4, 4);
++		const uint8_t four127 = mappedVelocity(keyboard::VelocityDrumsProfile::Four, 2, 2, 4, 4);
++		const uint8_t two64 = mappedVelocity(keyboard::VelocityDrumsProfile::Two, 0, 0, 4, 4);
++
++		expect(keyboard::velocityDrumsIntensityIndex(four32, cellCount)).to_equal(uint32_t{16});
++		expect(keyboard::velocityDrumsIntensityIndex(four64, cellCount)).to_equal(uint32_t{32});
++		expect(keyboard::velocityDrumsIntensityIndex(four96, cellCount)).to_equal(uint32_t{48});
++		expect(keyboard::velocityDrumsIntensityIndex(four127, cellCount)).to_equal(uint32_t{63});
++		expect(four64).to_equal(two64);
++		expect(keyboard::velocityDrumsIntensityIndex(four64, cellCount))
++		    .to_equal(keyboard::velocityDrumsIntensityIndex(two64, cellCount));
++
++		uint32_t previous = 0;
++		for (uint8_t velocity = 1; velocity <= 127; ++velocity) {
++			uint32_t index = keyboard::velocityDrumsIntensityIndex(velocity, cellCount);
++			expect(index >= previous).to_be_true();
++			expect(index < cellCount).to_be_true();
++			previous = index;
++		}
++		expect(keyboard::velocityDrumsIntensityIndex(127, 0)).to_equal(uint32_t{0});
++		expect(keyboard::velocityDrumsIntensityIndex(127, 1)).to_equal(uint32_t{0});
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(velocity_drums_profile)

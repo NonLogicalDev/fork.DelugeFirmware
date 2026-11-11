@@ -1,0 +1,1956 @@
+diff --git a/src/deluge/gui/views/audio_clip_view.cpp b/src/deluge/gui/views/audio_clip_view.cpp
+index 5d4126cb969ff25e36ea2a70274208fcf7c92e7f..16c6f5be9c81192b6dead315aadbe90608747430 100644
+--- a/src/deluge/gui/views/audio_clip_view.cpp
++++ b/src/deluge/gui/views/audio_clip_view.cpp
+@@ -27,6 +27,7 @@
+ #include "gui/views/arranger_view.h"
+ #include "gui/views/automation_view.h"
+ #include "gui/views/session_view.h"
++#include "gui/views/timeline_view_navigation.h"
+ #include "gui/views/view.h"
+ #include "gui/waveform/waveform_renderer.h"
+ #include "hid/buttons.h"
+@@ -36,6 +37,7 @@
+ #include "hid/matrix/matrix_driver.h"
+ #include "model/action/action_logger.h"
+ #include "model/clip/audio_clip.h"
++#include "model/clip/audio_clip_bound_edit.h"
+ #include "model/clip/clip_minder.h"
+ #include "model/consequence/consequence_clip_length.h"
+ #include "model/model_stack.h"
+@@ -49,6 +51,8 @@
+ #include "playback/playback_handler.h"
+ #include "processing/engines/audio_engine.h"
+ #include "storage/flash_storage.h"
++#include <algorithm>
++#include <limits>
+ 
+ extern "C" {
+ extern uint8_t currentlyAccessingCard;
+@@ -77,9 +81,12 @@ bool AudioClipView::opened() {
+ }
+ 
+ void AudioClipView::focusRegained() {
++	closeMarkerGesture();
+ 	ClipView::focusRegained();
+ 	endMarkerVisible = false;
+ 	startMarkerVisible = false;
++	markerGestureActive = false;
++	markerGestureTickOffset = 0;
+ 	indicator_leds::setLedState(IndicatorLED::BACK, false);
+ 	view.focusRegained();
+ 	view.setActiveModControllableTimelineCounter(getCurrentClip());
+@@ -92,6 +99,23 @@ void AudioClipView::focusRegained() {
+ #endif
+ }
+ 
++void AudioClipView::closeMarkerGesture() {
++	if (markerGestureActive) {
++		actionLogger.closeAction(ActionType::AUDIO_CLIP_MARKER_EDIT);
++	}
++	markerGestureActive = false;
++	markerGestureTickOffset = 0;
++}
++
++void AudioClipView::clearMarkerSelection() {
++	closeMarkerGesture();
++	endMarkerVisible = false;
++	startMarkerVisible = false;
++	if (getCurrentUI() == this) {
++		uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
++	}
++}
++
+ void AudioClipView::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+ 	view.displayOutputName(getCurrentOutput(), false, getCurrentClip());
+ 	renderClipProgressRuler(canvas, ClipProgressRulerKind::AUDIO);
+@@ -129,6 +153,7 @@ bool AudioClipView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth
+ 
+ 	AudioClip& clip = *clipPtr;
+ 	SampleRecorder* recorder = clip.recorder;
++	const bool startEditingEnabled = runtimeFeatureSettings.get(RuntimeFeatureSettingType::TrimFromStartOfAudioClip);
+ 
+ 	// end marker column
+ 	int32_t endSquareDisplay = divide_round_negative(clip.loopLength - currentSong->xScroll[NAVIGATION_CLIP] - 1,
+@@ -168,15 +193,7 @@ bool AudioClipView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth
+ 			// -------- END marker ----------
+ 			if (endSquareDisplay < kDisplayWidth) {
+ 				if (endSquareDisplay >= 0) {
+-					// If endMarkerVisible, show red (bright vs. dim).
+-					if (endMarkerVisible) {
+-						if (blinkOn) {
+-							image[y][endSquareDisplay] = colours::red;
+-						}
+-						else {
+-							image[y][endSquareDisplay] = colours::red_dull;
+-						}
+-					}
++					image[y][endSquareDisplay] = endMarkerVisible && blinkOn ? colours::red : colours::red_dull;
+ 				}
+ 				int32_t xDisplay = endSquareDisplay + 1;
+ 				if (xDisplay < kDisplayWidth) {
+@@ -190,36 +207,25 @@ bool AudioClipView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth
+ 
+ 			// -------- START marker ----------
+ 
+-			if (startSquareDisplay >= 0) {
+-				if (startSquareDisplay < kDisplayWidth) {
+-					// Fill grey area first
+-					// int32_t fillEnd = startSquareDisplay;
+-					// if (fillEnd > kDisplayWidth) {
+-					//     fillEnd = kDisplayWidth;
+-					// }
+-					// for (int32_t xPos = 0; xPos < fillEnd; ++xPos) {
+-					//     image[y][xPos][0] = colours::grey;
+-					// }
+-
+-					// Then overlay the green start marker if visible
+-					if (startMarkerVisible) {
+-						if (blinkOn) {
+-							// bright green
+-							image[y][startSquareDisplay] = colours::green;
+-						}
+-						else {
+-							// dim green - using a darker version of green
+-							image[y][startSquareDisplay] = colours::green.dim();
+-						}
+-					}
+-					// else {
+-					//     // If not visible, ensure this column is grey
+-					//     image[y][startSquareDisplay] = colours::grey;
+-					// }
++			if (startEditingEnabled && startSquareDisplay > 0) {
++				const int32_t preStartEnd = std::min(startSquareDisplay, kDisplayWidth);
++				for (int32_t xDisplay = 0; xDisplay < preStartEnd; xDisplay++) {
++					image[y][xDisplay] = image[y][xDisplay].dim(2);
++				}
++			}
++			if (startEditingEnabled && startSquareDisplay >= 0 && startSquareDisplay < kDisplayWidth) {
++				image[y][startSquareDisplay] = startMarkerVisible && blinkOn ? colours::green : colours::green.dim(2);
++			}
++			if (startEditingEnabled && startSquareDisplay == endSquareDisplay && startSquareDisplay >= 0
++			    && startSquareDisplay < kDisplayWidth) {
++				if (startMarkerVisible) {
++					image[y][startSquareDisplay] = blinkOn ? colours::green : colours::green.dim(2);
++				}
++				else if (endMarkerVisible) {
++					image[y][startSquareDisplay] = blinkOn ? colours::red : colours::red_dull;
+ 				}
+ 				else {
+-					RGB greyCol = colours::grey;
+-					std::fill(&image[y][0], &image[y][kDisplayWidth], greyCol);
++					image[y][startSquareDisplay] = colours::yellow.dim(2);
+ 				}
+ 			}
+ 		}
+@@ -229,6 +235,9 @@ bool AudioClipView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth
+ }
+ 
+ ActionResult AudioClipView::timerCallback() {
++	if (!startMarkerVisible && !endMarkerVisible) {
++		return ActionResult::DEALT_WITH;
++	}
+ 	blinkOn = !blinkOn;
+ 	uiNeedsRendering(this, 0xFFFFFFFF, 0); // Very inefficient!
+ 
+@@ -335,6 +344,15 @@ ActionResult AudioClipView::buttonAction(deluge::hid::Button b, bool on, bool in
+ 
+ 	maybeStartShortcutOverview(b, on);
+ 	ActionResult result;
++	if (on && (startMarkerVisible || endMarkerVisible)) {
++		if (b == X_ENC || b == SHIFT) {
++			closeMarkerGesture();
++		}
++		else {
++			clearMarkerSelection();
++			uiNeedsRendering(this, 0xFFFFFFFF, 0);
++		}
++	}
+ 
+ 	// Song view button
+ 	if (b == SESSION_VIEW) {
+@@ -397,6 +415,7 @@ dontDeactivateMarker:
+ 				if (inCardRoutine) {
+ 					return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+ 				}
++				clearMarkerSelection();
+ 				setClipLengthEqualToSampleLength();
+ 			}
+ 		}
+@@ -450,8 +469,7 @@ dontDeactivateMarker:
+ 			else {
+ 				display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_CLIP_CLEARED));
+ 			}
+-			endMarkerVisible = false;
+-			uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
++			clearMarkerSelection();
+ 			uiNeedsRendering(this, 0xFFFFFFFF, 0);
+ 		}
+ 	}
+@@ -464,11 +482,8 @@ dontDeactivateMarker:
+ 
+ 		if (result != ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE) {
+ deactivateMarkerIfNecessary:
+-			if (endMarkerVisible) {
+-				endMarkerVisible = false;
+-				if (getCurrentUI() == this) {
+-					uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
+-				}
++			if (endMarkerVisible || startMarkerVisible) {
++				clearMarkerSelection();
+ 				uiNeedsRendering(this, 0xFFFFFFFF, 0);
+ 			}
+ 		}
+@@ -495,9 +510,7 @@ ActionResult AudioClipView::padAction(int32_t x, int32_t y, int32_t on) {
+ 			ActionResult soundEditorResult = soundEditor.potentialShortcutPadAction(x, y, on);
+ 			if (soundEditorResult != ActionResult::NOT_DEALT_WITH) {
+ 				if (soundEditorResult == ActionResult::DEALT_WITH) {
+-					endMarkerVisible = false;
+-					startMarkerVisible = false;
+-					uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
++					clearMarkerSelection();
+ 					uiNeedsRendering(this, 0xFFFFFFFF, 0);
+ 				}
+ 				return soundEditorResult;
+@@ -515,67 +528,60 @@ ActionResult AudioClipView::padAction(int32_t x, int32_t y, int32_t on) {
+ 
+ 				int32_t startSquareDisplay = divide_round_negative(0 - currentSong->xScroll[NAVIGATION_CLIP],
+ 				                                                   currentSong->xZoom[NAVIGATION_CLIP]);
++				const bool startEditingEnabled =
++				    runtimeFeatureSettings.get(RuntimeFeatureSettingType::TrimFromStartOfAudioClip);
++				const bool markersCoincide = startEditingEnabled && startSquareDisplay == endSquareDisplay;
+ 
+-				// =========== Handling END marker =============
+-				if (endMarkerVisible) {
+-					// If user taps the same or adjacent end marker column => toggle off
+-					if (x == endSquareDisplay || x == startSquareDisplay) {
+-						endMarkerVisible = false;
+-						uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
+-						uiNeedsRendering(this, 0xFFFFFFFF, 0);
+-					}
+-					else {
+-						Sample* sample = getSample();
+-						if (sample) {
+-							int32_t newLength =
+-							    (x + 1) * currentSong->xZoom[NAVIGATION_CLIP] + currentSong->xScroll[NAVIGATION_CLIP];
+-							int32_t oldLength = clipRef.loopLength;
+-							uint64_t oldLengthSamples = clipRef.sampleHolder.getDurationInSamples(true);
+-							changeUnderlyingSampleLength(clipRef, sample, newLength, oldLength, oldLengthSamples);
+-							uiNeedsRendering(this, 0xFFFFFFFF, 0);
+-						}
+-					}
+-				}
+-				// =========== Handling START marker =============
+-				else if (startMarkerVisible) {
+-					if (x == startSquareDisplay || x == endSquareDisplay) {
+-						startMarkerVisible = false; // Toggle start marker off
+-						uiTimerManager.unsetTimer(TimerName::UI_SPECIFIC);
+-						uiNeedsRendering(this, 0xFFFFFFFF, 0);
+-					}
+-					else {
+-						Sample* sample = getSample();
+-						if (sample) {
+-							int32_t newStartTicks =
+-							    x * currentSong->xZoom[NAVIGATION_CLIP] + currentSong->xScroll[NAVIGATION_CLIP];
+-							int32_t oldLength = clipRef.loopLength;
+-							uint64_t oldLengthSamples = clipRef.sampleHolder.getDurationInSamples(true);
+-							changeUnderlyingSampleStart(clipRef, sample, newStartTicks, oldLength, oldLengthSamples);
+-							uiNeedsRendering(this, 0xFFFFFFFF, 0);
+-						}
+-					}
+-				}
+-				else {
+-					// No marker is visible. Are we near the end or start?
+-					if (x == endSquareDisplay || x == endSquareDisplay + 1) {
+-						endMarkerVisible = true;
+-						startMarkerVisible = false;
++				auto selectMarker = [this](bool selectStart) {
++					const bool alreadySelected = selectStart ? startMarkerVisible : endMarkerVisible;
++					clearMarkerSelection();
++					if (!alreadySelected) {
++						startMarkerVisible = selectStart;
++						endMarkerVisible = !selectStart;
+ 						blinkOn = true;
+ 						uiTimerManager.setTimer(TimerName::UI_SPECIFIC, kSampleMarkerBlinkTime);
++					}
++					uiNeedsRendering(this, 0xFFFFFFFF, 0);
++				};
++
++				if (markersCoincide && x == startSquareDisplay) {
++					selectMarker(startMarkerVisible ? false : true);
++				}
++				else if (markersCoincide && x == endSquareDisplay + 1 && x < kDisplayWidth) {
++					selectMarker(false);
++				}
++				else if (x == endSquareDisplay || (x == endSquareDisplay + 1 && !endMarkerVisible)) {
++					selectMarker(false);
++				}
++				else if (x == startSquareDisplay) {
++					if (startEditingEnabled) {
++						selectMarker(true);
++					}
++					else if (endMarkerVisible) {
++						clearMarkerSelection();
+ 						uiNeedsRendering(this, 0xFFFFFFFF, 0);
+ 					}
+-					else if (x == startSquareDisplay) {
+-
+-						// WIP: Allow the user to trim from the start of the audio clip
+-						if (runtimeFeatureSettings.get(RuntimeFeatureSettingType::TrimFromStartOfAudioClip)) {
+-							startMarkerVisible = true;
+-							endMarkerVisible = false;
+-							blinkOn = true;
+-							uiTimerManager.setTimer(TimerName::UI_SPECIFIC, kSampleMarkerBlinkTime);
+-							uiNeedsRendering(this, 0xFFFFFFFF, 0);
++				}
++				else if (endMarkerVisible) {
++					closeMarkerGesture();
++					if (beginMarkerGesture()) {
++						const int64_t targetLength = static_cast<int64_t>(x + 1) * currentSong->xZoom[NAVIGATION_CLIP]
++						                             + currentSong->xScroll[NAVIGATION_CLIP];
++						const int64_t desiredTickOffset = targetLength - markerGestureLoopLength;
++						if (desiredTickOffset != 0) {
++							const int8_t direction = desiredTickOffset < 0 ? -1 : 1;
++							markerGestureTickOffset =
++							    desiredTickOffset
++							    - static_cast<int64_t>(direction) * currentSong->xZoom[NAVIGATION_CLIP];
++							moveSelectedMarker(direction);
+ 						}
++						closeMarkerGesture();
+ 					}
+ 				}
++				else if (startMarkerVisible) {
++					clearMarkerSelection();
++					uiNeedsRendering(this, 0xFFFFFFFF, 0);
++				}
+ 			}
+ 		}
+ 	}
+@@ -655,61 +661,6 @@ void AudioClipView::changeUnderlyingSampleLength(AudioClip& clip, const Sample*
+ 	}
+ }
+ 
+-// ----------- "Start" pointer logic -----------
+-void AudioClipView::changeUnderlyingSampleStart(AudioClip& clip, const Sample* sample, int32_t newStartTicks,
+-                                                int32_t oldLength, uint64_t oldLengthSamples) const {
+-	int32_t oldEndTick = oldLength;
+-	int32_t newLengthTicks = oldEndTick - newStartTicks;
+-	if (newLengthTicks < 1) {
+-		newLengthTicks = 1;
+-	}
+-	uint64_t newLengthSamples =
+-	    static_cast<uint64_t>(oldLengthSamples * newLengthTicks + (oldLength / 2)) / static_cast<uint32_t>(oldLength);
+-
+-	if (clip.sampleControls.isCurrentlyReversed()) {
+-		uint64_t oldValue = clip.sampleHolder.endPos;
+-		uint64_t newEndPos = clip.sampleHolder.startPos + newLengthSamples;
+-		if (newEndPos > sample->lengthInSamples) {
+-			newEndPos = sample->lengthInSamples;
+-		}
+-		clip.sampleHolder.endPos = newEndPos;
+-
+-		ActionType actionType =
+-		    (newLengthTicks < oldLength) ? ActionType::CLIP_LENGTH_DECREASE : ActionType::CLIP_LENGTH_INCREASE;
+-		Action* action = actionLogger.getNewAction(actionType, ActionAddition::NOT_ALLOWED);
+-		currentSong->setClipLength(&clip, newLengthTicks, action);
+-		if (action) {
+-			if (action->firstConsequence && action->firstConsequence->type == Consequence::CLIP_LENGTH) {
+-				ConsequenceClipLength* consequence = (ConsequenceClipLength*)action->firstConsequence;
+-				consequence->pointerToMarkerValue = &clip.sampleHolder.endPos;
+-				consequence->markerValueToRevertTo = oldValue;
+-			}
+-			actionLogger.closeAction(actionType);
+-		}
+-	}
+-	else {
+-		uint64_t oldValue = clip.sampleHolder.startPos;
+-		uint64_t newStartPos = clip.sampleHolder.endPos - newLengthSamples;
+-		if ((int64_t)newStartPos < 0) {
+-			newStartPos = 0;
+-		}
+-		clip.sampleHolder.startPos = newStartPos;
+-
+-		ActionType actionType =
+-		    (newLengthTicks < oldLength) ? ActionType::CLIP_LENGTH_DECREASE : ActionType::CLIP_LENGTH_INCREASE;
+-		Action* action = actionLogger.getNewAction(actionType, ActionAddition::NOT_ALLOWED);
+-		currentSong->setClipLength(&clip, newLengthTicks, action);
+-		if (action) {
+-			if (action->firstConsequence && action->firstConsequence->type == Consequence::CLIP_LENGTH) {
+-				ConsequenceClipLength* consequence = (ConsequenceClipLength*)action->firstConsequence;
+-				consequence->pointerToMarkerValue = &clip.sampleHolder.startPos;
+-				consequence->markerValueToRevertTo = oldValue;
+-			}
+-			actionLogger.closeAction(actionType);
+-		}
+-	}
+-}
+-
+ void AudioClipView::playbackEnded() {
+ 	uiNeedsRendering(this, 0xFFFFFFFF, 0);
+ }
+@@ -733,14 +684,190 @@ void AudioClipView::sampleNeedsReRendering(Sample* s) {
+ 	}
+ }
+ 
++bool AudioClipView::beginMarkerGesture() {
++	AudioClip* clip = getCurrentAudioClip();
++	if (!clip || clip->getCurrentlyRecordingLinearly() || !clip->sampleHolder.audioFile) {
++		return false;
++	}
++
++	Sample* sample = static_cast<Sample*>(clip->sampleHolder.audioFile);
++	if (sample->lengthInSamples == 0 || clip->sampleHolder.startPos >= clip->sampleHolder.endPos
++	    || clip->sampleHolder.endPos > sample->lengthInSamples || clip->loopLength < 1
++	    || clip->loopLength > kMaxSequenceLength) {
++		return false;
++	}
++
++	markerGestureRawStart = clip->sampleHolder.startPos;
++	markerGestureRawEnd = clip->sampleHolder.endPos;
++	markerGestureSourceLength = sample->lengthInSamples;
++	markerGestureLoopLength = clip->loopLength;
++	markerGestureTickOffset = 0;
++	markerGestureActive = true;
++	return true;
++}
++
++void AudioClipView::moveSelectedMarker(int8_t offset) {
++	if (offset == 0 || (!startMarkerVisible && !endMarkerVisible) || getCurrentUI() != this || sdRoutineLock
++	    || currentlyAccessingCard || playbackHandler.ticksLeftInCountIn
++	    || playbackHandler.recording != RecordingMode::OFF) {
++		return;
++	}
++
++	AudioClip* clip = getCurrentAudioClip();
++	if (!clip || clip->getCurrentlyRecordingLinearly() || !clip->currentlyScrollableAndZoomable()) {
++		return;
++	}
++	if (!markerGestureActive && !beginMarkerGesture()) {
++		return;
++	}
++
++	const int64_t tickDelta = static_cast<int64_t>(offset) * currentSong->xZoom[NAVIGATION_CLIP];
++	const int64_t proposedTickOffset = std::clamp<int64_t>(
++	    markerGestureTickOffset + tickDelta, -static_cast<int64_t>(kMaxSequenceLength), kMaxSequenceLength);
++	const auto selectedBound = startMarkerVisible ? deluge::audio_clip_bound_edit::PlaybackBound::START
++	                                              : deluge::audio_clip_bound_edit::PlaybackBound::END;
++	const bool reversed = clip->sampleControls.isCurrentlyReversed();
++	const deluge::audio_clip_bound_edit::GestureAnchor anchor{
++	    .rawStart = markerGestureRawStart,
++	    .rawEnd = markerGestureRawEnd,
++	    .loopLength = markerGestureLoopLength,
++	    .sourceLength = markerGestureSourceLength,
++	};
++
++	deluge::audio_clip_bound_edit::RawBound rawBound =
++	    (selectedBound == deluge::audio_clip_bound_edit::PlaybackBound::START) == !reversed
++	        ? deluge::audio_clip_bound_edit::RawBound::START
++	        : deluge::audio_clip_bound_edit::RawBound::END;
++	uint64_t rawMarker = rawBound == deluge::audio_clip_bound_edit::RawBound::START ? anchor.rawStart : anchor.rawEnd;
++	int32_t newLength = anchor.loopLength;
++
++	if (proposedTickOffset != 0) {
++		const uint32_t tickDistance =
++		    static_cast<uint32_t>(proposedTickOffset < 0 ? -proposedTickOffset : proposedTickOffset);
++		const auto direction = proposedTickOffset < 0 ? deluge::audio_clip_bound_edit::PlaybackDirection::EARLIER
++		                                              : deluge::audio_clip_bound_edit::PlaybackDirection::LATER;
++		const auto result = deluge::audio_clip_bound_edit::calculate(
++		    anchor, selectedBound, reversed,
++		    {.direction = direction,
++		     .samplesFromAnchor = deluge::audio_clip_bound_edit::samplesForTickDistance(anchor, tickDistance)});
++		if (!result) {
++			if (result.error() != deluge::audio_clip_bound_edit::Rejection::NO_CHANGE) {
++				return;
++			}
++		}
++		else {
++			rawBound = result->rawBound;
++			rawMarker = result->rawMarker;
++			newLength = result->loopLength;
++
++			Sample* sample = static_cast<Sample*>(clip->sampleHolder.audioFile);
++			if (selectedBound == deluge::audio_clip_bound_edit::PlaybackBound::END && !reversed
++			    && rawBound == deluge::audio_clip_bound_edit::RawBound::END && sample->fileLoopStartSamples > 0) {
++				const uint64_t fileEndMarker = static_cast<uint64_t>(sample->fileLoopStartSamples);
++				const uint64_t distanceFromFileEndMarker =
++				    rawMarker > fileEndMarker ? rawMarker - fileEndMarker : fileEndMarker - rawMarker;
++				if (fileEndMarker <= anchor.sourceLength && distanceFromFileEndMarker < 10) {
++					const auto snapDirection = fileEndMarker < anchor.rawEnd
++					                               ? deluge::audio_clip_bound_edit::PlaybackDirection::EARLIER
++					                               : deluge::audio_clip_bound_edit::PlaybackDirection::LATER;
++					const uint64_t snapDistance =
++					    fileEndMarker < anchor.rawEnd ? anchor.rawEnd - fileEndMarker : fileEndMarker - anchor.rawEnd;
++					const auto snapped = deluge::audio_clip_bound_edit::calculate(
++					    anchor, selectedBound, reversed,
++					    {.direction = snapDirection, .samplesFromAnchor = snapDistance});
++					if (snapped) {
++						rawMarker = snapped->rawMarker;
++						newLength = snapped->loopLength;
++					}
++					else if (snapped.error() == deluge::audio_clip_bound_edit::Rejection::NO_CHANGE) {
++						rawMarker = anchor.rawEnd;
++						newLength = anchor.loopLength;
++					}
++				}
++			}
++		}
++	}
++
++	uint64_t* markerValue = rawBound == deluge::audio_clip_bound_edit::RawBound::START ? &clip->sampleHolder.startPos
++	                                                                                   : &clip->sampleHolder.endPos;
++	if (*markerValue == rawMarker && clip->loopLength == newLength) {
++		const bool atRawLimit = rawBound == deluge::audio_clip_bound_edit::RawBound::START
++		                            ? rawMarker == 0 || rawMarker + 1 == anchor.rawEnd
++		                            : rawMarker == anchor.rawStart + 1 || rawMarker == anchor.sourceLength;
++		if (!atRawLimit && newLength != 1 && newLength != kMaxSequenceLength) {
++			markerGestureTickOffset = proposedTickOffset;
++		}
++		return;
++	}
++
++	Action* action = actionLogger.getNewActionForAudioClipMarkerEdit(clip, markerValue);
++	if (!action) {
++		return;
++	}
++
++	const int32_t oldLength = clip->loopLength;
++	const int32_t oldScroll = currentSong->xScroll[NAVIGATION_CLIP];
++	*markerValue = rawMarker;
++	clip->sampleHolder.claimClusterReasons(reversed, CLUSTER_LOAD_IMMEDIATELY_OR_ENQUEUE);
++	currentSong->setClipLength(clip, newLength, action);
++	const bool atRawLimit = rawBound == deluge::audio_clip_bound_edit::RawBound::START
++	                            ? rawMarker == 0 || rawMarker + 1 == anchor.rawEnd
++	                            : rawMarker == anchor.rawStart + 1 || rawMarker == anchor.sourceLength;
++	if (atRawLimit) {
++		// Saturate the gesture accumulator at the boundary actually reached. Otherwise one fast turn can leave a large
++		// overshoot that must be unwound before the first reverse detent moves the marker. Raw position is the source
++		// of truth here because its ratio back to Clip ticks may differ from the separately rounded Clip length.
++		const uint64_t anchorRawMarker =
++		    rawBound == deluge::audio_clip_bound_edit::RawBound::START ? anchor.rawStart : anchor.rawEnd;
++		const uint64_t rawDistance =
++		    rawMarker > anchorRawMarker ? rawMarker - anchorRawMarker : anchorRawMarker - rawMarker;
++		const int64_t tickDistance = deluge::audio_clip_bound_edit::minimumTickDistanceForSamples(anchor, rawDistance);
++		markerGestureTickOffset = proposedTickOffset < 0 ? -tickDistance : tickDistance;
++	}
++	else if (newLength == 1 || newLength == kMaxSequenceLength) {
++		markerGestureTickOffset =
++		    deluge::audio_clip_bound_edit::realizedTickOffset(selectedBound, anchor.loopLength, newLength);
++	}
++	else {
++		markerGestureTickOffset = proposedTickOffset;
++	}
++
++	if (selectedBound == deluge::audio_clip_bound_edit::PlaybackBound::START) {
++		currentSong->xScroll[NAVIGATION_CLIP] = deluge::gui::timeline_view_navigation::reanchorScrollAfterStartEdit(
++		    oldScroll, oldLength, newLength, getMinXScroll());
++	}
++	actionLogger.updateAction(action);
++	clearMarkerSelectionIfOffscreen();
++	uiNeedsRendering(this, 0xFFFFFFFF, 0);
++}
++
++void AudioClipView::clearMarkerSelectionIfOffscreen() {
++	if (!startMarkerVisible && !endMarkerVisible) {
++		return;
++	}
++
++	const int32_t markerSquare =
++	    startMarkerVisible
++	        ? divide_round_negative(-currentSong->xScroll[NAVIGATION_CLIP], currentSong->xZoom[NAVIGATION_CLIP])
++	        : divide_round_negative(getCurrentAudioClip()->loopLength - currentSong->xScroll[NAVIGATION_CLIP] - 1,
++	                                currentSong->xZoom[NAVIGATION_CLIP]);
++	if (markerSquare < 0 || markerSquare >= kDisplayWidth) {
++		clearMarkerSelection();
++	}
++}
++
+ void AudioClipView::selectEncoderAction(int8_t offset) {
+ 	if (currentUIMode) {
+ 		return;
+ 	}
+ 	// allows you to assign an audio clip to a different audio track
+ 	if (Buttons::isShiftButtonPressed()) {
++		clearMarkerSelection();
+ 		view.navigateThroughAudioOutputsForAudioClip(offset, getCurrentAudioClip());
+ 	}
++	else if (startMarkerVisible || endMarkerVisible) {
++		moveSelectedMarker(offset);
++	}
+ 	else {
+ 		auto ao = (AudioOutput*)getCurrentAudioClip()->output;
+ 		ao->scrollAudioOutputMode(offset);
+@@ -796,13 +923,17 @@ doReRender:
+ 
+ ActionResult AudioClipView::horizontalEncoderAction(int32_t offset) {
+ 	stopShortcutOverview();
++	closeMarkerGesture();
+ 	// Shift and x pressed - edit length of clip without timestretching
+ 	if (isNoUIModeActive() && Buttons::isButtonPressed(deluge::hid::button::X_ENC) && Buttons::isShiftButtonPressed()) {
++		clearMarkerSelection();
+ 		return editClipLengthWithoutTimestretching(offset);
+ 	}
+ 	else {
+ 		// Otherwise, let parent do scrolling and zooming
+-		return ClipView::horizontalEncoderAction(offset);
++		ActionResult result = ClipView::horizontalEncoderAction(offset);
++		clearMarkerSelectionIfOffscreen();
++		return result;
+ 	}
+ }
+ 
+@@ -847,6 +978,9 @@ ActionResult AudioClipView::editClipLengthWithoutTimestretching(int32_t offset)
+ 
+ ActionResult AudioClipView::verticalEncoderAction(int32_t offset, bool inCardRoutine) {
+ 	stopShortcutOverview();
++	if (offset != 0) {
++		clearMarkerSelection();
++	}
+ 	if (!currentUIMode && Buttons::isShiftButtonPressed() && !Buttons::isButtonPressed(deluge::hid::button::Y_ENC)) {
+ 		if (inCardRoutine && !allowSomeUserActionsEvenWhenInCardRoutine) {
+ 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE; // Allow sometimes.
+@@ -859,13 +993,33 @@ ActionResult AudioClipView::verticalEncoderAction(int32_t offset, bool inCardRou
+ 	return ActionResult::DEALT_WITH;
+ }
+ 
+-bool AudioClipView::setupScroll(uint32_t oldScroll) {
++bool AudioClipView::setupScroll(int32_t oldScroll) {
+ 	if (!getCurrentAudioClip()->currentlyScrollableAndZoomable()) {
+ 		return false;
+ 	}
+ 	return ClipView::setupScroll(oldScroll);
+ }
+ 
++int32_t AudioClipView::getMinXScroll() const {
++	AudioClip* clip = getCurrentAudioClip();
++	if (!runtimeFeatureSettings.get(RuntimeFeatureSettingType::TrimFromStartOfAudioClip) || !clip
++	    || clip->getCurrentlyRecordingLinearly() || !clip->sampleHolder.audioFile || clip->loopLength < 1) {
++		return 0;
++	}
++
++	const Sample* sample = static_cast<Sample*>(clip->sampleHolder.audioFile);
++	const uint64_t rawStart = clip->sampleHolder.startPos;
++	const uint64_t rawEnd = std::min(clip->sampleHolder.endPos, sample->lengthInSamples);
++	if (rawStart >= rawEnd) {
++		return 0;
++	}
++
++	const uint64_t recoverableSamples =
++	    clip->sampleControls.isCurrentlyReversed() ? sample->lengthInSamples - rawEnd : rawStart;
++	return deluge::audio_clip_bound_edit::minimumSourceBackedScroll(recoverableSamples, rawEnd - rawStart,
++	                                                                clip->loopLength);
++}
++
+ uint32_t AudioClipView::getMaxLength() {
+ 	if (endMarkerVisible) {
+ 		return getCurrentClip()->loopLength + 1;
+diff --git a/src/deluge/gui/views/audio_clip_view.h b/src/deluge/gui/views/audio_clip_view.h
+index e50973e0717d91f723851fc2d0d4ff2651b01876..606712a4a09df7274c5caabc6f357c7dae8087df 100644
+--- a/src/deluge/gui/views/audio_clip_view.h
++++ b/src/deluge/gui/views/audio_clip_view.h
+@@ -34,7 +34,8 @@ public:
+ 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea = true) override;
+ 	bool renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+ 	                   uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) override;
+-	bool setupScroll(uint32_t oldScroll) override;
++	bool setupScroll(int32_t oldScroll) override;
++	[[nodiscard]] int32_t getMinXScroll() const override;
+ 	[[nodiscard]] bool supportsTriplets() const override { return false; }
+ 	ClipMinder* toClipMinder() override { return this; }
+ 
+@@ -71,11 +72,21 @@ private:
+ 	bool endMarkerVisible;   // True if user is currently adjusting the clip's end
+ 	bool startMarkerVisible; // True if user is currently adjusting the clip's start
+ 	bool blinkOn;
++	bool markerGestureActive;
++	uint64_t markerGestureRawStart;
++	uint64_t markerGestureRawEnd;
++	uint64_t markerGestureSourceLength;
++	int32_t markerGestureLoopLength;
++	int64_t markerGestureTickOffset;
++
++	void closeMarkerGesture();
++	void clearMarkerSelection();
++	void clearMarkerSelectionIfOffscreen();
++	bool beginMarkerGesture();
++	void moveSelectedMarker(int8_t offset);
+ 
+ 	void changeUnderlyingSampleLength(AudioClip& clip, const Sample* sample, int32_t newLength, int32_t oldLength,
+ 	                                  uint64_t oldLengthSamples) const;
+-	void changeUnderlyingSampleStart(AudioClip& clip, const Sample* sample, int32_t newStartTicks, int32_t oldLength,
+-	                                 uint64_t oldLengthSamples) const;
+ };
+ 
+ extern AudioClipView audioClipView;
+diff --git a/src/deluge/gui/views/clip_view.cpp b/src/deluge/gui/views/clip_view.cpp
+index 5c22fbb65d59470f9724c5e248e57dfd893e99c7..6a873543a0d37568cfb2cc116e929751c8e3496e 100644
+--- a/src/deluge/gui/views/clip_view.cpp
++++ b/src/deluge/gui/views/clip_view.cpp
+@@ -38,6 +38,7 @@
+ #include "playback/playback_handler.h"
+ #include "processing/engines/audio_engine.h"
+ #include "processing/stem_export/stem_export.h"
++#include <algorithm>
+ 
+ namespace ruler = deluge::gui::views::clip_progress_ruler;
+ 
+@@ -141,6 +142,7 @@ uint32_t ClipView::getMaxLength() {
+ 
+ void ClipView::focusRegained() {
+ 	ClipNavigationTimelineView::focusRegained();
++	currentSong->xScroll[NAVIGATION_CLIP] = std::max(currentSong->xScroll[NAVIGATION_CLIP], getMinXScroll());
+ 	invalidateClipProgressRuler();
+ }
+ 
+diff --git a/src/deluge/gui/views/session_view.cpp b/src/deluge/gui/views/session_view.cpp
+index 74b2f3f7680a64c053c915c12a3b1b34f2bf7133..52bc99f0c5744a750830d5945ce5ee445da40ad2 100644
+--- a/src/deluge/gui/views/session_view.cpp
++++ b/src/deluge/gui/views/session_view.cpp
+@@ -163,6 +163,7 @@ bool SessionView::opened() {
+ void SessionView::focusRegained() {
+ 	viewingRecordArmingActive = false;
+ 	horizontalEncoderPressed = false;
++	currentSong->xScroll[NAVIGATION_CLIP] = std::max(currentSong->xScroll[NAVIGATION_CLIP], getMinXScroll());
+ 	selectLayout(0); // Make sure we get a valid layout from the loaded file
+ 
+ 	bool doingRender = (currentUIMode != UI_MODE_ANIMATION_FADE);
+@@ -2492,7 +2493,7 @@ void SessionView::rowNeedsRenderingDependingOnSubMode(int32_t yDisplay) {
+ 	}
+ }
+ 
+-bool SessionView::calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll, uint32_t newZoom, uint32_t oldZoom) {
++bool SessionView::calculateZoomPinSquares(int32_t oldScroll, int32_t newScroll, uint32_t newZoom, uint32_t oldZoom) {
+ 
+ 	bool anyToDo = false;
+ 
+@@ -2501,8 +2502,8 @@ bool SessionView::calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll
+ 		Clip* clip = getClipOnScreen(yDisplay);
+ 
+ 		if (clip && clip->currentlyScrollableAndZoomable()) {
+-			int32_t oldLocal = getClipLocalScroll(clip, oldScroll, oldZoom);
+-			int32_t newLocal = getClipLocalScroll(clip, newScroll, newZoom);
++			int32_t oldLocal = getClipLocalScroll(clip, static_cast<uint32_t>(oldScroll), oldZoom);
++			int32_t newLocal = getClipLocalScroll(clip, static_cast<uint32_t>(newScroll), newZoom);
+ 
+ 			PadLEDs::zoomPinSquare[yDisplay] =
+ 			    ((int64_t)(int32_t)(oldLocal - newLocal) << 16) / (int32_t)(newZoom - oldZoom);
+@@ -2525,7 +2526,7 @@ uint32_t SessionView::getMaxLength() {
+ 	return currentSong->getLongestClip(true, false)->loopLength;
+ }
+ 
+-bool SessionView::setupScroll(uint32_t oldScroll) {
++bool SessionView::setupScroll(int32_t oldScroll) {
+ 	if (currentSong->sessionLayout == SessionLayoutType::SessionLayoutTypeGrid) {
+ 		return false;
+ 	}
+@@ -2547,7 +2548,7 @@ bool SessionView::setupScroll(uint32_t oldScroll) {
+ 		if (clip && clip->currentlyScrollableAndZoomable()) {
+ 
+ 			uint32_t newLocalPos = getClipLocalScroll(clip, currentSong->xScroll[NAVIGATION_CLIP], xZoom);
+-			uint32_t oldLocalPos = getClipLocalScroll(clip, oldScroll, xZoom);
++			uint32_t oldLocalPos = getClipLocalScroll(clip, static_cast<uint32_t>(oldScroll), xZoom);
+ 			bool moved = (newLocalPos != oldLocalPos);
+ 			if (moved) {
+ 				ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
+diff --git a/src/deluge/gui/views/session_view.h b/src/deluge/gui/views/session_view.h
+index 59b024b6a6a8eee81bb21bc8141a44cfc5a30470..ee055be60664fe9c22609a7955197a60df46beb1 100644
+--- a/src/deluge/gui/views/session_view.h
++++ b/src/deluge/gui/views/session_view.h
+@@ -70,9 +70,9 @@ public:
+ 	int32_t getClipPlaceOnScreen(Clip* clip);
+ 	void drawStatusSquare(uint8_t yDisplay, RGB thisImage[]);
+ 	void drawSectionSquare(uint8_t yDisplay, RGB thisImage[]);
+-	bool calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll, uint32_t newZoom, uint32_t oldZoom) override;
++	bool calculateZoomPinSquares(int32_t oldScroll, int32_t newScroll, uint32_t newZoom, uint32_t oldZoom) override;
+ 	uint32_t getMaxLength() override;
+-	bool setupScroll(uint32_t oldScroll) override;
++	bool setupScroll(int32_t oldScroll) override;
+ 	uint32_t getClipLocalScroll(Clip* loopable, uint32_t overviewScroll, uint32_t xZoom);
+ 	void flashPlayRoutine();
+ 
+diff --git a/src/deluge/gui/views/timeline_view.cpp b/src/deluge/gui/views/timeline_view.cpp
+index 8b6a5969b004d074a130300c10ca8ba8770bd447..fa38de740fe1760785f85c925b9e2aca4fe1f24f 100644
+--- a/src/deluge/gui/views/timeline_view.cpp
++++ b/src/deluge/gui/views/timeline_view.cpp
+@@ -19,6 +19,7 @@
+ #include "definitions_cxx.hpp"
+ #include "extern.h"
+ #include "gui/ui/load/load_pattern_ui.h"
++#include "gui/views/timeline_view_navigation.h"
+ #include "gui/views/view.h"
+ #include "hid/button.h"
+ #include "hid/buttons.h"
+@@ -40,7 +41,7 @@ void TimelineView::scrollFinished() {
+ }
+ 
+ // Virtual function
+-bool TimelineView::setupScroll(uint32_t oldScroll) {
++bool TimelineView::setupScroll(int32_t oldScroll) {
+ 	memset(PadLEDs::transitionTakingPlaceOnRow, 1, sizeof(PadLEDs::transitionTakingPlaceOnRow));
+ 
+ 	renderMainPads(0xFFFFFFFF, PadLEDs::imageStore, &PadLEDs::occupancyMaskStore[kDisplayHeight], true);
+@@ -48,9 +49,10 @@ bool TimelineView::setupScroll(uint32_t oldScroll) {
+ 	return true;
+ }
+ 
+-bool TimelineView::calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll, uint32_t newZoom, uint32_t oldZoom) {
++bool TimelineView::calculateZoomPinSquares(int32_t oldScroll, int32_t newScroll, uint32_t newZoom, uint32_t oldZoom) {
+ 
+-	int32_t zoomPinSquareBig = ((int64_t)(int32_t)(oldScroll - newScroll) << 16) / (int32_t)(newZoom - oldZoom);
++	int32_t zoomPinSquareBig =
++	    ((static_cast<int64_t>(oldScroll) - newScroll) << 16) / static_cast<int32_t>(newZoom - oldZoom);
+ 
+ 	for (int32_t i = 0; i < kDisplayHeight; i++) {
+ 		PadLEDs::zoomPinSquare[i] = zoomPinSquareBig;
+@@ -191,7 +193,9 @@ ActionResult TimelineView::horizontalEncoderAction(int32_t offset) {
+ 			}
+ 
+ 			currentSong->xZoom[navSysId] = newZoom;
+-			int32_t newScroll = currentSong->xScroll[navSysId] / (newZoom * kDisplayWidth) * (newZoom * kDisplayWidth);
++			const uint32_t zoomSpan = newZoom * kDisplayWidth;
++			int32_t newScroll = deluge::gui::timeline_view_navigation::alignScrollForZoom(
++			    currentSong->xScroll[navSysId], zoomSpan, getMinXScroll());
+ 
+ 			initiateXZoom(zoomMagnitude, newScroll, oldXZoom);
+ 			displayZoomLevel();
+@@ -204,12 +208,11 @@ ActionResult TimelineView::horizontalEncoderAction(int32_t offset) {
+ 		// or it's pressed and you're in note row editor
+ 		if (!Buttons::isShiftButtonPressed() || inNoteRowEditor) {
+ 
+-			int32_t newXScroll = currentSong->xScroll[navSysId] + offset * currentSong->xZoom[navSysId] * kDisplayWidth;
+-
+-			// Make sure we don't scroll too far left
+-			if (newXScroll < 0) {
+-				newXScroll = 0;
+-			}
++			const int64_t requestedScroll =
++			    static_cast<int64_t>(currentSong->xScroll[navSysId])
++			    + static_cast<int64_t>(offset) * currentSong->xZoom[navSysId] * kDisplayWidth;
++			const int32_t newXScroll =
++			    deluge::gui::timeline_view_navigation::clampScroll(requestedScroll, getMinXScroll());
+ 
+ 			// Make sure we don't scroll too far right
+ 			if (newXScroll < getMaxLength() || offset < 0) {
+@@ -234,7 +237,12 @@ void TimelineView::displayScrollPos() {
+ 		quantization *= kDisplayWidth;
+ 	}
+ 
+-	displayNumberOfBarsAndBeats(currentSong->xScroll[navSysId], quantization, true, "FAR");
++	if (currentSong->xScroll[navSysId] < 0) {
++		display->displayPopup("PRE", 3, true);
++	}
++	else {
++		displayNumberOfBarsAndBeats(currentSong->xScroll[navSysId], quantization, true, "FAR");
++	}
+ }
+ 
+ void TimelineView::displayNumberOfBarsAndBeats(uint32_t number, uint32_t quantization, bool countFromOne,
+@@ -307,9 +315,9 @@ putBeatCountOnFarRight:
+ }
+ 
+ // Changes the actual xScroll.
+-void TimelineView::initiateXScroll(uint32_t newXScroll, int32_t numSquaresToScroll) {
++void TimelineView::initiateXScroll(int32_t newXScroll, int32_t numSquaresToScroll) {
+ 
+-	uint32_t oldXScroll = currentSong->xScroll[getNavSysId()];
++	int32_t oldXScroll = currentSong->xScroll[getNavSysId()];
+ 
+ 	int32_t scrollDirection = (newXScroll > currentSong->xScroll[getNavSysId()]) ? 1 : -1;
+ 
+@@ -333,7 +341,9 @@ bool TimelineView::zoomToMax(bool inOnly) {
+ 		// Zoom to view what's new
+ 		currentSong->xZoom[getNavSysId()] = maxZoom;
+ 
+-		int32_t newScroll = currentSong->xScroll[getNavSysId()] / (maxZoom * kDisplayWidth) * (maxZoom * kDisplayWidth);
++		const uint32_t zoomSpan = maxZoom * kDisplayWidth;
++		int32_t newScroll = deluge::gui::timeline_view_navigation::alignScrollForZoom(
++		    currentSong->xScroll[getNavSysId()], zoomSpan, getMinXScroll());
+ 
+ 		initiateXZoom(howMuchMoreMagnitude(maxZoom, oldZoom), newScroll, oldZoom);
+ 		return true;
+@@ -349,7 +359,7 @@ void TimelineView::initiateXZoom(int32_t zoomMagnitude, int32_t newScroll, uint3
+ 	memcpy(PadLEDs::imageStore[(zoomMagnitude < 0) ? kDisplayHeight : 0], PadLEDs::image,
+ 	       (kDisplayWidth + kSideBarWidth) * kDisplayHeight * sizeof(RGB));
+ 
+-	uint32_t oldScroll = currentSong->xScroll[getNavSysId()];
++	int32_t oldScroll = currentSong->xScroll[getNavSysId()];
+ 
+ 	currentSong->xScroll[getNavSysId()] = newScroll;
+ 	bool anyToAnimate = calculateZoomPinSquares(oldScroll, newScroll, currentSong->xZoom[getNavSysId()], oldZoom)
+diff --git a/src/deluge/gui/views/timeline_view.h b/src/deluge/gui/views/timeline_view.h
+index 56b8875a5552f6e6be1290476d199a94049ce749..6426c37f8a22af438285f1b82fbb5bb6c1bc7c15 100644
+--- a/src/deluge/gui/views/timeline_view.h
++++ b/src/deluge/gui/views/timeline_view.h
+@@ -33,10 +33,11 @@ public:
+ 	TimelineView* toTimelineView() final { return this; }
+ 
+ 	virtual uint32_t getMaxZoom() = 0;
+-	virtual bool calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll, uint32_t newZoom,
++	virtual bool calculateZoomPinSquares(int32_t oldScroll, int32_t newScroll, uint32_t newZoom,
+ 	                                     uint32_t oldZoom); // Returns false if no animation needed
+ 	virtual uint32_t getMaxLength() = 0;
+-	virtual bool setupScroll(uint32_t oldScroll); // Returns false if no animation needed
++	virtual bool setupScroll(int32_t oldScroll); // Returns false if no animation needed
++	[[nodiscard]] virtual int32_t getMinXScroll() const { return 0; }
+ 	[[nodiscard]] virtual int32_t getNavSysId() const { return NAVIGATION_CLIP; }
+ 
+ 	// By default, animate every row during a zoom transition. A row that renders identically before and after simply
+@@ -51,7 +52,7 @@ public:
+ 	void displayScrollPos();
+ 	void displayNumberOfBarsAndBeats(uint32_t number, uint32_t quantization, bool countFromOne,
+ 	                                 char const* tooLongText);
+-	void initiateXScroll(uint32_t newXScroll, int32_t numSquaresToScroll = kDisplayWidth);
++	void initiateXScroll(int32_t newXScroll, int32_t numSquaresToScroll = kDisplayWidth);
+ 	bool zoomToMax(bool inOnly = false);
+ 	void initiateXZoom(int32_t zoomMagnitude, int32_t newScroll, uint32_t oldZoom);
+ 	void midiLearnFlash() override;
+diff --git a/src/deluge/gui/views/timeline_view_navigation.h b/src/deluge/gui/views/timeline_view_navigation.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..53846e9289051bbfdce6853009194a87f3c81f33
+--- /dev/null
++++ b/src/deluge/gui/views/timeline_view_navigation.h
+@@ -0,0 +1,53 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
++ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with The Synthstrom Audible Deluge Firmware.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <algorithm>
++#include <cstdint>
++#include <limits>
++
++namespace deluge::gui::timeline_view_navigation {
++
++[[nodiscard]] constexpr int32_t clampScroll(int64_t requested, int32_t minimum) {
++	return static_cast<int32_t>(std::clamp<int64_t>(requested, minimum, std::numeric_limits<int32_t>::max()));
++}
++
++[[nodiscard]] constexpr int32_t floorToMultiple(int32_t position, uint32_t span) {
++	if (span == 0) {
++		return position;
++	}
++
++	const int64_t widePosition = position;
++	const int64_t wideSpan = span;
++	const int64_t quotient = widePosition / wideSpan;
++	const int64_t remainder = widePosition % wideSpan;
++	const int64_t floored = (remainder < 0 ? quotient - 1 : quotient) * wideSpan;
++	return static_cast<int32_t>(
++	    std::clamp<int64_t>(floored, std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::max()));
++}
++
++[[nodiscard]] constexpr int32_t alignScrollForZoom(int32_t position, uint32_t span, int32_t minimum) {
++	return std::max(floorToMultiple(position, span), minimum);
++}
++
++[[nodiscard]] constexpr int32_t reanchorScrollAfterStartEdit(int32_t oldScroll, int32_t oldLength, int32_t newLength,
++                                                             int32_t minimum) {
++	return clampScroll(static_cast<int64_t>(oldScroll) + newLength - oldLength, minimum);
++}
++
++} // namespace deluge::gui::timeline_view_navigation
+diff --git a/src/deluge/gui/waveform/waveform_renderer.cpp b/src/deluge/gui/waveform/waveform_renderer.cpp
+index 818fa2bb4c085481fa7994855a844543727a11e9..ff49a856d0536d62f25b9c0dcc1a02110123b284 100644
+--- a/src/deluge/gui/waveform/waveform_renderer.cpp
++++ b/src/deluge/gui/waveform/waveform_renderer.cpp
+@@ -45,7 +45,7 @@ WaveformRenderer::WaveformRenderer() {
+ static_assert(Cluster::kSizeFAT16Max <= std::numeric_limits<int32_t>::max());
+ 
+ // Returns false if had trouble loading some (will often not be all) Clusters, e.g. cos we're in the card routine
+-bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64_t xZoom,
++bool WaveformRenderer::renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
+                                         RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
+                                         SampleRecorder* recorder, std::optional<RGB> rgb, bool reversed, int32_t xEnd) {
+ 
+diff --git a/src/deluge/gui/waveform/waveform_renderer.h b/src/deluge/gui/waveform/waveform_renderer.h
+index 9b6989c03a2faf5a7d4bc33447e37e40ed416b43..385971d9ed3ca637aa9105233e22a8ae28eb3c61 100644
+--- a/src/deluge/gui/waveform/waveform_renderer.h
++++ b/src/deluge/gui/waveform/waveform_renderer.h
+@@ -41,7 +41,7 @@ class WaveformRenderer {
+ public:
+ 	WaveformRenderer();
+ 
+-	bool renderFullScreen(Sample* sample, uint64_t xScroll, uint64_t xZoom,
++	bool renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
+ 	                      RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
+ 	                      SampleRecorder* recorder = nullptr, std::optional<RGB> rgb = std::nullopt,
+ 	                      bool reversed = false, int32_t xEnd = kDisplayWidth);
+diff --git a/src/deluge/model/action/action.cpp b/src/deluge/model/action/action.cpp
+index befc98336df19cd55e51a2e4a188f25590097262..acbccc471c5e1c3b32e44276c25a80597dc0b587 100644
+--- a/src/deluge/model/action/action.cpp
++++ b/src/deluge/model/action/action.cpp
+@@ -54,7 +54,7 @@ Action::Action(ActionType newActionType) {
+ 	offset = 0;
+ }
+ 
+-EnumStringMap<ActionType, 29> actionTypeMap{
++EnumStringMap<ActionType, 30> actionTypeMap{
+     {{{ActionType::MISC, "misc"},
+       {ActionType::NOTE_EDIT, "note_edit"},
+       {ActionType::NOTE_TAIL_EXTEND, "note_tail_extend"},
+@@ -83,7 +83,8 @@ EnumStringMap<ActionType, 29> actionTypeMap{
+       {ActionType::NOTEROW_ROTATE, "noterow_rotate"},
+       {ActionType::NOTEROW_LENGTH_EDIT, "noterow_length_edit"},
+       {ActionType::NOTEROW_HORIZONTAL_SHIFT, "noterow_horizontal_shift"},
+-      {ActionType::NOTEROW_REORDER, "noterow_reorder"}}}};
++      {ActionType::NOTEROW_REORDER, "noterow_reorder"},
++      {ActionType::AUDIO_CLIP_MARKER_EDIT, "audio_clip_marker_edit"}}}};
+ 
+ // Call this before the destructor!
+ void Action::prepareForDestruction(int32_t whichQueueActionIn, Song* song) {
+@@ -117,6 +118,28 @@ void Action::addConsequence(Consequence* consequence) {
+ 
+ // Returns error code
+ Error Action::revert(TimeType time, ModelStack* modelStack) {
++	if (type == ActionType::AUDIO_CLIP_MARKER_EDIT) {
++		// A shortening snapshots automation after the length consequence is added. Action replay reverses its list
++		// after every pass, so without restoring this order, Redo would shorten first and destructively trim the
++		// automation that its following parameter consequences still need to swap. Keep the length change last on every
++		// pass.
++		Consequence** lengthLink = &firstConsequence;
++		while (*lengthLink && (*lengthLink)->type != Consequence::CLIP_LENGTH) {
++			lengthLink = &(*lengthLink)->next;
++		}
++		if (*lengthLink && (*lengthLink)->next) {
++			Consequence* lengthConsequence = *lengthLink;
++			*lengthLink = lengthConsequence->next;
++
++			Consequence** tail = &firstConsequence;
++			while (*tail) {
++				tail = &(*tail)->next;
++			}
++			lengthConsequence->next = nullptr;
++			*tail = lengthConsequence;
++		}
++	}
++
+ 	Consequence* thisConsequence = firstConsequence;
+ 
+ 	// If we're a record-arrangement-from-session Action, there's a trick - we know that whether we're being undone or
+@@ -290,14 +313,14 @@ void Action::recordClipInstanceExistenceChange(Output* output, ClipInstance* cli
+ 	}
+ }
+ 
+-void Action::recordClipLengthChange(Clip* clip, int32_t oldLength) {
++ConsequenceClipLength* Action::recordClipLengthChange(Clip* clip, int32_t oldLength) {
+ 
+ 	// Check we don't already have a Consequence for this Clip's length
+ 	for (Consequence* cons = firstConsequence; cons; cons = cons->next) {
+ 		if (cons->type == Consequence::CLIP_LENGTH) {
+ 			ConsequenceClipLength* consequenceClipLength = (ConsequenceClipLength*)cons;
+ 			if (consequenceClipLength->clip == clip) {
+-				return;
++				return consequenceClipLength;
+ 			}
+ 		}
+ 	}
+@@ -307,7 +330,10 @@ void Action::recordClipLengthChange(Clip* clip, int32_t oldLength) {
+ 	if (consMemory) {
+ 		ConsequenceClipLength* consequenceClipLength = new (consMemory) ConsequenceClipLength(clip, oldLength);
+ 		addConsequence(consequenceClipLength);
++		return consequenceClipLength;
+ 	}
++
++	return nullptr;
+ }
+ 
+ bool Action::recordClipExistenceChange(Song* song, ClipArray* clipArray, Clip* clip, ExistenceChangeType type) {
+diff --git a/src/deluge/model/action/action.h b/src/deluge/model/action/action.h
+index 2099bd3b9cb0c4d99bbe7b8f5b9c02a3b4ed16d3..d84163662c01da2983ff372dadbfafea6d4244e7 100644
+--- a/src/deluge/model/action/action.h
++++ b/src/deluge/model/action/action.h
+@@ -42,6 +42,7 @@ class AudioClip;
+ class NoteVector;
+ class ModelStackWithAutoParam;
+ class ModelStack;
++class ConsequenceClipLength;
+ 
+ enum class ActionType {
+ 	MISC,
+@@ -73,9 +74,10 @@ enum class ActionType {
+ 	NOTEROW_LENGTH_EDIT,
+ 	NOTEROW_HORIZONTAL_SHIFT,
+ 	NOTEROW_REORDER,
++	AUDIO_CLIP_MARKER_EDIT,
+ };
+ 
+-extern EnumStringMap<ActionType, 29> actionTypeMap;
++extern EnumStringMap<ActionType, 30> actionTypeMap;
+ 
+ class Action {
+ public:
+@@ -96,7 +98,7 @@ public:
+ 	void updateYScrollClipViewAfter(InstrumentClip* clip = nullptr);
+ 	void recordClipInstanceExistenceChange(Output* output, ClipInstance* clipInstance, ExistenceChangeType type);
+ 	void prepareForDestruction(int32_t whichQueueActionIn, Song* song);
+-	void recordClipLengthChange(Clip* clip, int32_t oldLength);
++	ConsequenceClipLength* recordClipLengthChange(Clip* clip, int32_t oldLength);
+ 	bool recordClipExistenceChange(Song* song, ClipArray* clipArray, Clip* clip, ExistenceChangeType type);
+ 	void recordAudioClipSampleChange(AudioClip* clip);
+ 	void deleteAllConsequences(int32_t whichQueueActionIn, Song* song, bool destructing = false);
+diff --git a/src/deluge/model/action/action_logger.cpp b/src/deluge/model/action/action_logger.cpp
+index 07f1ed68abe6e16b493324832e8e7164a06379e3..b7caaa848beef1079589ddfee64b453fdbf56774 100644
+--- a/src/deluge/model/action/action_logger.cpp
++++ b/src/deluge/model/action/action_logger.cpp
+@@ -36,6 +36,7 @@
+ #include "model/clip/instrument_clip.h"
+ #include "model/clip/instrument_clip_minder.h"
+ #include "model/consequence/consequence_clip_begin_linear_record.h"
++#include "model/consequence/consequence_clip_length.h"
+ #include "model/consequence/consequence_note_array_change.h"
+ #include "model/consequence/consequence_param_change.h"
+ #include "model/consequence/consequence_performance_view_press.h"
+@@ -84,11 +85,23 @@ void ActionLogger::deleteLastAction() {
+ }
+ 
+ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addToExistingIfPossible) {
++	return getNewActionInternal(newActionType, addToExistingIfPossible, nullptr, nullptr);
++}
++
++Action* ActionLogger::getNewActionForAudioClipMarkerEdit(Clip* clip, uint64_t* markerValue) {
++	if (!currentSong || !clip || clip->type != ClipType::AUDIO || clip != getCurrentClip() || !markerValue
++	    || getCurrentUI() != &audioClipView) {
++		return nullptr;
++	}
++	return getNewActionInternal(ActionType::AUDIO_CLIP_MARKER_EDIT, ActionAddition::ALLOWED, clip, markerValue);
++}
++
++Action* ActionLogger::getNewActionInternal(ActionType newActionType, ActionAddition addToExistingIfPossible,
++                                           Clip* clipRequiredForAddition, uint64_t* markerValueForClipLengthChange) {
+ 
+ 	if (!currentSong) {
+ 		return nullptr;
+ 	}
+-	deleteLog(AFTER);
+ 
+ 	// If not on a View, not allowed!
+ 	// Exception for sound editor note editor UI which can edit notes on the grid
+@@ -101,6 +114,7 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
+ 	}
+ 
+ 	Action* newAction;
++	bool actionNeedsCommit = false;
+ 
+ 	// If recording arrangement...
+ 	if (playbackHandler.recording == RecordingMode::ARRANGEMENT) {
+@@ -126,6 +140,7 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
+ 	else if (addToExistingIfPossible != ActionAddition::NOT_ALLOWED && firstAction[BEFORE]
+ 	         && firstAction[BEFORE]->openForAdditions && firstAction[BEFORE]->type == newActionType
+ 	         && firstAction[BEFORE]->view == getCurrentUI()
++	         && (!clipRequiredForAddition || firstAction[BEFORE]->currentClip == clipRequiredForAddition)
+ 	         && (addToExistingIfPossible == ActionAddition::ALLOWED
+ 	             || firstAction[BEFORE]->creationTime == AudioEngine::audioSampleTimer)) {
+ 		newAction = firstAction[BEFORE];
+@@ -133,14 +148,6 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
+ 
+ 	// If we can't do that...
+ 	else {
+-
+-		deleteLastActionIfEmpty();
+-
+-		// Make sure we close off any existing action
+-		if (firstAction[BEFORE]) {
+-			firstAction[BEFORE]->openForAdditions = false;
+-		}
+-
+ 		// And make a new one
+ 		void* actionMemory = GeneralMemoryAllocator::get().allocLowSpeed(sizeof(Action));
+ 
+@@ -171,11 +178,6 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
+ 
+ 		newAction->numClipStates = numClips;
+ 
+-		// Only now put the new action into the list of undo actions - because in the above steps, we may have decided
+-		// to delete it and get out (if we ran out of RAM while creating the ActionClipStates)
+-		newAction->nextAction = firstAction[BEFORE];
+-		firstAction[BEFORE] = newAction;
+-
+ 		// And fill out all the snapshot stuff that the Action captures at a song-wide level
+ 		newAction->yScrollSongView[BEFORE] = currentSong->getYScrollSongViewWithoutPendingOverdubs();
+ 		newAction->xScrollClip[BEFORE] = currentSong->xScroll[NAVIGATION_CLIP];
+@@ -194,6 +196,39 @@ Action* ActionLogger::getNewAction(ActionType newActionType, ActionAddition addT
+ 
+ 		newAction->view = getCurrentUI();
+ 		newAction->currentClip = getCurrentClip();
++		actionNeedsCommit = true;
++	}
++
++	// Marker edits are committed to history only after both the action and its exact reversible state exist. This keeps
++	// an allocation failure from consuming Redo or leaving an empty marker-edit action ahead of an unchanged model.
++	if (markerValueForClipLengthChange) {
++		ConsequenceClipLength* consequence =
++		    newAction->recordClipLengthChange(clipRequiredForAddition, clipRequiredForAddition->loopLength);
++		if (!consequence
++		    || !consequence->recordMarkerValueForReversion(markerValueForClipLengthChange,
++		                                                   *markerValueForClipLengthChange)) {
++			if (actionNeedsCommit) {
++				newAction->prepareForDestruction(BEFORE, currentSong);
++				newAction->~Action();
++				delugeDealloc(newAction);
++			}
++			return nullptr;
++		}
++	}
++
++	if (actionNeedsCommit) {
++		deleteLastActionIfEmpty();
++
++		if (firstAction[BEFORE]) {
++			firstAction[BEFORE]->openForAdditions = false;
++		}
++
++		deleteLog(AFTER);
++		newAction->nextAction = firstAction[BEFORE];
++		firstAction[BEFORE] = newAction;
++	}
++	else {
++		deleteLog(AFTER);
+ 	}
+ 
+ 	updateAction(newAction);
+diff --git a/src/deluge/model/action/action_logger.h b/src/deluge/model/action/action_logger.h
+index 3498bf3ea97d6f78d5281f844a1e8c8fef18a743..8bf8fa75c3e8a7a13e41b90fda689933670fef6b 100644
+--- a/src/deluge/model/action/action_logger.h
++++ b/src/deluge/model/action/action_logger.h
+@@ -25,6 +25,7 @@
+ class ParamCollection;
+ class Sound;
+ class ModelStack;
++class Clip;
+ 
+ enum class ActionAddition {
+ 	NOT_ALLOWED,
+@@ -39,6 +40,9 @@ public:
+ 	// warning - super not thread safe
+ 	Action* getNewAction(ActionType newActionType,
+ 	                     ActionAddition addToExistingIfPossible = ActionAddition::NOT_ALLOWED);
++	// Call before changing either the raw marker or Clip length. A non-null result already owns their original values;
++	// failure leaves the Undo and Redo queues unchanged.
++	Action* getNewActionForAudioClipMarkerEdit(Clip* clip, uint64_t* markerValue);
+ 	void recordUnautomatedParamChange(ModelStackWithAutoParam const* modelStack,
+ 	                                  ActionType actionType = ActionType::PARAM_UNAUTOMATED_VALUE_CHANGE);
+ 	void recordSwingChange(int8_t swingBefore, int8_t swingAfter);
+@@ -60,6 +64,8 @@ public:
+ 	Action* firstAction[2];
+ 
+ private:
++	Action* getNewActionInternal(ActionType newActionType, ActionAddition addToExistingIfPossible,
++	                             Clip* clipRequiredForAddition, uint64_t* markerValueForClipLengthChange);
+ 	void revertAction(Action* action, bool updateVisually, bool doNavigation, TimeType time);
+ 	void deleteLastActionIfEmpty();
+ 	void deleteLastAction();
+diff --git a/src/deluge/model/clip/audio_clip_bound_edit.h b/src/deluge/model/clip/audio_clip_bound_edit.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..44ac9ccd3a6ae2456fc4b13399a1229439e2619c
+--- /dev/null
++++ b/src/deluge/model/clip/audio_clip_bound_edit.h
+@@ -0,0 +1,369 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
++ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
++ * for more details.
++ *
++ * You should have received a copy of the GNU General Public License along with The Synthstrom Audible Deluge Firmware.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++
++#include <cstdint>
++#include <expected>
++#include <limits>
++
++namespace deluge::audio_clip_bound_edit {
++
++enum class PlaybackBound : uint8_t {
++	START,
++	END,
++};
++
++/// Direction along playback time, independent of the raw file direction.
++enum class PlaybackDirection : uint8_t {
++	EARLIER,
++	LATER,
++};
++
++enum class RawBound : uint8_t {
++	START,
++	END,
++};
++
++enum class Rejection : uint8_t {
++	INVALID_SOURCE_LENGTH,
++	INVALID_RAW_BOUNDS,
++	INVALID_LOOP_LENGTH,
++	INVALID_PLAYBACK_BOUND,
++	INVALID_PLAYBACK_DIRECTION,
++	NO_CHANGE,
++};
++
++/// Immutable values captured when one bound-editing gesture begins.
++struct GestureAnchor {
++	uint64_t rawStart;
++	uint64_t rawEnd;
++	int32_t loopLength;
++	uint64_t sourceLength;
++};
++
++/// Cumulative distance from the gesture anchor, not a delta from the preceding detent.
++struct GestureOffset {
++	PlaybackDirection direction;
++	uint64_t samplesFromAnchor;
++};
++
++struct Calculation {
++	RawBound rawBound;
++	uint64_t rawMarker;
++	int32_t loopLength;
++};
++
++namespace detail {
++
++struct WideProduct {
++	uint64_t high;
++	uint64_t low;
++};
++
++/// Exact 64-by-64-bit multiplication without relying on target support for __int128.
++[[nodiscard]] constexpr WideProduct multiplyWide(uint64_t lhs, uint64_t rhs) {
++	constexpr uint64_t kLowMask = std::numeric_limits<uint32_t>::max();
++
++	const uint64_t lhsLow = lhs & kLowMask;
++	const uint64_t lhsHigh = lhs >> 32;
++	const uint64_t rhsLow = rhs & kLowMask;
++	const uint64_t rhsHigh = rhs >> 32;
++
++	const uint64_t lowLow = lhsLow * rhsLow;
++	const uint64_t lowHigh = lhsLow * rhsHigh;
++	const uint64_t highLow = lhsHigh * rhsLow;
++	const uint64_t highHigh = lhsHigh * rhsHigh;
++	const uint64_t middle = (lowLow >> 32) + (lowHigh & kLowMask) + (highLow & kLowMask);
++
++	return {
++	    .high = highHigh + (lowHigh >> 32) + (highLow >> 32) + (middle >> 32),
++	    .low = (lowLow & kLowMask) | (middle << 32),
++	};
++}
++
++[[nodiscard]] constexpr WideProduct doubleWide(WideProduct value) {
++	return {
++	    .high = (value.high << 1) | (value.low >> 63),
++	    .low = value.low << 1,
++	};
++}
++
++[[nodiscard]] constexpr bool greaterThanOrEqual(WideProduct lhs, WideProduct rhs) {
++	return lhs.high > rhs.high || (lhs.high == rhs.high && lhs.low >= rhs.low);
++}
++
++/// Tests round(duration * anchorLoopLength / anchorDuration) >= candidate using exact integer products.
++[[nodiscard]] constexpr bool roundedLengthAtLeast(uint64_t duration, uint32_t anchorLoopLength, uint64_t anchorDuration,
++                                                  uint32_t candidate) {
++	if (candidate == 0) {
++		return true;
++	}
++
++	const WideProduct doubledScaledDuration = doubleWide(multiplyWide(duration, anchorLoopLength));
++	const uint64_t thresholdMultiplier = static_cast<uint64_t>(candidate) * 2 - 1;
++	const WideProduct threshold = multiplyWide(anchorDuration, thresholdMultiplier);
++	return greaterThanOrEqual(doubledScaledDuration, threshold);
++}
++
++[[nodiscard]] constexpr uint64_t minimumDurationForOneTick(uint64_t anchorDuration, uint32_t anchorLoopLength) {
++	uint64_t low = 1;
++	uint64_t high = anchorDuration;
++	while (low < high) {
++		const uint64_t middle = low + (high - low) / 2;
++		if (roundedLengthAtLeast(middle, anchorLoopLength, anchorDuration, 1)) {
++			high = middle;
++		}
++		else {
++			low = middle + 1;
++		}
++	}
++	return low;
++}
++
++[[nodiscard]] constexpr uint64_t maximumDurationForSequence(uint64_t maximumRawDuration, uint64_t anchorDuration,
++                                                            uint32_t anchorLoopLength) {
++	constexpr uint32_t kFirstInvalidLoopLength = static_cast<uint32_t>(kMaxSequenceLength) + 1;
++	if (!roundedLengthAtLeast(maximumRawDuration, anchorLoopLength, anchorDuration, kFirstInvalidLoopLength)) {
++		return maximumRawDuration;
++	}
++
++	// The anchor itself is valid, so it is a known-good lower bound for an expansion search.
++	uint64_t low = anchorDuration;
++	uint64_t high = maximumRawDuration;
++	while (low < high) {
++		const uint64_t middle = low + (high - low + 1) / 2;
++		if (roundedLengthAtLeast(middle, anchorLoopLength, anchorDuration, kFirstInvalidLoopLength)) {
++			high = middle - 1;
++		}
++		else {
++			low = middle;
++		}
++	}
++	return low;
++}
++
++[[nodiscard]] constexpr int32_t roundedLoopLength(uint64_t duration, uint64_t anchorDuration,
++                                                  uint32_t anchorLoopLength) {
++	uint32_t low = 1;
++	uint32_t high = kMaxSequenceLength;
++	while (low < high) {
++		const uint32_t middle = low + (high - low + 1) / 2;
++		if (roundedLengthAtLeast(duration, anchorLoopLength, anchorDuration, middle)) {
++			low = middle;
++		}
++		else {
++			high = middle - 1;
++		}
++	}
++	return static_cast<int32_t>(low);
++}
++
++[[nodiscard]] constexpr uint64_t moveRawMarker(uint64_t marker, bool increase, uint64_t distance) {
++	if (!increase) {
++		return distance > marker ? 0 : marker - distance;
++	}
++
++	const uint64_t remaining = std::numeric_limits<uint64_t>::max() - marker;
++	return distance > remaining ? std::numeric_limits<uint64_t>::max() : marker + distance;
++}
++
++} // namespace detail
++
++/// Converts a cumulative tick distance from a gesture anchor to raw samples without overflowing the intermediate
++/// product. The result uses the same nearest-tick rounding rule as calculate().
++[[nodiscard]] constexpr uint64_t samplesForTickDistance(const GestureAnchor& anchor, uint32_t tickDistance) {
++	if (anchor.loopLength < 1 || anchor.loopLength > kMaxSequenceLength || anchor.rawStart >= anchor.rawEnd) {
++		return 0;
++	}
++
++	const uint64_t duration = anchor.rawEnd - anchor.rawStart;
++	const uint64_t loopLength = static_cast<uint32_t>(anchor.loopLength);
++	const uint64_t wholeSamplesPerTick = duration / loopLength;
++	const uint64_t remainingSamples = duration % loopLength;
++
++	if (wholeSamplesPerTick != 0 && tickDistance > std::numeric_limits<uint64_t>::max() / wholeSamplesPerTick) {
++		return std::numeric_limits<uint64_t>::max();
++	}
++
++	const uint64_t whole = wholeSamplesPerTick * tickDistance;
++	const uint64_t remainder = (remainingSamples * tickDistance + loopLength / 2) / loopLength;
++	if (whole > std::numeric_limits<uint64_t>::max() - remainder) {
++		return std::numeric_limits<uint64_t>::max();
++	}
++	return whole + remainder;
++}
++
++/// Returns the smallest cumulative tick distance whose rounded sample distance reaches the requested raw distance.
++/// This is the inverse of samplesForTickDistance() at a source boundary, where deriving the offset from the rounded
++/// Clip length can leave an encoder gesture beyond the actual boundary.
++[[nodiscard]] constexpr uint32_t minimumTickDistanceForSamples(const GestureAnchor& anchor, uint64_t sampleDistance) {
++	if (sampleDistance == 0 || anchor.loopLength < 1 || anchor.loopLength > kMaxSequenceLength
++	    || anchor.rawStart >= anchor.rawEnd) {
++		return 0;
++	}
++
++	uint32_t low = 1;
++	uint32_t high = kMaxSequenceLength;
++	if (samplesForTickDistance(anchor, high) < sampleDistance) {
++		return high;
++	}
++
++	while (low < high) {
++		const uint32_t middle = low + (high - low) / 2;
++		if (samplesForTickDistance(anchor, middle) >= sampleDistance) {
++			high = middle;
++		}
++		else {
++			low = middle + 1;
++		}
++	}
++	return low;
++}
++
++/// Returns the earliest legal Audio Clip scroll position that still maps to real source material before playback
++/// Start. Expansion stops at kMaxSequenceLength even when the source file contains more material.
++[[nodiscard]] constexpr int32_t minimumSourceBackedScroll(uint64_t recoverableSamples, uint64_t rawDuration,
++                                                          int32_t loopLength) {
++	if (recoverableSamples == 0 || rawDuration == 0 || loopLength < 1 || loopLength > kMaxSequenceLength) {
++		return 0;
++	}
++
++	uint32_t low = 0;
++	uint32_t high = static_cast<uint32_t>(kMaxSequenceLength - loopLength);
++	if (high == 0) {
++		return 0;
++	}
++
++	const detail::WideProduct required = detail::multiplyWide(recoverableSamples, static_cast<uint32_t>(loopLength));
++	if (!detail::greaterThanOrEqual(detail::multiplyWide(rawDuration, high), required)) {
++		return -static_cast<int32_t>(high);
++	}
++
++	while (low < high) {
++		const uint32_t middle = low + (high - low) / 2;
++		if (detail::greaterThanOrEqual(detail::multiplyWide(rawDuration, middle), required)) {
++			high = middle;
++		}
++		else {
++			low = middle + 1;
++		}
++	}
++	return -static_cast<int32_t>(low);
++}
++
++/// Returns the playback-time offset represented by a changed Clip length. This is used when a gesture saturates at a
++/// legal source or sequence limit so excess encoder acceleration does not remain in the cumulative input state.
++[[nodiscard]] constexpr int64_t realizedTickOffset(PlaybackBound selectedBound, int32_t anchorLoopLength,
++                                                   int32_t changedLoopLength) {
++	if (selectedBound == PlaybackBound::START) {
++		return static_cast<int64_t>(anchorLoopLength) - changedLoopLength;
++	}
++	return static_cast<int64_t>(changedLoopLength) - anchorLoopLength;
++}
++
++/// Calculates one Audio Clip boundary from an immutable gesture anchor.
++///
++/// Positive playback-time movement is represented by PlaybackDirection::LATER. Reversal changes which raw marker is
++/// controlled and which raw direction represents later playback; callers never need to reinterpret raw file order.
++[[nodiscard]] constexpr std::expected<Calculation, Rejection>
++calculate(const GestureAnchor& anchor, PlaybackBound selectedBound, bool reversed, GestureOffset offset) {
++	if (anchor.sourceLength == 0) {
++		return std::unexpected(Rejection::INVALID_SOURCE_LENGTH);
++	}
++	if (anchor.rawStart >= anchor.rawEnd || anchor.rawEnd > anchor.sourceLength) {
++		return std::unexpected(Rejection::INVALID_RAW_BOUNDS);
++	}
++	if (anchor.loopLength < 1 || anchor.loopLength > kMaxSequenceLength) {
++		return std::unexpected(Rejection::INVALID_LOOP_LENGTH);
++	}
++
++	RawBound rawBound;
++	switch (selectedBound) {
++	case PlaybackBound::START:
++		rawBound = reversed ? RawBound::END : RawBound::START;
++		break;
++	case PlaybackBound::END:
++		rawBound = reversed ? RawBound::START : RawBound::END;
++		break;
++	default:
++		return std::unexpected(Rejection::INVALID_PLAYBACK_BOUND);
++	}
++
++	bool movingLater;
++	switch (offset.direction) {
++	case PlaybackDirection::EARLIER:
++		movingLater = false;
++		break;
++	case PlaybackDirection::LATER:
++		movingLater = true;
++		break;
++	default:
++		return std::unexpected(Rejection::INVALID_PLAYBACK_DIRECTION);
++	}
++
++	const uint64_t anchorMarker = rawBound == RawBound::START ? anchor.rawStart : anchor.rawEnd;
++	const bool increaseRawMarker = movingLater != reversed;
++	uint64_t requestedMarker = detail::moveRawMarker(anchorMarker, increaseRawMarker, offset.samplesFromAnchor);
++
++	if (rawBound == RawBound::START) {
++		if (requestedMarker >= anchor.rawEnd) {
++			requestedMarker = anchor.rawEnd - 1;
++		}
++	}
++	else {
++		const uint64_t minimumEnd = anchor.rawStart + 1;
++		if (requestedMarker < minimumEnd) {
++			requestedMarker = minimumEnd;
++		}
++		if (requestedMarker > anchor.sourceLength) {
++			requestedMarker = anchor.sourceLength;
++		}
++	}
++
++	const uint64_t anchorDuration = anchor.rawEnd - anchor.rawStart;
++	uint64_t requestedDuration =
++	    rawBound == RawBound::START ? anchor.rawEnd - requestedMarker : requestedMarker - anchor.rawStart;
++	const uint64_t maximumRawDuration =
++	    rawBound == RawBound::START ? anchor.rawEnd : anchor.sourceLength - anchor.rawStart;
++	const uint64_t minimumDuration = detail::minimumDurationForOneTick(anchorDuration, anchor.loopLength);
++	const uint64_t maximumDuration =
++	    detail::maximumDurationForSequence(maximumRawDuration, anchorDuration, anchor.loopLength);
++
++	if (requestedDuration < minimumDuration) {
++		requestedDuration = minimumDuration;
++	}
++	if (requestedDuration > maximumDuration) {
++		requestedDuration = maximumDuration;
++	}
++
++	const uint64_t rawMarker =
++	    rawBound == RawBound::START ? anchor.rawEnd - requestedDuration : anchor.rawStart + requestedDuration;
++	if (rawMarker == anchorMarker) {
++		return std::unexpected(Rejection::NO_CHANGE);
++	}
++
++	return Calculation{
++	    .rawBound = rawBound,
++	    .rawMarker = rawMarker,
++	    .loopLength = detail::roundedLoopLength(requestedDuration, anchorDuration, anchor.loopLength),
++	};
++}
++
++} // namespace deluge::audio_clip_bound_edit
+diff --git a/src/deluge/model/consequence/consequence_clip_length.cpp b/src/deluge/model/consequence/consequence_clip_length.cpp
+index 87fdc349c8cb7a55ed3ad62839d90d5da12021dc..b6a145c016a01558e77d2dd5b288f4b67e23c587 100644
+--- a/src/deluge/model/consequence/consequence_clip_length.cpp
++++ b/src/deluge/model/consequence/consequence_clip_length.cpp
+@@ -26,6 +26,17 @@ ConsequenceClipLength::ConsequenceClipLength(Clip* newClip, int32_t oldLength) {
+ 	clip = newClip;
+ 	lengthToRevertTo = oldLength;
+ 	pointerToMarkerValue = nullptr;
++	markerValueToRevertTo = 0;
++}
++
++bool ConsequenceClipLength::recordMarkerValueForReversion(uint64_t* markerValue, uint64_t valueBeforeEdit) {
++	if (pointerToMarkerValue) {
++		return pointerToMarkerValue == markerValue;
++	}
++
++	pointerToMarkerValue = markerValue;
++	markerValueToRevertTo = valueBeforeEdit;
++	return true;
+ }
+ 
+ Error ConsequenceClipLength::revert(TimeType time, ModelStack* modelStack) {
+diff --git a/src/deluge/model/consequence/consequence_clip_length.h b/src/deluge/model/consequence/consequence_clip_length.h
+index 64ce2a66faa7609994978416cdbcfec864b94b86..be3b88603b51a02a89c1f561e20c9ec0f998468d 100644
+--- a/src/deluge/model/consequence/consequence_clip_length.h
++++ b/src/deluge/model/consequence/consequence_clip_length.h
+@@ -26,6 +26,7 @@ class ConsequenceClipLength final : public Consequence {
+ public:
+ 	ConsequenceClipLength(Clip* newClip, int32_t oldLength);
+ 	Error revert(TimeType time, ModelStack* modelStack) override;
++	bool recordMarkerValueForReversion(uint64_t* markerValue, uint64_t valueBeforeEdit);
+ 
+ 	Clip* clip;
+ 	int32_t lengthToRevertTo;
+diff --git a/tests/spec/audio_clip_bound_edit_spec.cpp b/tests/spec/audio_clip_bound_edit_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..4097477eea330b1e9e5d6aa15e9f7960451da2bc
+--- /dev/null
++++ b/tests/spec/audio_clip_bound_edit_spec.cpp
+@@ -0,0 +1,241 @@
++#include "model/clip/audio_clip_bound_edit.h"
++
++#include "cppspec.hpp"
++
++#include <array>
++#include <cstdint>
++#include <limits>
++
++namespace bound_edit = deluge::audio_clip_bound_edit;
++
++namespace {
++
++constexpr bound_edit::GestureAnchor anchor(uint64_t rawStart, uint64_t rawEnd, int32_t loopLength,
++                                           uint64_t sourceLength) {
++	return {
++	    .rawStart = rawStart,
++	    .rawEnd = rawEnd,
++	    .loopLength = loopLength,
++	    .sourceLength = sourceLength,
++	};
++}
++
++constexpr bound_edit::GestureOffset earlier(uint64_t samples) {
++	return {.direction = bound_edit::PlaybackDirection::EARLIER, .samplesFromAnchor = samples};
++}
++
++constexpr bound_edit::GestureOffset later(uint64_t samples) {
++	return {.direction = bound_edit::PlaybackDirection::LATER, .samplesFromAnchor = samples};
++}
++
++} // namespace
++
++// clang-format off
++describe audio_clip_bound_edit("Audio Clip bound calculation", $ {
++	it("maps forward playback bounds and direction to the matching raw markers", _ {
++		const auto start = bound_edit::calculate(anchor(1000, 5000, 800, 6000), bound_edit::PlaybackBound::START,
++		                                         false, later(250));
++		expect(start).to_have_value();
++		expect(start->rawBound).to_equal(bound_edit::RawBound::START);
++		expect(start->rawMarker).to_equal(uint64_t{1250});
++		expect(start->loopLength).to_equal(750);
++
++		const auto end = bound_edit::calculate(anchor(1000, 5000, 800, 6000), bound_edit::PlaybackBound::END,
++		                                       false, later(500));
++		expect(end).to_have_value();
++		expect(end->rawBound).to_equal(bound_edit::RawBound::END);
++		expect(end->rawMarker).to_equal(uint64_t{5500});
++		expect(end->loopLength).to_equal(900);
++	});
++
++	it("maps reversed playback bounds and direction to the opposite raw markers", _ {
++		const auto start = bound_edit::calculate(anchor(1000, 5000, 800, 6000), bound_edit::PlaybackBound::START,
++		                                         true, later(250));
++		expect(start).to_have_value();
++		expect(start->rawBound).to_equal(bound_edit::RawBound::END);
++		expect(start->rawMarker).to_equal(uint64_t{4750});
++		expect(start->loopLength).to_equal(750);
++
++		const auto end = bound_edit::calculate(anchor(1000, 5000, 800, 6000), bound_edit::PlaybackBound::END,
++		                                       true, later(250));
++		expect(end).to_have_value();
++		expect(end->rawBound).to_equal(bound_edit::RawBound::START);
++		expect(end->rawMarker).to_equal(uint64_t{750});
++		expect(end->loopLength).to_equal(850);
++	});
++
++	it("reaches partial source edges exactly without crossing either bound", _ {
++		const auto forwardStart = bound_edit::calculate(anchor(10, 100, 90, 103), bound_edit::PlaybackBound::START,
++		                                                false, earlier(1000));
++		expect(forwardStart).to_have_value();
++		expect(forwardStart->rawMarker).to_equal(uint64_t{0});
++		expect(forwardStart->loopLength).to_equal(100);
++
++		const auto forwardEnd = bound_edit::calculate(anchor(10, 100, 90, 103), bound_edit::PlaybackBound::END,
++		                                              false, later(1000));
++		expect(forwardEnd).to_have_value();
++		expect(forwardEnd->rawMarker).to_equal(uint64_t{103});
++		expect(forwardEnd->loopLength).to_equal(93);
++
++		const auto reverseStart = bound_edit::calculate(anchor(10, 100, 90, 103), bound_edit::PlaybackBound::START,
++		                                                true, earlier(1000));
++		expect(reverseStart).to_have_value();
++		expect(reverseStart->rawBound).to_equal(bound_edit::RawBound::END);
++		expect(reverseStart->rawMarker).to_equal(uint64_t{103});
++		expect(reverseStart->loopLength).to_equal(93);
++
++		const auto reverseEnd = bound_edit::calculate(anchor(10, 100, 90, 103), bound_edit::PlaybackBound::END,
++		                                              true, later(1000));
++		expect(reverseEnd).to_have_value();
++		expect(reverseEnd->rawBound).to_equal(bound_edit::RawBound::START);
++		expect(reverseEnd->rawMarker).to_equal(uint64_t{0});
++		expect(reverseEnd->loopLength).to_equal(100);
++	});
++
++	it("uses the gesture anchor ratio instead of compounding detent rounding", _ {
++		const auto firstDetent = bound_edit::calculate(anchor(0, 7, 3, 20), bound_edit::PlaybackBound::END,
++		                                                false, later(1));
++		const auto secondDetent = bound_edit::calculate(anchor(0, 7, 3, 20), bound_edit::PlaybackBound::END,
++		                                                 false, later(2));
++		expect(firstDetent).to_have_value();
++		expect(firstDetent->rawMarker).to_equal(uint64_t{8});
++		expect(firstDetent->loopLength).to_equal(3);
++		expect(secondDetent).to_have_value();
++		expect(secondDetent->rawMarker).to_equal(uint64_t{9});
++		expect(secondDetent->loopLength).to_equal(4);
++	});
++
++	it("converts cumulative tick distances to samples without repeated rounding or overflow", _ {
++		const auto gesture = anchor(10, 17, 3, 30);
++		expect(bound_edit::samplesForTickDistance(gesture, 1)).to_equal(uint64_t{2});
++		expect(bound_edit::samplesForTickDistance(gesture, 2)).to_equal(uint64_t{5});
++		expect(bound_edit::samplesForTickDistance(gesture, 3)).to_equal(uint64_t{7});
++
++		constexpr uint64_t maximum = std::numeric_limits<uint64_t>::max();
++		expect(bound_edit::samplesForTickDistance(anchor(0, maximum, 1, maximum), kMaxSequenceLength))
++		    .to_equal(maximum);
++	});
++
++	it("derives an exact source-backed negative scroll limit and respects the sequence limit", _ {
++		expect(bound_edit::minimumSourceBackedScroll(0, 100, 20)).to_equal(0);
++		expect(bound_edit::minimumSourceBackedScroll(11, 100, 20)).to_equal(-3);
++		expect(bound_edit::minimumSourceBackedScroll(10, 100, 20)).to_equal(-2);
++		expect(bound_edit::minimumSourceBackedScroll(1000, 1, kMaxSequenceLength - 4)).to_equal(-4);
++		expect(bound_edit::minimumSourceBackedScroll(std::numeric_limits<uint64_t>::max(),
++		                                                    std::numeric_limits<uint64_t>::max(), 1))
++		    .to_equal(-1);
++	});
++
++	it("saturates a fast gesture at the boundary represented by the changed length", _ {
++		expect(bound_edit::realizedTickOffset(bound_edit::PlaybackBound::START, 100, 110)).to_equal(int64_t{-10});
++		expect(bound_edit::realizedTickOffset(bound_edit::PlaybackBound::START, 100, 90)).to_equal(int64_t{10});
++		expect(bound_edit::realizedTickOffset(bound_edit::PlaybackBound::END, 100, 110)).to_equal(int64_t{10});
++		expect(bound_edit::realizedTickOffset(bound_edit::PlaybackBound::END, 100, 90)).to_equal(int64_t{-10});
++	});
++
++	it("normalizes a raw-boundary hit to the first tick that reaches its rounded sample", _ {
++		const auto gesture = anchor(0, 100, 1000, 110);
++		expect(bound_edit::samplesForTickDistance(gesture, 94)).to_equal(uint64_t{9});
++		expect(bound_edit::samplesForTickDistance(gesture, 95)).to_equal(uint64_t{10});
++		expect(bound_edit::minimumTickDistanceForSamples(gesture, 10)).to_equal(uint32_t{95});
++		expect(bound_edit::samplesForTickDistance(gesture, 92)).to_equal(uint64_t{9});
++	});
++
++	it("rounds half ticks upward and clamps before a trim would produce zero ticks", _ {
++		const auto halfTick = bound_edit::calculate(anchor(0, 2, 1, 2), bound_edit::PlaybackBound::START,
++		                                            false, later(1));
++		expect(halfTick).to_have_value();
++		expect(halfTick->rawMarker).to_equal(uint64_t{1});
++		expect(halfTick->loopLength).to_equal(1);
++
++		const auto minimumTick = bound_edit::calculate(anchor(0, 100, 1, 100), bound_edit::PlaybackBound::START,
++		                                               false, later(1000));
++		expect(minimumTick).to_have_value();
++		expect(minimumTick->rawMarker).to_equal(uint64_t{50});
++		expect(minimumTick->loopLength).to_equal(1);
++	});
++
++	it("clamps expansion to the largest raw duration representable by the sequence", _ {
++		const auto result = bound_edit::calculate(anchor(0, 2, kMaxSequenceLength / 2, 100),
++		                                          bound_edit::PlaybackBound::END, false, later(100));
++		expect(result).to_have_value();
++		expect(result->rawMarker).to_equal(uint64_t{4});
++		expect(result->loopLength).to_equal(kMaxSequenceLength);
++	});
++
++	it("handles maximum-width source positions without multiplication or marker wrap", _ {
++		constexpr uint64_t maximum = std::numeric_limits<uint64_t>::max();
++		const auto result = bound_edit::calculate(anchor(1, maximum - 1, 1, maximum),
++		                                          bound_edit::PlaybackBound::END, false, later(maximum));
++		expect(result).to_have_value();
++		expect(result->rawMarker).to_equal(maximum);
++		expect(result->loopLength).to_equal(1);
++	});
++
++	it("matches native wide arithmetic for boundary-heavy ratio comparisons", _ {
++		constexpr uint64_t maximum = std::numeric_limits<uint64_t>::max();
++		constexpr std::array<uint64_t, 5> durations{1, 2, maximum / 2, maximum - 1, maximum};
++		constexpr std::array<uint64_t, 4> anchorDurations{1, 3, maximum / 2 + 1, maximum};
++		constexpr std::array<uint32_t, 3> anchorLoopLengths{1, 3, static_cast<uint32_t>(kMaxSequenceLength)};
++		constexpr std::array<uint32_t, 4> candidates{1, static_cast<uint32_t>(kMaxSequenceLength / 2),
++		                                                static_cast<uint32_t>(kMaxSequenceLength),
++		                                                static_cast<uint32_t>(kMaxSequenceLength) + 1};
++
++		for (uint64_t duration : durations) {
++			for (uint64_t anchorDuration : anchorDurations) {
++				for (uint32_t anchorLoopLength : anchorLoopLengths) {
++					const unsigned __int128 scaled = static_cast<unsigned __int128>(duration) * anchorLoopLength;
++					const unsigned __int128 rounded =
++					    (scaled * 2 + anchorDuration) / (static_cast<unsigned __int128>(anchorDuration) * 2);
++					for (uint32_t candidate : candidates) {
++						expect(bound_edit::detail::roundedLengthAtLeast(duration, anchorLoopLength, anchorDuration,
++						                                                        candidate))
++						    .to_equal(rounded >= candidate);
++					}
++				}
++			}
++		}
++	});
++
++	it("rejects invalid anchors, enum values, and requests clamped to the current marker", _ {
++		const auto noSource = bound_edit::calculate(anchor(0, 1, 1, 0), bound_edit::PlaybackBound::START,
++		                                           false, later(1));
++		expect(noSource.error()).to_equal(bound_edit::Rejection::INVALID_SOURCE_LENGTH);
++
++		const auto crossed = bound_edit::calculate(anchor(10, 10, 1, 20), bound_edit::PlaybackBound::START,
++		                                          false, later(1));
++		expect(crossed.error()).to_equal(bound_edit::Rejection::INVALID_RAW_BOUNDS);
++
++		const auto pastSource = bound_edit::calculate(anchor(0, 21, 1, 20), bound_edit::PlaybackBound::START,
++		                                             false, later(1));
++		expect(pastSource.error()).to_equal(bound_edit::Rejection::INVALID_RAW_BOUNDS);
++
++		const auto zeroLength = bound_edit::calculate(anchor(0, 1, 0, 1), bound_edit::PlaybackBound::START,
++		                                             false, later(1));
++		expect(zeroLength.error()).to_equal(bound_edit::Rejection::INVALID_LOOP_LENGTH);
++
++		const auto tooLong = bound_edit::calculate(anchor(0, 1, kMaxSequenceLength + 1, 1),
++		                                          bound_edit::PlaybackBound::START, false, later(1));
++		expect(tooLong.error()).to_equal(bound_edit::Rejection::INVALID_LOOP_LENGTH);
++
++		const auto invalidBound = bound_edit::calculate(anchor(0, 2, 2, 2),
++		                                               static_cast<bound_edit::PlaybackBound>(255), false, later(1));
++		expect(invalidBound.error()).to_equal(bound_edit::Rejection::INVALID_PLAYBACK_BOUND);
++
++		const auto invalidDirection = bound_edit::calculate(
++		    anchor(0, 2, 2, 2), bound_edit::PlaybackBound::START, false,
++		    {.direction = static_cast<bound_edit::PlaybackDirection>(255), .samplesFromAnchor = 1});
++		expect(invalidDirection.error()).to_equal(bound_edit::Rejection::INVALID_PLAYBACK_DIRECTION);
++
++		const auto noDistance = bound_edit::calculate(anchor(0, 2, 2, 2), bound_edit::PlaybackBound::START,
++		                                            false, later(0));
++		expect(noDistance.error()).to_equal(bound_edit::Rejection::NO_CHANGE);
++
++		const auto atSequenceLimit = bound_edit::calculate(anchor(0, 1, kMaxSequenceLength, 100),
++		                                                 bound_edit::PlaybackBound::END, false, later(100));
++		expect(atSequenceLimit.error()).to_equal(bound_edit::Rejection::NO_CHANGE);
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(audio_clip_bound_edit)
+diff --git a/tests/spec/timeline_view_navigation_spec.cpp b/tests/spec/timeline_view_navigation_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..050b890234949b9b225d8dfc46b759b9305084dd
+--- /dev/null
++++ b/tests/spec/timeline_view_navigation_spec.cpp
+@@ -0,0 +1,40 @@
++#include "gui/views/timeline_view_navigation.h"
++
++#include "cppspec.hpp"
++
++#include <cstdint>
++#include <limits>
++
++namespace navigation = deluge::gui::timeline_view_navigation;
++
++// clang-format off
++describe timeline_view_navigation("Timeline navigation arithmetic", $ {
++	it("clamps signed scroll requests without wrapping", _ {
++		expect(navigation::clampScroll(-51, -50)).to_equal(-50);
++		expect(navigation::clampScroll(-49, -50)).to_equal(-49);
++		expect(navigation::clampScroll(int64_t{std::numeric_limits<int32_t>::max()} + 1, -50))
++		    .to_equal(std::numeric_limits<int32_t>::max());
++	});
++
++	it("uses mathematical floor when aligning negative scroll for zoom", _ {
++		expect(navigation::floorToMultiple(31, 16)).to_equal(16);
++		expect(navigation::floorToMultiple(0, 16)).to_equal(0);
++		expect(navigation::floorToMultiple(-1, 16)).to_equal(-16);
++		expect(navigation::floorToMultiple(-16, 16)).to_equal(-16);
++		expect(navigation::floorToMultiple(-17, 16)).to_equal(-32);
++	});
++
++	it("aligns to the source-backed minimum when the preceding block is outside it", _ {
++		expect(navigation::alignScrollForZoom(-17, 16, -20)).to_equal(-20);
++		expect(navigation::alignScrollForZoom(-17, 16, -40)).to_equal(-32);
++	});
++
++	it("keeps the same source position anchored when Start rebases to tick zero", _ {
++		expect(navigation::reanchorScrollAfterStartEdit(-8, 100, 110, -20)).to_equal(2);
++		expect(navigation::reanchorScrollAfterStartEdit(0, 100, 90, -25)).to_equal(-10);
++		expect(navigation::reanchorScrollAfterStartEdit(-18, 100, 90, -20)).to_equal(-20);
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(timeline_view_navigation)

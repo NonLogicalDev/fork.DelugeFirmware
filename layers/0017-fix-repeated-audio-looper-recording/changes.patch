@@ -1,0 +1,192 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 054cb984dec66284b799d68a8c021f6dca38b73b..2c7d56cbe3295aa81c8b55401107656bd4f6f0b4 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -353,6 +353,36 @@ Make the Song Grid's existing track columns visible before a clip is launched or
+ - A local Release build and the configured host test suite pass.
+ - A physical Deluge check compares an empty existing-track column, an empty non-track column, inactive clip cells, active or playing clip cells, and a scrolled Grid. It confirms that the structural base is visible but subordinate to every established clip-state color and brightness. No flashing is implied by this check.
+ 
++## 13. Repeated Audio Looper recording safety
++
++### Intent
++
++Let a player record repeatedly into the same Audio Clip in `Looper/FX` mode without emptying the Clip, corrupting the active recorder, or crashing on a later pass.
++
++### Required behavior
++
++- An empty Audio Clip may use the established first-take recording flow in which Record followed by Play starts without the project clock and stopping the take derives the project tempo.
++- After that Audio Clip contains a sample, another recording pass into the same `Looper/FX` Clip uses the established project clock. A populated Clip must never re-enter the first-take tempo-establishing flow.
++- Stopping a valid later pass replaces the Clip's prior sample with the completed recording. The Clip remains present in the same song location, retains its activation and `Looper/FX` monitoring role, and is immediately usable for playback or another recording pass.
++- The prior sample remains assigned until the replacement has completed far enough to be installed. Cancelling a pass, capturing no samples, reaching the file-size limit, or rejecting the recorder before completion must leave the prior sample assigned and the Clip usable.
++- Recorder attachment and detachment are exact-owner operations. A recorder may detach only itself from the Output that currently owns it. A failed attempt to attach a second recorder must not detach, abort, or replace the recorder already attached to that Output.
++- Recorder detachment is safe when repeated and safe after the recorder has already finished or detached. Destroying an unattached or stale recorder must not change another recorder or its Output.
++
++### Compatibility and boundaries
++
++- Preserve continuous microphone or line-input monitoring in `Looper/FX`, the existing first-take tempo calculation, normal Clip playback, Clip naming after a successful recording, and the established recording controls.
++- Preserve ordinary Audio Clip cloning and overdub behavior outside `Looper/FX`, including non-Looper inputs, Arrangement recording, and recordings into a newly created Clip.
++- Do not delete, move, deactivate, or recreate the destination Clip as part of a successful replacement. Do not clear other Clips, their samples or automation, unrelated project data, or prior undo history.
++- This deviation does not change the separate cloned-overdub path, redesign Song Grid or Row looping, make late storage failures transactional, add a recording mode, change audio routing or file formats, repair unrelated held-Clip cancellation gestures, flash firmware, publish a build, or submit an upstream change.
++
++### Verification contract
++
++- Focused host checks cover empty-versus-populated first-take eligibility and exact-recorder Output detachment where the host harness can represent those objects. The complete configured host test suite and a local Release firmware build pass.
++- On a physical Deluge, create a new Audio Clip, select microphone or line input with Audio Output set to `Looper/FX`, and complete the first Record + Play + Play-stop take. Confirm that it establishes tempo and remains playable.
++- In that same Clip, complete at least ten further Record + Play + Play-stop passes. After every pass, confirm that the Clip remains present, contains the latest completed take, continues monitoring as before, and can immediately begin the next pass without freezing or crashing.
++- During separate later passes, cancel before completion and stop once without captured audio. Confirm that the previous completed take remains assigned and playable.
++- Physical verification remains a human-controlled step and does not authorize flashing or installation.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/model/clip/audio_clip.cpp b/src/deluge/model/clip/audio_clip.cpp
+index aeb4ea57daf30192a9ef272d354d23aab3d544a2..cd92ec43d49e1050c85605c1c16292c88a97c353 100644
+--- a/src/deluge/model/clip/audio_clip.cpp
++++ b/src/deluge/model/clip/audio_clip.cpp
+@@ -193,10 +193,12 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
+ 	if (!recorder) {
+ 		return; // Shouldn't ever happen?
+ 	}
++	SampleRecorder* completedRecorder = recorder;
+ 
+ 	// Got to check reachedMaxFileSize here, cos that'll go true a bit before cardRoutine() sets status to ERROR
+ 	// also check if we haven't captured any samples (which can happen with threshold recording)
+-	if (recorder->status == RecorderStatus::ABORTED || recorder->reachedMaxFileSize || !recorder->numSamplesCaptured) {
++	if (completedRecorder->status == RecorderStatus::ABORTED || completedRecorder->reachedMaxFileSize
++	    || !completedRecorder->numSamplesCaptured) {
+ 		abortRecording();
+ 		return;
+ 	}
+@@ -212,10 +214,10 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
+ 		}
+ 	}
+ 
+-	recorder->pointerHeldElsewhere = false;
++	completedRecorder->pointerHeldElsewhere = false;
+ 
+-	recorder->endSyncedRecording(buttonLatencyForTempolessRecord); // Must call before setSample(), cos it sets up
+-	                                                               // important stuff like the sample length
++	// Must call before setSample(), cos it sets up important stuff like the sample length.
++	completedRecorder->endSyncedRecording(buttonLatencyForTempolessRecord);
+ 
+ 	// SampleRecorder will also call sampleNeedsReRendering() when "capturing" is finished, but in plenty of cases, that
+ 	// will have happened in the above call to endSyncedRecording(), and our sample hasn't been set yet, so that won't
+@@ -224,6 +226,9 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
+ 		getRootUI()->clipNeedsReRendering(this);
+ 	}
+ 
++	// clear() aborts the Clip's active recorder when no clock is running. Finalization still needs the completed
++	// recorder below, so release the Clip's recording-state pointer before replacing an existing sample.
++	recorder = nullptr;
+ 	if (!isEmpty()) {
+ 		clear(nullptr, modelStack, true, true);
+ 	}
+@@ -233,21 +238,19 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
+ 	// 	ao->mode = AudioOutputMode::player;
+ 	// }
+ 	originalLength = loopLength;
+-	sampleHolder.filePath.set(&recorder->sample->filePath);
+-	sampleHolder.setAudioFile(recorder->sample, sampleControls.isCurrentlyReversed(), true,
++	sampleHolder.filePath.set(&completedRecorder->sample->filePath);
++	sampleHolder.setAudioFile(completedRecorder->sample, sampleControls.isCurrentlyReversed(), true,
+ 	                          CLUSTER_DONT_LOAD); // Adds a reason to the first Cluster(s). Must call this after
+ 	                                              // endSyncedRecording(), which puts some final values in the Sample
+ 
+ 	renderData.xScroll = -1; // Force re-render - though this would surely happen anyway
+ 
+-	if (recorder->recordingExtraMargins) {
++	if (completedRecorder->recordingExtraMargins) {
+ 		attack = kAudioClipDefaultAttackIfPreMargin; // TODO: make these undoable?
+ 	}
+ 
+ 	isUnfinishedAutoOverdub = false;
+ 
+-	recorder = nullptr;
+-
+ 	name.set(sampleHolder.filePath.get());
+ }
+ 
+diff --git a/src/deluge/model/output.cpp b/src/deluge/model/output.cpp
+index d4f8af0172c304592841f44a7fb8e6d82b63e844..28432264f31b6e710acdb31a08832cb5cb4f72fe 100644
+--- a/src/deluge/model/output.cpp
++++ b/src/deluge/model/output.cpp
+@@ -45,7 +45,7 @@ Output::Output(OutputType newType) : type(newType) {
+ }
+ 
+ Output::~Output() {
+-	removeRecorder();
++	removeRecorder(recorder);
+ 	// if another output is recording this one, we need to tell the other output to clear the pointer since we don't
+ 	// exist
+ 	if (outputRecordingThisOutput) {
+diff --git a/src/deluge/model/output.h b/src/deluge/model/output.h
+index 10728100ccfc9bbd6d783b7e6c989814894e0065..1a9b939c11f2c579a91c9250983cc73e0be8b6ce 100644
+--- a/src/deluge/model/output.h
++++ b/src/deluge/model/output.h
+@@ -206,20 +206,20 @@ public:
+ 		outputRecordingThisOutput = output;
+ 	}
+ 	bool addRecorder(SampleRecorder* newRecorder) {
+-		if (recorder) {
++		if (!newRecorder || recorder) {
+ 			return false;
+ 		}
+ 		recorder = newRecorder;
+ 		return true;
+ 	}
+-	// returns whether a recorder was removed
+-	bool removeRecorder() {
+-		if (recorder) {
+-			recorder->removeFromOutput();
+-			recorder = nullptr;
+-			return true;
++	// Removes expectedRecorder only if it is still the recorder attached to this output.
++	bool removeRecorder(SampleRecorder* expectedRecorder) {
++		if (!expectedRecorder || recorder != expectedRecorder) {
++			return false;
+ 		}
+-		return false;
++		recorder->removeFromOutput();
++		recorder = nullptr;
++		return true;
+ 	}
+ 	Output* getOutputRecordingThis() { return outputRecordingThisOutput; }
+ 	// only for audio outputs, will be used for instruments when I implement routing notes between clips
+diff --git a/src/deluge/model/sample/sample_recorder.cpp b/src/deluge/model/sample/sample_recorder.cpp
+index ff0e5ecd94c3542b5c22ae132d1fd4c7ca62c676..a2691285eaf5740da2061b035486350a0c7348bb 100644
+--- a/src/deluge/model/sample/sample_recorder.cpp
++++ b/src/deluge/model/sample/sample_recorder.cpp
+@@ -57,7 +57,9 @@ SampleRecorder::~SampleRecorder() {
+ 	if (sample != nullptr) {
+ 		detachSample();
+ 	}
+-	outputRecordingFrom->removeRecorder();
++	if (outputRecordingFrom) {
++		outputRecordingFrom->removeRecorder(this);
++	}
+ }
+ 
+ // This can be called when this SampleRecorder is destructed routinely - or earlier if we've aborted and the sample file
+@@ -905,7 +907,7 @@ void SampleRecorder::finishCapturing() {
+ 		getRootUI()->sampleNeedsReRendering(sample);
+ 	}
+ 	if (outputRecordingFrom) {
+-		outputRecordingFrom->removeRecorder();
++		outputRecordingFrom->removeRecorder(this);
+ 	}
+ }
+ 
+diff --git a/src/deluge/playback/mode/session.cpp b/src/deluge/playback/mode/session.cpp
+index b8e82b8ebda9029ad723299d2515b96c3a1912e7..7a2679f77ae6b75ac8398bfce6a50ae64689918c 100644
+--- a/src/deluge/playback/mode/session.cpp
++++ b/src/deluge/playback/mode/session.cpp
+@@ -2179,6 +2179,9 @@ bool Session::wantsToDoTempolessRecord(int32_t newPos) {
+ 			if (clip->type != ClipType::AUDIO) {
+ 				return false; // Cos there's a non-audio clip playing or recording
+ 			}
++			if (!clip->isEmpty(false)) {
++				return false;
++			}
+ 
+ 			if (!clip->wantsToBeginLinearRecording(currentSong)) {
+ 				return false;

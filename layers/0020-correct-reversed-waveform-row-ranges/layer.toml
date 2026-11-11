@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "correct reversed waveform row ranges\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "correct Slicer playhead source\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

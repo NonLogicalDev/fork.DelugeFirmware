@@ -1,0 +1,195 @@
+diff --git a/src/deluge/gui/ui/slicer.cpp b/src/deluge/gui/ui/slicer.cpp
+index 3c190b9fbe1dbac92b9cc13c0458846e672d63c3..fa4d4de81b686adadb8c1717ae85e4e9dd83ab4e 100644
+--- a/src/deluge/gui/ui/slicer.cpp
++++ b/src/deluge/gui/ui/slicer.cpp
+@@ -21,6 +21,7 @@
+ #include "gui/context_menu/slicer_playback_mode.h"
+ #include "gui/l10n/l10n.h"
+ #include "gui/ui/browser/sample_browser.h"
++#include "gui/ui/slicer_playhead.h"
+ #include "gui/ui/sound_editor.h"
+ #include "gui/views/instrument_clip_view.h"
+ #include "gui/waveform/oled_waveform_renderer.h"
+@@ -338,35 +339,40 @@ bool Slicer::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSide
+ const uint8_t zeroes[] = {0, 0, 0, 0, 0, 0, 0, 0};
+ 
+ void Slicer::graphicsRoutine() {
+-
++	const bool isRegionMode = slicerMode == SLICER_MODE_REGION;
+ 	int32_t newTickSquare = 255;
+ 	VoiceSample* voiceSample = nullptr;
+ 	SamplePlaybackGuide* guide = nullptr;
++	SoundDrum* drum = deluge::gui::slicer_playhead::getSource(isRegionMode, usesExistingKit)
++	                          == deluge::gui::slicer_playhead::Source::BROWSER_PREVIEW
++	                      ? AudioEngine::sampleForPreview
++	                      : static_cast<SoundDrum*>(soundEditor.currentSound);
++	Sample* displayedSample = waveformBasicNavigator.sample;
+ 
+-	MultisampleRange* range;
+-	SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
++	if (displayedSample && drum && drum->hasActiveVoices() && drum->sources[0].ranges.getNumElements() > 0) {
++		auto* range = static_cast<MultisampleRange*>(drum->sources[0].ranges.getElement(0));
++		AudioFileHolder* holder = range->getAudioFileHolder();
+ 
+-	if (getCurrentClip()->type == ClipType::INSTRUMENT && drum->hasActiveVoices()) {
+-		range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
++		// Slicer can leave both the browser preview and a selected Kit row sounding. Only the source owned by this
++		// Slicer mode may move the cursor, and only while it is playing the waveform currently on screen.
++		if (holder->audioFile == displayedSample) {
++			auto validVoices = drum->voices() | std::views::filter([holder](const Sound::ActiveVoice& voice) {
++				                   return voice->guides[0].audioFileHolder == holder;
++			                   });
+ 
+-		auto valid_voices_view = drum->voices() | std::views::filter([&](const Sound::ActiveVoice& voice) {
+-			                         // Ensure correct MultisampleRange.
+-			                         return voice->guides[0].audioFileHolder == range->getAudioFileHolder();
+-		                         });
+-
+-		if (!valid_voices_view.empty()) {
+-			const Sound::ActiveVoice& voice = *std::ranges::max_element(valid_voices_view, {}, &Voice::orderSounded);
+-
+-			VoiceUnisonPartSource* part = &voice->unisonParts[drum->numUnison >> 1].sources[0];
+-			if (part != nullptr && part->active) {
+-				voiceSample = part->voiceSample;
+-				guide = &voice->guides[soundEditor.currentSourceIndex];
++			if (!validVoices.empty()) {
++				const Sound::ActiveVoice& voice = *std::ranges::max_element(validVoices, {}, &Voice::orderSounded);
++				VoiceUnisonPartSource* part = &voice->unisonParts[drum->numUnison >> 1].sources[0];
++				if (part->active) {
++					voiceSample = part->voiceSample;
++					guide = &voice->guides[0];
++				}
+ 			}
+ 		}
+ 	}
+ 
+-	if (voiceSample != nullptr) {
+-		int32_t samplePos = voiceSample->getPlaySample((Sample*)range->sampleHolder.audioFile, guide);
++	if (voiceSample) {
++		int32_t samplePos = voiceSample->getPlaySample(displayedSample, guide);
+ 		if (samplePos >= waveformBasicNavigator.xScroll) {
+ 			newTickSquare = (samplePos - waveformBasicNavigator.xScroll) / waveformBasicNavigator.xZoom;
+ 			if (newTickSquare >= kDisplayWidth) {
+@@ -376,11 +382,9 @@ void Slicer::graphicsRoutine() {
+ 	}
+ 
+ 	uint8_t tickSquares[kDisplayHeight];
+-	memset(tickSquares, 255, kDisplayHeight);
+-	tickSquares[kDisplayHeight - 1] = newTickSquare;
+-	tickSquares[kDisplayHeight - 2] = newTickSquare;
+-	tickSquares[kDisplayHeight - 3] = newTickSquare;
+-	tickSquares[kDisplayHeight - 4] = newTickSquare;
++	for (int32_t row = 0; row < kDisplayHeight; row++) {
++		tickSquares[row] = deluge::gui::slicer_playhead::isWaveformRow(isRegionMode, row) ? newTickSquare : 255;
++	}
+ 
+ 	PadLEDs::setTickSquares(tickSquares, zeroes);
+ }
+@@ -645,6 +649,8 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
+ 		}
+ 
+ 		display->setNextTransitionDirection(-1);
++		// Forget Slicer's cursor before the browser redraws its own pads; that redraw supplies the next LED send.
++		PadLEDs::clearTickSquares(false);
+ 		close();
+ 	}
+ 	else {
+@@ -1078,6 +1084,8 @@ ramError2:
+ 	instrumentClipView.recalculateColours();
+ 
+ 	display->setNextTransitionDirection(-1);
++	// This closes both Browser and Slicer, so clear Slicer's cursor before Instrument Clip View redraws.
++	PadLEDs::clearTickSquares(false);
+ 	sampleBrowser.exitAndNeverDeleteDrum();
+ 	uiNeedsRendering(&instrumentClipView);
+ 	return true;
+diff --git a/src/deluge/gui/ui/slicer_playhead.h b/src/deluge/gui/ui/slicer_playhead.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..074d2273c3b48f7d13616b28705bd46e1574eee2
+--- /dev/null
++++ b/src/deluge/gui/ui/slicer_playhead.h
+@@ -0,0 +1,38 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
++ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program. If not, see
++ * <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++#include <cstdint>
++
++namespace deluge::gui::slicer_playhead {
++
++enum class Source : uint8_t {
++	BROWSER_PREVIEW,
++	SELECTED_SOUND,
++};
++
++constexpr Source getSource(bool isRegionMode, bool usesExistingKit) {
++	return isRegionMode && !usesExistingKit ? Source::BROWSER_PREVIEW : Source::SELECTED_SOUND;
++}
++
++constexpr bool isWaveformRow(bool isRegionMode, int32_t row) {
++	return isRegionMode || row >= kDisplayHeight / 2;
++}
++
++} // namespace deluge::gui::slicer_playhead
+diff --git a/tests/unit/CMakeLists.txt b/tests/unit/CMakeLists.txt
+index 3f26f20fc9868c98d99ec3b3ba1ad05d4c44ce96..b864de5a14eb48bb7b6f4829e2a29191dd04fa53 100644
+--- a/tests/unit/CMakeLists.txt
++++ b/tests/unit/CMakeLists.txt
+@@ -93,6 +93,7 @@ add_test(NAME UnitTests
+         COMMAND UnitTests)
+ target_sources(UnitTests PRIVATE ${deluge_SOURCES})
+ target_sources(UnitTests PRIVATE slicer_batch_playback_mode_tests.cpp)
++target_sources(UnitTests PRIVATE slicer_playhead_tests.cpp)
+ target_include_directories(UnitTests PRIVATE
+         # include the non test project source
+         mocks
+diff --git a/tests/unit/slicer_playhead_tests.cpp b/tests/unit/slicer_playhead_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f42eccfd1dd3e0f82e608bd710588bc20965ce64
+--- /dev/null
++++ b/tests/unit/slicer_playhead_tests.cpp
+@@ -0,0 +1,28 @@
++#include "CppUTest/TestHarness.h"
++
++#include "gui/ui/slicer_playhead.h"
++
++using deluge::gui::slicer_playhead::Source;
++
++TEST_GROUP(SlicerPlayheadTests){};
++
++TEST(SlicerPlayheadTests, regionInNewKitFollowsBrowserPreview) {
++	CHECK_EQUAL(static_cast<int32_t>(Source::BROWSER_PREVIEW),
++	            static_cast<int32_t>(deluge::gui::slicer_playhead::getSource(true, false)));
++}
++
++TEST(SlicerPlayheadTests, manualAndExistingKitFollowSelectedSound) {
++	CHECK_EQUAL(static_cast<int32_t>(Source::SELECTED_SOUND),
++	            static_cast<int32_t>(deluge::gui::slicer_playhead::getSource(false, false)));
++	CHECK_EQUAL(static_cast<int32_t>(Source::SELECTED_SOUND),
++	            static_cast<int32_t>(deluge::gui::slicer_playhead::getSource(true, true)));
++	CHECK_EQUAL(static_cast<int32_t>(Source::SELECTED_SOUND),
++	            static_cast<int32_t>(deluge::gui::slicer_playhead::getSource(false, true)));
++}
++
++TEST(SlicerPlayheadTests, regionUsesEveryRowAndManualUsesOnlyWaveformRows) {
++	for (int32_t row = 0; row < kDisplayHeight; row++) {
++		CHECK_TRUE(deluge::gui::slicer_playhead::isWaveformRow(true, row));
++		CHECK_EQUAL(row >= kDisplayHeight / 2, deluge::gui::slicer_playhead::isWaveformRow(false, row));
++	}
++}

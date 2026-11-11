@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "make Kit row reordering undoable\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

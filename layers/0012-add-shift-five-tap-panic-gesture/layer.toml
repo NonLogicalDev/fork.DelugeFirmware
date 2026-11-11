@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add Shift five-tap panic gesture\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

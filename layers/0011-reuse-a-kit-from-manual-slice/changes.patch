@@ -1,0 +1,1481 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 51c84004ed5adbd4abe9b20eeb10bdf3c0816e4b..fa17b139965043d27a8d96286a0c241eedf7efb3 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -109,17 +109,21 @@ When exact chord recognition is active on an OLED, show both the harmony and the
+ - Automated tests demonstrate that press order chooses the latest physical held note, that a release promotes the latest remaining physical note, and that a generated note cannot take precedence.
+ - The host unit-test suite and a local Release build pass.
+ 
+-## 5. Manual Slice entry during kit creation
++## 5. Manual Slice entry and reuse
+ 
+ ### Intent
+ 
+-Let a player choose manual slice placement before creating a kit, rather than entering the standard slicer and changing its mode afterward.
++Let a player choose manual slice placement before creating a kit, or append manual slices safely to the empty top of an existing Kit, rather than entering the standard slicer and changing its mode afterward.
+ 
+ ### Required behavior
+ 
+ - When the sample browser is creating a kit from a selected audio file, its action menu contains three choices: Load all, Slice, and Manual slice.
+-- Manual slice is available under the same selected-file condition as the existing Slice action. It is not offered for a folder.
++- In a brand-new Kit, Manual slice is available under the same selected-file condition as the existing Slice action. It is not offered for a folder.
++- In an existing Kit, Manual slice is available only after the player selected a pad that had no Sound, MIDI, or Gate Drum and that has no assigned Kit row above it. The selected pad becomes the first new slice and every additional slice is appended on a pad above it.
++- An occupied selected pad, or an unassigned selected pad below an existing Kit row, cannot start Manual slice. The player receives localized feedback that Manual slice needs the top empty Kit pad.
++- A reuse entry remains in Manual mode. Its mode-switch control does not enter Region Slice, whose placement rules are intentionally still limited to a brand-new Kit.
+ - Choosing Manual slice opens the existing Slicer directly in its established Manual mode, with the same initial one-slice state, waveform view, pad editing, slice count, transpose, preview, save, confirm, and cancel behavior that Manual mode already provides.
++- Leaving Manual Slice with Back retains its established behavior: the new anchor remains as one full-sample pad. Existing Kit rows remain unchanged.
+ - Entering either Manual slice or the existing Slice action requests the Slicer's initial grid redraw immediately. The player does not need to move an encoder or send another input before the waveform and Slicer grid appear.
+ - Choosing the existing Slice action continues to open the Slicer in its established Region mode with its existing initial slice count and controls.
+ - The Manual slice selection applies only to that entry into the Slicer. A later normal Slice entry must still begin in Region mode.
+@@ -128,12 +132,14 @@ Let a player choose manual slice placement before creating a kit, rather than en
+ ### Compatibility and boundaries
+ 
+ - Do not add a new slicing algorithm, slice-detection heuristic, kit type, sample format rule, maximum slice count, or save format.
+-- Do not change the behavior of Load all, standard Slice, the Slicer mode-switch control, existing manual slicing actions, sample playback, kit playback, MIDI, or project saving.
++- Load all and standard Slice remain available only for a brand-new Kit. The reuse route applies to Manual slice only.
++- Do not move, replace, clear, or reorder existing Kit rows below the selected pad. Keep their notes, sound settings, and playback state unchanged.
++- Do not change the Slicer mode-switch control for brand-new Kit entry, existing manual slicing actions, sample playback, kit playback, MIDI, or project saving.
+ - The new choice is a faster route to an existing mode. It does not persist as a global default.
+ 
+ ### Verification contract
+ 
+-- A human runtime check on a physical Deluge should confirm that Manual slice starts in Manual mode, standard Slice still starts in Region mode, and a normal entry after Manual slice is still Region mode.
++- A human runtime check on a physical Deluge should confirm that Manual slice starts in Manual mode, standard Slice still starts in Region mode, and a normal entry after Manual slice is still Region mode. It should also confirm that a top empty Kit pad receives the first slice, later slices appear above it, existing rows below remain unchanged, and lower or occupied selections are refused.
+ - The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
+ 
+ ## 6. Manual Slicer positioning and preview stop
+diff --git a/src/deluge/gui/context_menu/sample_browser/kit.cpp b/src/deluge/gui/context_menu/sample_browser/kit.cpp
+index 5c013a18cd90b9bf0881db48a5b03b9332c460f9..6a970d02f4968c3931667cf775e539693edd39eb 100644
+--- a/src/deluge/gui/context_menu/sample_browser/kit.cpp
++++ b/src/deluge/gui/context_menu/sample_browser/kit.cpp
+@@ -20,10 +20,7 @@
+ #include "gui/l10n/l10n.h"
+ #include "gui/ui/browser/sample_browser.h"
+ #include "gui/ui/slicer.h"
+-#include "hid/display/display.h"
+-#include "processing/engines/audio_engine.h"
+ #include "storage/file_item.h"
+-#include "util/functions.h"
+ 
+ namespace deluge::gui::context_menu::sample_browser {
+ Kit kit{};
+@@ -46,26 +43,24 @@ std::span<char const*> Kit::getOptions() {
+ bool Kit::isCurrentOptionAvailable() {
+ 	switch (currentOption) {
+ 	case 0: // "ALL" option - to import whole folder. Works whether they're currently on a file or a folder.
+-		return true;
+-	default: // Slicer option - only works if currently on a file, not a folder.
+-		return (!sampleBrowser.getCurrentFileItem()->isFolder);
++		return sampleBrowser.canUseKitSampleCreationOnTopEmptyPad();
++	case 1: // Slicer only works on an audio file.
++		return !sampleBrowser.getCurrentFileItem()->isFolder && sampleBrowser.canUseKitSampleCreationOnTopEmptyPad();
++	case 2: // Manual slicer only works on an audio file.
++		return !sampleBrowser.getCurrentFileItem()->isFolder && sampleBrowser.canUseKitSampleCreationOnTopEmptyPad();
++	default:
++		return false;
+ 	}
+ }
+ 
+ bool Kit::acceptCurrentOption() {
+ 	switch (currentOption) {
+ 	case 0: // Import whole folder
+-		return sampleBrowser.importFolderAsKit();
++		return sampleBrowser.canUseKitSampleCreationOnTopEmptyPad() && sampleBrowser.importFolderAsKit();
+ 	case 1: // Slicer
+-		display->setNextTransitionDirection(1);
+-		openUI(&slicer);
+-		return true;
++		return sampleBrowser.openSlicer(SLICER_MODE_REGION);
+ 	case 2: // Manual slicer
+-		AudioEngine::stopAnyPreviewing();
+-		slicer.requestInitialMode(SLICER_MODE_MANUAL);
+-		display->setNextTransitionDirection(1);
+-		openUI(&slicer);
+-		return true;
++		return sampleBrowser.openSlicer(SLICER_MODE_MANUAL);
+ 	default:
+ 		return false;
+ 	}
+diff --git a/src/deluge/gui/context_menu/slicer_playback_mode.cpp b/src/deluge/gui/context_menu/slicer_playback_mode.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..96669b6a555bfab25320d0b218795e7f39b51414
+--- /dev/null
++++ b/src/deluge/gui/context_menu/slicer_playback_mode.cpp
+@@ -0,0 +1,78 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
++ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program. If not, see
++ * <https://www.gnu.org/licenses/>.
++ */
++
++#include "gui/context_menu/slicer_playback_mode.h"
++#include "gui/l10n/l10n.h"
++#include "gui/ui/slicer.h"
++#include "gui/ui/slicer_batch_playback_mode.h"
++#include "gui/ui/ui.h"
++#include "hid/display/display.h"
++
++namespace deluge::gui::context_menu {
++
++SlicerPlaybackMode slicerPlaybackMode{};
++
++bool SlicerPlaybackMode::setupAndCheckAvailability() {
++	currentOption = slicer.getBatchPlaybackModeMenuIndex();
++	scrollPos = currentOption;
++	return true;
++}
++
++char const* SlicerPlaybackMode::getTitle() {
++	return l10n::get(l10n::String::STRING_FOR_SLICE);
++}
++
++std::span<char const*> SlicerPlaybackMode::getOptions() {
++	using enum l10n::String;
++	static char const* options[] = {
++	    l10n::get(STRING_FOR_AUTO),
++	    l10n::get(STRING_FOR_CUT),
++	    l10n::get(STRING_FOR_ONCE),
++	};
++	return options;
++}
++
++bool SlicerPlaybackMode::acceptCurrentOption() {
++	if (currentOption < slicer_playback::toMenuIndex(slicer_playback::BatchMode::AUTO)
++	    || currentOption > slicer_playback::toMenuIndex(slicer_playback::BatchMode::ONCE)) {
++		return true;
++	}
++
++	const int32_t acceptedOption = currentOption;
++	display->setNextTransitionDirection(-1);
++	close();
++	slicer.confirmWithBatchPlaybackModeMenuIndex(acceptedOption);
++
++	// The menu is already closed so Slicer can safely close its own UI stack on successful confirmation.
++	return true;
++}
++
++ActionResult SlicerPlaybackMode::padAction(int32_t x, int32_t y, int32_t on) {
++	if (!on) {
++		return slicer.padAction(x, y, on);
++	}
++	return ContextMenu::padAction(x, y, on);
++}
++
++ActionResult SlicerPlaybackMode::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
++	if (b == deluge::hid::button::X_ENC && !on) {
++		return slicer.buttonAction(b, on, inCardRoutine);
++	}
++	return ContextMenu::buttonAction(b, on, inCardRoutine);
++}
++
++} // namespace deluge::gui::context_menu
+diff --git a/src/deluge/gui/context_menu/slicer_playback_mode.h b/src/deluge/gui/context_menu/slicer_playback_mode.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..92c723d081c44d9154580cccac32e6e88b654053
+--- /dev/null
++++ b/src/deluge/gui/context_menu/slicer_playback_mode.h
+@@ -0,0 +1,36 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
++ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program. If not, see
++ * <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "gui/context_menu/context_menu.h"
++
++namespace deluge::gui::context_menu {
++
++class SlicerPlaybackMode final : public ContextMenu {
++public:
++	bool setupAndCheckAvailability() override;
++	char const* getTitle() override;
++	std::span<char const*> getOptions() override;
++	bool acceptCurrentOption() override;
++	ActionResult padAction(int32_t x, int32_t y, int32_t on) override;
++	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
++};
++
++extern SlicerPlaybackMode slicerPlaybackMode;
++
++} // namespace deluge::gui::context_menu
+diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
+index 04e78549d68d559879eb5ce8a5bbb1c80482c67e..c66112cbdb770cad8fe16073e47e5d33463cf6e0 100644
+--- a/src/deluge/gui/l10n/english.json
++++ b/src/deluge/gui/l10n/english.json
+@@ -267,6 +267,7 @@
+     "STRING_FOR_CLIP_IS_RECORDING": "Clip is recording",
+     "STRING_FOR_AUDIO_FILE_IS_USED_IN_CURRENT_SONG": "Audio file is used in current song",
+     "STRING_FOR_CAN_ONLY_USE_SLICER_FOR_BRAND_NEW_KIT": "Can only use slicer for brand-new kit",
++    "STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD": "Manual slice needs top empty Kit pad",
+     "STRING_FOR_TEMP_FOLDER_CANT_BE_BROWSED": "TEMP folder can't be browsed",
+     "STRING_FOR_UNLOADED_PARTS": "Can't return to current song, as parts have been unloaded",
+     "STRING_FOR_SD_CARD_ERROR": "SD card error",
+diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
+index d43b0366e216d663489f2c015ab658e779d7daa6..b981d3c92d5e11a915685e5c633708bbbb56a401 100644
+--- a/src/deluge/gui/l10n/g_english.cpp
++++ b/src/deluge/gui/l10n/g_english.cpp
+@@ -280,6 +280,7 @@ PLACE_SDRAM_DATA Language english{
+         {STRING_FOR_CLIP_IS_RECORDING, "Clip is recording"},
+         {STRING_FOR_AUDIO_FILE_IS_USED_IN_CURRENT_SONG, "Audio file is used in current song"},
+         {STRING_FOR_CAN_ONLY_USE_SLICER_FOR_BRAND_NEW_KIT, "Can only use slicer for brand-new kit"},
++        {STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD, "Manual slice needs top empty Kit pad"},
+         {STRING_FOR_TEMP_FOLDER_CANT_BE_BROWSED, "TEMP folder can't be browsed"},
+         {STRING_FOR_UNLOADED_PARTS, "Can't return to current song, as parts have been unloaded"},
+         {STRING_FOR_SD_CARD_ERROR, "SD card error"},
+diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
+index dd2a135da46fbffeab2bc9344a3f4b582a1977c1..79c1fead1446383d8bf6630d89a8c12e29dfc647 100644
+--- a/src/deluge/gui/l10n/g_seven_segment.cpp
++++ b/src/deluge/gui/l10n/g_seven_segment.cpp
+@@ -178,6 +178,7 @@ PLACE_SDRAM_DATA Language seven_segment{
+         {STRING_FOR_CLIP_IS_RECORDING, "CANT"},
+         {STRING_FOR_AUDIO_FILE_IS_USED_IN_CURRENT_SONG, "USED"},
+         {STRING_FOR_CAN_ONLY_USE_SLICER_FOR_BRAND_NEW_KIT, "CANT"},
++        {STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD, "EMPTY"},
+         {STRING_FOR_TEMP_FOLDER_CANT_BE_BROWSED, "CANT"},
+         {STRING_FOR_UNLOADED_PARTS, "CANT"},
+         {STRING_FOR_SD_CARD_ERROR, "CARD"},
+diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
+index 08a08f44fe040b0d0dc47f90afcaca71dadf4c2e..550d63d70361e58cc9c9b43e9a83d0adaa5d2811 100644
+--- a/src/deluge/gui/l10n/seven_segment.json
++++ b/src/deluge/gui/l10n/seven_segment.json
+@@ -188,6 +188,7 @@
+         "STRING_FOR_CLIP_IS_RECORDING": "CANT",
+         "STRING_FOR_AUDIO_FILE_IS_USED_IN_CURRENT_SONG": "USED",
+         "STRING_FOR_CAN_ONLY_USE_SLICER_FOR_BRAND_NEW_KIT": "CANT",
++        "STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD": "EMPTY",
+         "STRING_FOR_TEMP_FOLDER_CANT_BE_BROWSED": "CANT",
+         "STRING_FOR_UNLOADED_PARTS": "CANT",
+         "STRING_FOR_SD_CARD_ERROR": "CARD",
+diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
+index 61e86c768f07bedbefde794fd6f5de2e4b8115ae..b1ac759265eeb920cd6853c0f5f1498a5f62f958 100644
+--- a/src/deluge/gui/l10n/strings.h
++++ b/src/deluge/gui/l10n/strings.h
+@@ -300,6 +300,7 @@ enum class String : size_t {
+ 	STRING_FOR_CLIP_IS_RECORDING,
+ 	STRING_FOR_AUDIO_FILE_IS_USED_IN_CURRENT_SONG,
+ 	STRING_FOR_CAN_ONLY_USE_SLICER_FOR_BRAND_NEW_KIT,
++	STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD,
+ 	STRING_FOR_TEMP_FOLDER_CANT_BE_BROWSED,
+ 	STRING_FOR_UNLOADED_PARTS,
+ 	STRING_FOR_SD_CARD_ERROR,
+diff --git a/src/deluge/gui/ui/browser/sample_browser.cpp b/src/deluge/gui/ui/browser/sample_browser.cpp
+index a28992fe3a0f540f261b85c196695fbce6cfa2ee..e8857a4dcae440737eed33564a1b0643112614c4 100644
+--- a/src/deluge/gui/ui/browser/sample_browser.cpp
++++ b/src/deluge/gui/ui/browser/sample_browser.cpp
+@@ -300,13 +300,13 @@ ActionResult SampleBrowser::timerCallback() {
+ 			// Kit
+ 			else if (soundEditor.editingKit()) {
+ 
+-				if (canImportWholeKit()) {
++				if (canUseKitSampleCreationOnTopEmptyPad()) {
+ 					contextMenu = &gui::context_menu::sample_browser::kit;
+ 					goto considerContextMenu;
+ 				}
+ 				else {
+-					display->displayPopup(deluge::l10n::get(
+-					    deluge::l10n::String::STRING_FOR_CAN_ONLY_IMPORT_WHOLE_FOLDER_INTO_BRAND_NEW_KIT));
++					display->displayPopup(
++					    deluge::l10n::get(deluge::l10n::String::STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD));
+ 				}
+ 			}
+ 
+@@ -382,13 +382,13 @@ void SampleBrowser::enterKeyPress() {
+ 
+ 			// Can only do this for Kit Clips, and for source 0, not 1, AND there has to be only one drum present, which
+ 			// is assigned to the first NoteRow
+-			if (canImportWholeKit()) {
++			if (canUseKitSampleCreationOnTopEmptyPad()) {
+ 				display->displayPopup("SLICER");
+-				openUI(&slicer);
++				openSlicer(SLICER_MODE_REGION);
+ 			}
+ 			else {
+ 				display->displayPopup(
+-				    deluge::l10n::get(deluge::l10n::String::STRING_FOR_CAN_ONLY_USE_SLICER_FOR_BRAND_NEW_KIT));
++				    deluge::l10n::get(deluge::l10n::String::STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD));
+ 			}
+ 		}
+ 
+@@ -506,6 +506,33 @@ bool SampleBrowser::canImportWholeKit() {
+ 	        && (!getCurrentKit()->firstDrum->next));
+ }
+ 
++bool SampleBrowser::canUseKitSampleCreationOnTopEmptyPad() {
++	if (canImportWholeKit()) {
++		return true;
++	}
++
++	if (!soundEditor.editingKit() || soundEditor.currentSourceIndex != 0 || !soundEditor.currentSound) {
++		return false;
++	}
++
++	InstrumentClip* clip = getCurrentInstrumentClip();
++	int32_t anchorIndex;
++	NoteRow* anchorRow = clip->getNoteRowForDrum((SoundDrum*)soundEditor.currentSound, &anchorIndex);
++	if (!anchorRow || anchorRow->drum->type != DrumType::SOUND) {
++		return false;
++	}
++
++	// The selected drum receives slice one. It may already have a sample; only rows above it determine whether the
++	// complete new batch has a clear path to the top of the Kit.
++	for (int32_t i = anchorIndex + 1; i < clip->noteRows.getNumElements(); i++) {
++		if (clip->noteRows.getElement(i)->drum) {
++			return false;
++		}
++	}
++
++	return true;
++}
++
+ Error SampleBrowser::getCurrentFilePath(String* path) {
+ 	Error error;
+ 
+@@ -755,6 +782,37 @@ Error SampleBrowser::claimAudioFileForInstrument(bool makeWaveTableWorkAtAllCost
+ 	                        CLUSTER_ENQUEUE, nullptr, makeWaveTableWorkAtAllCosts);
+ }
+ 
++bool SampleBrowser::openSlicer(int32_t initialMode) {
++	if (!canUseKitSampleCreationOnTopEmptyPad()) {
++		return false;
++	}
++
++	// A new-Kit Region Slice can continue to use the browser preview. A Manual Slice, and every reuse of an existing
++	// Kit, needs the selected file to belong to the new anchor so a later browser session cannot show an older preview.
++	if (initialMode == SLICER_MODE_MANUAL || !canImportWholeKit()) {
++		soundEditor.currentSource->setOscType(OscType::SAMPLE);
++		Error error = claimAudioFileForInstrument();
++		if (error != Error::NONE) {
++			display->displayError(error);
++			return false;
++		}
++
++		AudioFileHolder* holder = soundEditor.getCurrentAudioFileHolder();
++		if (!holder->audioFile) {
++			display->displayError(Error::FILE_UNREADABLE);
++			return false;
++		}
++
++		waveformBasicNavigator.sample = static_cast<Sample*>(holder->audioFile);
++		waveformBasicNavigator.opened();
++		AudioEngine::stopAnyPreviewing();
++	}
++
++	slicer.requestInitialMode(initialMode);
++	display->setNextTransitionDirection(1);
++	return openUI(&slicer);
++}
++
+ Error SampleBrowser::claimAudioFileForAudioClip() {
+ 	soundEditor.cutSound();
+ 
+@@ -1902,10 +1960,18 @@ doReturnFalse:
+ 
+ 	Kit* kit = getCurrentKit();
+ 	SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
++	InstrumentClip* clip = getCurrentInstrumentClip();
++	bool usesExistingKit = !canImportWholeKit();
++	int32_t firstDrumNoteRowIndex = 0;
++	if (usesExistingKit && !clip->getNoteRowForDrum(firstDrum, &firstDrumNoteRowIndex)) {
++		display->removeWorkingAnimation();
++		return false;
++	}
+ 
+ 	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+ 	{
+ 		ModelStackWithThreeMainThings* modelStack = soundEditor.getCurrentModelStack(modelStackMemory);
++		ModelStackWithTimelineCounter* noteRowModelStack = nullptr;
+ 
+ 		for (int32_t s = 0; s < numSamples; s++) {
+ 
+@@ -1980,10 +2046,30 @@ getOut:
+ 
+ 				Sound::initParams(&paramManager);
+ 
+-				kit->addDrum(drum);
+ 				drum->setupAsSample(&paramManager);
+ 				drum->nameIsDiscardable = true;
+-				currentSong->backUpParamManager(drum, getCurrentClip(), &paramManager, true);
++				if (usesExistingKit) {
++					if (!noteRowModelStack) {
++						noteRowModelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
++					}
++
++					int32_t noteRowIndex = firstDrumNoteRowIndex + s;
++					NoteRow* newNoteRow = clip->noteRows.insertNoteRowAtIndex(noteRowIndex);
++					if (!newNoteRow) {
++						drum->~SoundDrum();
++						delugeDealloc(drum);
++						goto getOut;
++					}
++
++					kit->addDrum(drum);
++					ModelStackWithNoteRow* newNoteRowModelStack = noteRowModelStack->addNoteRow(
++					    clip->getNoteRowId(newNoteRow, noteRowIndex), newNoteRow);
++					newNoteRow->setDrum(drum, kit, newNoteRowModelStack, nullptr, &paramManager);
++				}
++				else {
++					kit->addDrum(drum);
++					currentSong->backUpParamManager(drum, getCurrentClip(), &paramManager, true);
++				}
+ 			}
+ 
+ 			AudioFileHolder* holder = range->getAudioFileHolder();
+@@ -2029,11 +2115,13 @@ skipNameStuff:
+ 		delugeDealloc(sortArea);
+ 	}
+ 
+-	// Make NoteRows for all these new Drums
+-	getCurrentKit()->resetDrumTempValues();
+-	firstDrum->noteRowAssignedTemp = 1;
+-	ModelStackWithTimelineCounter* modelStack = (ModelStackWithTimelineCounter*)modelStackMemory;
+-	getCurrentInstrumentClip()->assignDrumsToNoteRows(modelStack);
++	if (!usesExistingKit) {
++		// Make NoteRows for all these new Drums.
++		getCurrentKit()->resetDrumTempValues();
++		firstDrum->noteRowAssignedTemp = 1;
++		ModelStackWithTimelineCounter* modelStack = (ModelStackWithTimelineCounter*)modelStackMemory;
++		getCurrentInstrumentClip()->assignDrumsToNoteRows(modelStack);
++	}
+ 
+ 	getCurrentInstrument()->beenEdited();
+ 
+diff --git a/src/deluge/gui/ui/browser/sample_browser.h b/src/deluge/gui/ui/browser/sample_browser.h
+index 039e1203c8465784fbcec32a6b4ce4694d2b0a82..cb0c5b7fef25d8a2cbce054f921585dd25fd424a 100644
+--- a/src/deluge/gui/ui/browser/sample_browser.h
++++ b/src/deluge/gui/ui/browser/sample_browser.h
+@@ -62,6 +62,9 @@ public:
+ 	bool renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+ 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea = true) override;
+ 	void exitAndNeverDeleteDrum();
++	bool canImportWholeKit();
++	bool canUseKitSampleCreationOnTopEmptyPad();
++	bool openSlicer(int32_t initialMode);
+ 
+ 	String lastFilePathLoaded;
+ 
+@@ -84,7 +87,6 @@ private:
+ 	void displayCurrentFilename();
+ 	void previewIfPossible(int32_t movementDirection = 1);
+ 	void audioFileIsNowSet();
+-	bool canImportWholeKit();
+ 	bool loadAllSamplesInFolder(bool detectPitch, int32_t* getNumSamples, Sample*** getSortArea,
+ 	                            bool* getDoingSingleCycle = nullptr, int32_t* getNumCharsInPrefix = nullptr);
+ 	Error getCurrentFilePath(String* path) override;
+@@ -97,6 +99,7 @@ private:
+ 	bool currentlyShowingSamplePreview;
+ 
+ 	bool qwertyCurrentlyDrawnOnscreen; // This will linger as true even when qwertyVisible has been set to false
++
+ };
+ 
+ extern SampleBrowser sampleBrowser;
+diff --git a/src/deluge/gui/ui/slicer.cpp b/src/deluge/gui/ui/slicer.cpp
+index 69f0c5ddfdab031dd69754596d456e5d11397b62..696c52730f01f80e0e9d87a6e37a087fd0be6342 100644
+--- a/src/deluge/gui/ui/slicer.cpp
++++ b/src/deluge/gui/ui/slicer.cpp
+@@ -18,6 +18,7 @@
+ #include "gui/ui/slicer.h"
+ #include "definitions_cxx.hpp"
+ #include "gui/colour/colour.h"
++#include "gui/context_menu/slicer_playback_mode.h"
+ #include "gui/l10n/l10n.h"
+ #include "gui/ui/browser/sample_browser.h"
+ #include "gui/ui/sound_editor.h"
+@@ -32,8 +33,11 @@
+ #include "memory/general_memory_allocator.h"
+ #include "model/action/action_logger.h"
+ #include "model/clip/instrument_clip.h"
++#include "model/drum/drum.h"
++#include "model/drum/generated_slice_name.h"
+ #include "model/instrument/kit.h"
+ #include "model/model_stack.h"
++#include "model/note/note_row.h"
+ #include "model/sample/sample.h"
+ #include "model/song/song.h"
+ #include "model/voice/voice.h"
+@@ -55,7 +59,25 @@ Slicer slicer{};
+ 
+ namespace params = deluge::modulation::params;
+ 
+-void Slicer::focusRegained() {
++namespace {
++
++int32_t getNextGeneratedSliceSeriesIndex(Kit* kit, SoundDrum* anchorDrum) {
++	int32_t highestSeriesIndex = -1;
++	for (Drum* drum = kit->firstDrum; drum; drum = drum->next) {
++		if (drum->type != DrumType::SOUND || drum == anchorDrum) {
++			continue;
++		}
++
++		int32_t seriesIndex = deluge::generated_slice_name::getSeriesIndex(drum->drumName);
++		highestSeriesIndex = std::max(highestSeriesIndex, seriesIndex);
++	}
++
++	return highestSeriesIndex + 1;
++}
++
++} // namespace
++
++bool Slicer::opened() {
+ 
+ 	actionLogger.deleteAllLogs();
+ 
+@@ -67,11 +89,21 @@ void Slicer::focusRegained() {
+ 	requestedInitialMode = SLICER_MODE_REGION;
+ 	horizontalEncoderPressed = false;
+ 	horizontalEncoderPressUsed = false;
++	usesExistingKit = !sampleBrowser.canImportWholeKit();
++	batchPlaybackMode = deluge::gui::slicer_playback::BatchMode::AUTO;
++	manualPreviewChangedRepeatMode = false;
+ 	for (int32_t i = 0; i < MAX_MANUAL_SLICES; i++) {
+ 		manualSlicePoints[i].startPos = 0;
+ 		manualSlicePoints[i].transpose = 0;
++		manualSliceDrums[i] = nullptr;
+ 	}
+ 
++	focusRegained();
++	return true;
++}
++
++void Slicer::focusRegained() {
++
+ 	if (display->have7SEG()) {
+ 		redraw();
+ 	}
+@@ -160,6 +192,34 @@ bool Slicer::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSid
+ 	return true;
+ }
+ 
++bool Slicer::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
++                           uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) {
++	if (!image) {
++		return true;
++	}
++
++	instrumentClipView.renderSidebar(whichRows, image, occupancyMask);
++
++	// The status column normally belongs to the view underneath. Slicer reserves its top three pads for the pending
++	// batch mode while leaving all other sidebar controls available.
++	constexpr RGB modeColours[] = {
++	    colours::yellow_orange,
++	    colours::red,
++	    colours::magenta,
++	};
++	for (int32_t y = 0; y < 3; y++) {
++		if (whichRows & (1 << y)) {
++			RGB colour = modeColours[y];
++			image[y][kDisplayWidth] = (y == (int32_t)batchPlaybackMode) ? colour : colour.dim(4);
++			if (occupancyMask) {
++				PadLEDs::refreshSidebarOccupancy(image[y], occupancyMask[y]);
++			}
++		}
++	}
++
++	return true;
++}
++
+ const uint8_t zeroes[] = {0, 0, 0, 0, 0, 0, 0, 0};
+ 
+ void Slicer::graphicsRoutine() {
+@@ -169,8 +229,7 @@ void Slicer::graphicsRoutine() {
+ 	SamplePlaybackGuide* guide = nullptr;
+ 
+ 	MultisampleRange* range;
+-	Kit* kit = getCurrentKit();
+-	SoundDrum* drum = (SoundDrum*)kit->firstDrum;
++	SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
+ 
+ 	if (getCurrentClip()->type == ClipType::INSTRUMENT && drum->hasActiveVoices()) {
+ 		range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
+@@ -331,7 +390,11 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
+ 			horizontalEncoderPressUsed = false;
+ 			return ActionResult::DEALT_WITH;
+ 		}
++		if (usesExistingKit) {
++			return ActionResult::DEALT_WITH;
++		}
+ 
++		restoreManualPreviewRepeatMode();
+ 		slicerMode++;
+ 		slicerMode %= 2;
+ 		if (slicerMode == SLICER_MODE_MANUAL)
+@@ -343,7 +406,7 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
+ 			redraw();
+ 		}
+ 
+-		getCurrentKit()->firstDrum->killAllVoices(); // stop
++		((SoundDrum*)soundEditor.currentSound)->killAllVoices(); // stop
+ 		uiNeedsRendering(this, 0xFFFFFFFF, 0xFFFFFFFF);
+ 		return ActionResult::DEALT_WITH;
+ 	}
+@@ -365,7 +428,6 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
+ 		}
+ 		return ActionResult::DEALT_WITH;
+ 	}
+-
+ 	// pop up Transpose value
+ 	if (b == Y_ENC && on && slicerMode == SLICER_MODE_MANUAL && currentSlice < numManualSlice) {
+ 		if (display->haveOLED()) {
+@@ -422,40 +484,23 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
+ 		if (inCardRoutine) {
+ 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+ 		}
+-		if (slicerMode == SLICER_MODE_REGION) {
+-			doSlice();
+-		}
+-		else {
+-			getCurrentKit()->firstDrum->killAllVoices(); // stop
+-			numClips = numManualSlice;
+-			doSlice();
+-			Kit* kit = getCurrentKit();
+-			for (int32_t i = 0; i < numManualSlice; i++) {
+-				Drum* drum = kit->getDrumFromIndex(i);
+-				SoundDrum* soundDrum = (SoundDrum*)drum;
+-				MultisampleRange* range = (MultisampleRange*)soundDrum->sources[0].getOrCreateFirstRange();
+-				Sample* sample = (Sample*)range->sampleHolder.audioFile;
+-				range->sampleHolder.startPos = manualSlicePoints[i].startPos;
+-				range->sampleHolder.endPos = (i == numManualSlice - 1) ? waveformBasicNavigator.sample->lengthInSamples
+-				                                                       : this->manualSlicePoints[i + 1].startPos;
+-				range->sampleHolder.transpose = manualSlicePoints[i].transpose;
+-			}
+-		}
++		deluge::gui::context_menu::slicerPlaybackMode.setupAndCheckAvailability();
++		display->setNextTransitionDirection(1);
++		openUI(&deluge::gui::context_menu::slicerPlaybackMode);
+ 	}
+ 
+ 	else if (b == BACK) {
+ 		if (inCardRoutine) {
+ 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+ 		}
++		restoreManualPreviewRepeatMode();
+ 		if (slicerMode == SLICER_MODE_MANUAL) {
+ 			RGB myImage[kDisplayHeight][kDisplayWidth + kSideBarWidth];
+ 			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+ 			                                  waveformBasicNavigator.xZoom, PadLEDs::image,
+ 			                                  &waveformBasicNavigator.renderData);
+-			getCurrentKit()->firstDrum->killAllVoices(); // stop
+-			Kit* kit = getCurrentKit();
+-			Drum* drum = kit->firstDrum;
+-			SoundDrum* soundDrum = (SoundDrum*)drum;
++			SoundDrum* soundDrum = (SoundDrum*)soundEditor.currentSound;
++			soundDrum->killAllVoices(); // stop
+ 			MultisampleRange* range = (MultisampleRange*)soundDrum->sources[0].getOrCreateFirstRange();
+ 			Sample* sample = (Sample*)range->sampleHolder.audioFile;
+ 			range->sampleHolder.startPos = 0;
+@@ -473,9 +518,82 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
+ 	return ActionResult::DEALT_WITH;
+ }
+ 
++int32_t Slicer::getBatchPlaybackModeMenuIndex() const {
++	return deluge::gui::slicer_playback::toMenuIndex(batchPlaybackMode);
++}
++
++bool Slicer::confirmWithBatchPlaybackModeMenuIndex(int32_t menuIndex) {
++	if (!deluge::gui::slicer_playback::setFromMenuIndex(batchPlaybackMode, menuIndex)) {
++		return false;
++	}
++
++	bool confirmed = confirmSlices();
++	if (!confirmed) {
++		uiNeedsRendering(this, 0, 0xFFFFFFFF);
++	}
++	return confirmed;
++}
++
++bool Slicer::confirmSlices() {
++	if (slicerMode == SLICER_MODE_REGION) {
++		return doSlice();
++	}
++
++	SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
++	firstDrum->killAllVoices();
++	numClips = numManualSlice;
++	if (!doSlice()) {
++		return false;
++	}
++
++	for (int32_t i = 0; i < numManualSlice; i++) {
++		SoundDrum* soundDrum = manualSliceDrums[i];
++		MultisampleRange* range = (MultisampleRange*)soundDrum->sources[0].getOrCreateFirstRange();
++		range->sampleHolder.startPos = manualSlicePoints[i].startPos;
++		range->sampleHolder.endPos = (i == numManualSlice - 1) ? waveformBasicNavigator.sample->lengthInSamples
++		                                                       : manualSlicePoints[i + 1].startPos;
++		range->sampleHolder.transpose = manualSlicePoints[i].transpose;
++	}
++
++	return true;
++}
++
++void Slicer::chooseBatchPlaybackMode(deluge::gui::slicer_playback::BatchMode newMode) {
++	batchPlaybackMode = newMode;
++
++	char const* popupText[2];
++	switch (newMode) {
++	case deluge::gui::slicer_playback::BatchMode::AUTO:
++		popupText[0] = "DEF";
++		popupText[1] = "Slice mode: Default";
++		break;
++	case deluge::gui::slicer_playback::BatchMode::CUT:
++		popupText[0] = "CUT";
++		popupText[1] = "Slice mode: All Cut";
++		break;
++	case deluge::gui::slicer_playback::BatchMode::ONCE:
++		popupText[0] = "ONCE";
++		popupText[1] = "Slice mode: All Once";
++		break;
++	}
++
++	display->displayPopup(popupText);
++	uiNeedsRendering(this, 0, 0xFFFFFFFF);
++}
++
++SampleRepeatMode Slicer::getBatchRepeatMode(uint32_t lengthMSPerSlice) const {
++	return deluge::gui::slicer_playback::resolve(batchPlaybackMode, lengthMSPerSlice, FlashStorage::defaultSliceMode);
++}
++
++void Slicer::restoreManualPreviewRepeatMode() {
++	if (manualPreviewChangedRepeatMode) {
++		((SoundDrum*)soundEditor.currentSound)->sources[0].repeatMode = repeatModeBeforeManualPreview;
++		manualPreviewChangedRepeatMode = false;
++	}
++}
++
+ void Slicer::stopAnyPreviewing() {
+-	Kit* kit = getCurrentKit();
+-	SoundDrum* drum = (SoundDrum*)kit->firstDrum;
++	SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
+ 	drum->killAllVoices();
+ 	if (drum->sources[0].ranges.getNumElements()) {
+ 		MultisampleRange* range = (MultisampleRange*)drum->sources[0].ranges.getElement(0);
+@@ -484,14 +602,17 @@ void Slicer::stopAnyPreviewing() {
+ }
+ void Slicer::preview(int64_t startPoint, int64_t endPoint, int32_t transpose, int32_t on) {
+ 	if (on) {
+-		Kit* kit = getCurrentKit();
+-		SoundDrum* drum = (SoundDrum*)kit->firstDrum;
++		SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
+ 
+ 		char modelStackMemory[MODEL_STACK_MAX_SIZE];
+ 		ModelStackWithThreeMainThings* modelStack = soundEditor.getCurrentModelStack(modelStackMemory);
+ 
+ 		MultisampleRange* range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
+-		drum->drumName = "1";
++		if (!manualPreviewChangedRepeatMode) {
++			// Preview forces Once, but cancelling Slicer must leave the anchor's stored mode unchanged.
++			repeatModeBeforeManualPreview = drum->sources[0].repeatMode;
++			manualPreviewChangedRepeatMode = true;
++		}
+ 		drum->sources[0].repeatMode = SampleRepeatMode::ONCE;
+ 
+ 		if (!waveformBasicNavigator.sample->filePath.equals(&range->sampleHolder.filePath)) {
+@@ -524,6 +645,15 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
+ 	if (on && horizontalEncoderPressed) {
+ 		horizontalEncoderPressUsed = true;
+ 	}
++	if (x == kDisplayWidth && y < 3) {
++		if (on) {
++			deluge::gui::slicer_playback::BatchMode mode = batchPlaybackMode;
++			if (deluge::gui::slicer_playback::setFromMenuIndex(mode, y)) {
++				chooseBatchPlaybackMode(mode);
++			}
++		}
++		return ActionResult::DEALT_WITH;
++	}
+ 
+ 	if (on && x < kDisplayWidth && y < kDisplayHeight / 2 && slicerMode == SLICER_MODE_MANUAL) { // pad on
+ 
+@@ -550,17 +680,15 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
+ 			VoiceSample* voiceSample = nullptr;
+ 			SamplePlaybackGuide* guide = nullptr;
+ 			MultisampleRange* range;
+-			Kit* kit = getCurrentKit();
+-			SoundDrum* drum = (SoundDrum*)kit->firstDrum;
++			SoundDrum* drum = (SoundDrum*)soundEditor.currentSound;
+ 
+ 			if (getCurrentClip()->type == ClipType::INSTRUMENT && drum->hasActiveVoices()) {
++				range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
+ 				auto valid_voices_view = drum->voices() | std::views::filter([&](const Sound::ActiveVoice& voice) {
+ 					                         // Ensure correct MultisampleRange.
+ 					                         return voice->guides[0].audioFileHolder == range->getAudioFileHolder();
+ 				                         });
+ 
+-				range = (MultisampleRange*)drum->sources[0].getOrCreateFirstRange();
+-
+ 				if (!valid_voices_view.empty()) {
+ 					const Sound::ActiveVoice& assigned_voice =
+ 					    *std::ranges::max_element(valid_voices_view, {}, &Voice::orderSounded);
+@@ -614,18 +742,40 @@ ActionResult Slicer::padAction(int32_t x, int32_t y, int32_t on) {
+ 	return sampleBrowser.padAction(x, y, on);
+ }
+ 
+-void Slicer::doSlice() {
++bool Slicer::doSlice() {
+ 
+ 	AudioEngine::stopAnyPreviewing();
++	bool isManualSlice = slicerMode == SLICER_MODE_MANUAL;
++	int32_t firstDrumNoteRowIndex = 0;
++	if (usesExistingKit
++	    && !getCurrentInstrumentClip()->getNoteRowForDrum((SoundDrum*)soundEditor.currentSound,
++	                                                      &firstDrumNoteRowIndex)) {
++		display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_MANUAL_SLICE_NEEDS_TOP_EMPTY_KIT_PAD));
++		return false;
++	}
++
++	Kit* kit = getCurrentKit();
++	SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
++	int32_t generatedSliceSeriesIndex = getNextGeneratedSliceSeriesIndex(kit, firstDrum);
+ 
+ 	Error error = sampleBrowser.claimAudioFileForInstrument();
+ 	if (error != Error::NONE) {
+ getOut:
+ 		display->displayError(error);
+-		return;
++		return false;
+ 	}
+ 
+-	Kit* kit = getCurrentKit();
++	MultisampleRange* firstRange = (MultisampleRange*)firstDrum->sources[0].getOrCreateFirstRange();
++	if (!firstRange) {
++		display->displayError(Error::INSUFFICIENT_RAM);
++		return false;
++	}
++
++	Sample* sample = (Sample*)firstRange->sampleHolder.audioFile;
++	if (!sample) {
++		display->displayError(Error::FILE_UNREADABLE);
++		return false;
++	}
+ 
+ 	// Do the first Drum
+ 
+@@ -652,15 +802,12 @@ getOut:
+ 			// getCurrentClip(), false);
+ 		}
+ 
+-		SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
+-
+-		if (firstDrum->nameIsDiscardable) {
+-			firstDrum->drumName = "1";
++		if (isManualSlice) {
++			manualSliceDrums[0] = firstDrum;
+ 		}
+ 
+-		MultisampleRange* firstRange = (MultisampleRange*)firstDrum->sources[0].getOrCreateFirstRange();
+-
+-		Sample* sample = (Sample*)firstRange->sampleHolder.audioFile;
++		firstDrum->drumName = deluge::generated_slice_name::makeName(generatedSliceSeriesIndex, 1);
++		firstDrum->nameIsDiscardable = false;
+ 
+ 		uint32_t lengthInSamples = sample->lengthInSamples;
+ 
+@@ -674,18 +821,10 @@ getOut:
+ 		uint32_t nextDrumStart = lengthInSamples / numClips;
+ 		firstRange->sampleHolder.endPos = nextDrumStart;
+ 
+-		firstDrum->sources[0].repeatMode =
+-		    (lengthMSPerSlice < 2002) ? SampleRepeatMode::ONCE : FlashStorage::defaultSliceMode;
++		firstDrum->sources[0].repeatMode = getBatchRepeatMode(lengthMSPerSlice);
+ 
+ 		firstDrum->sources[0].sampleControls.reversed = false;
+ 		firstDrum->sources[0].sampleControls.invertReversed = false;
+-
+-#if 1 || ALPHA_OR_BETA_VERSION
+-		if (!firstRange->sampleHolder.audioFile) {
+-			FREEZE_WITH_ERROR("i032"); // Trying to narrow down E368 that Kevin F got
+-		}
+-#endif
+-
+ 		firstRange->sampleHolder.claimClusterReasons(firstDrum->sources[0].sampleControls.isCurrentlyReversed(),
+ 		                                             CLUSTER_ENQUEUE);
+ 		if (doEnvelopes) {
+@@ -698,7 +837,14 @@ getOut:
+ 			    modelStackWithAutoParam, getParamFromUserValue(params::LOCAL_ENV_0_RELEASE, 1));
+ 		}
+ 
+-		// Do the rest of the Drums
++		ModelStackWithTimelineCounter* noteRowModelStack = nullptr;
++		if (usesExistingKit) {
++			noteRowModelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
++		}
++
++		// Do the rest of the Drums.
++		// Their rows are placed directly above the selected first drum, rather than using the generic Kit row
++		// allocator.
+ 		for (int32_t i = 1; i < numClips; i++) {
+ 
+ 			// Make the Drum and its ParamManager
+@@ -725,19 +871,17 @@ ramError2:
+ 				goto ramError;
+ 			}
+ 
+-			newDrum->drumName = deluge::string::fromInt(i + 1);
++			newDrum->drumName = deluge::generated_slice_name::makeName(generatedSliceSeriesIndex, i + 1);
+ 
+ 			Sound::initParams(&paramManager);
+ 
+-			kit->addDrum(newDrum);
+ 			newDrum->setupAsSample(&paramManager);
+ 
+ 			range->sampleHolder.startPos = nextDrumStart;
+ 			nextDrumStart = (uint64_t)lengthInSamples * (i + 1) / numClips;
+ 			range->sampleHolder.endPos = nextDrumStart;
+ 
+-			newDrum->sources[0].repeatMode =
+-			    (lengthMSPerSlice < 2002) ? SampleRepeatMode::ONCE : FlashStorage::defaultSliceMode;
++			newDrum->sources[0].repeatMode = getBatchRepeatMode(lengthMSPerSlice);
+ 
+ 			range->sampleHolder.filePath.set(&sample->filePath);
+ 			range->sampleHolder.loadFile(false, false, true);
+@@ -751,18 +895,43 @@ ramError2:
+ 				}
+ 			}
+ 
+-			// I moved this here, from being earlier/above. Is this fine?
+-			currentSong->backUpParamManager(newDrum, getCurrentClip(), &paramManager, true);
++			if (usesExistingKit) {
++				int32_t noteRowIndex = firstDrumNoteRowIndex + i;
++				NoteRow* newNoteRow = getCurrentInstrumentClip()->noteRows.insertNoteRowAtIndex(noteRowIndex);
++				if (!newNoteRow) {
++					newDrum->~SoundDrum();
++					delugeDealloc(drumMemory);
++					goto ramError;
++				}
++
++				kit->addDrum(newDrum);
++				ModelStackWithNoteRow* newNoteRowModelStack = noteRowModelStack->addNoteRow(
++				    getCurrentInstrumentClip()->getNoteRowId(newNoteRow, noteRowIndex), newNoteRow);
++				newNoteRow->setDrum(newDrum, kit, newNoteRowModelStack, nullptr, &paramManager);
++			}
++			else {
++				kit->addDrum(newDrum);
++				currentSong->backUpParamManager(newDrum, getCurrentClip(), &paramManager, true);
++			}
++
++			if (isManualSlice) {
++				manualSliceDrums[i] = newDrum;
++			}
+ 		}
+ 
+-		// Make NoteRows for all these new Drums
+-		getCurrentKit()->resetDrumTempValues();
+-		firstDrum->noteRowAssignedTemp = 1;
++		if (!usesExistingKit) {
++			// Region Slice retains its established generic Kit-row assignment behavior.
++			getCurrentKit()->resetDrumTempValues();
++			firstDrum->noteRowAssignedTemp = 1;
++		}
++	}
++	if (!usesExistingKit) {
++		ModelStackWithTimelineCounter* modelStack = (ModelStackWithTimelineCounter*)modelStackMemory;
++		getCurrentInstrumentClip()->assignDrumsToNoteRows(modelStack);
+ 	}
+-	ModelStackWithTimelineCounter* modelStack = (ModelStackWithTimelineCounter*)modelStackMemory;
+-	getCurrentInstrumentClip()->assignDrumsToNoteRows(modelStack);
+ 
+ 	getCurrentInstrument()->beenEdited();
++	manualPreviewChangedRepeatMode = false;
+ 
+ 	// New NoteRows have probably been created, whose colours haven't been grabbed yet.
+ 	instrumentClipView.recalculateColours();
+@@ -770,4 +939,5 @@ ramError2:
+ 	display->setNextTransitionDirection(-1);
+ 	sampleBrowser.exitAndNeverDeleteDrum();
+ 	uiNeedsRendering(&instrumentClipView);
++	return true;
+ }
+diff --git a/src/deluge/gui/ui/slicer.h b/src/deluge/gui/ui/slicer.h
+index 5028832e1d7ccc1a31179c7b803d167a88082a79..4c033a7dd9831adcb17c9fb57116d0b04cd25268 100644
+--- a/src/deluge/gui/ui/slicer.h
++++ b/src/deluge/gui/ui/slicer.h
+@@ -17,6 +17,8 @@
+ 
+ #pragma once
+ 
++#include "definitions_cxx.hpp"
++#include "gui/ui/slicer_batch_playback_mode.h"
+ #include "gui/ui/ui.h"
+ #include "hid/button.h"
+ 
+@@ -24,6 +26,8 @@
+ #define SLICER_MODE_MANUAL 1
+ #define MAX_MANUAL_SLICES 64
+ 
++class SoundDrum;
++
+ struct SliceItem {
+ 	int32_t startPos;
+ 	int32_t transpose;
+@@ -33,6 +37,7 @@ class Slicer final : public UI {
+ public:
+ 	Slicer() { oledShowsUIUnderneath = true; }
+ 
++	bool opened() override;
+ 	void focusRegained() override;
+ 	bool canSeeViewUnderneath() override { return false; }
+ 	void selectEncoderAction(int8_t offset) override;
+@@ -41,6 +46,8 @@ public:
+ 
+ 	bool renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+ 	                    uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) override;
++	bool renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
++	                   uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth]) override;
+ 	void graphicsRoutine() override;
+ 	ActionResult horizontalEncoderAction(int32_t offset) override;
+ 	ActionResult verticalEncoderAction(int32_t offset, bool inCardRoutine) override;
+@@ -48,6 +55,8 @@ public:
+ 	void stopAnyPreviewing();
+ 	void preview(int64_t startPoint, int64_t endPoint, int32_t transpose, int32_t on);
+ 	void requestInitialMode(int32_t mode) { requestedInitialMode = mode; }
++	int32_t getBatchPlaybackModeMenuIndex() const;
++	bool confirmWithBatchPlaybackModeMenuIndex(int32_t menuIndex);
+ 
+ 	int32_t numManualSlice;
+ 	int32_t currentSlice;
+@@ -65,11 +74,20 @@ private:
+ 	int32_t requestedInitialMode = SLICER_MODE_REGION;
+ 	bool horizontalEncoderPressed = false;
+ 	bool horizontalEncoderPressUsed = false;
++	bool usesExistingKit = false;
++	deluge::gui::slicer_playback::BatchMode batchPlaybackMode = deluge::gui::slicer_playback::BatchMode::AUTO;
++	SampleRepeatMode repeatModeBeforeManualPreview = SampleRepeatMode::CUT;
++	bool manualPreviewChangedRepeatMode = false;
++	SoundDrum* manualSliceDrums[MAX_MANUAL_SLICES]{};
+ 
+ 	// 7SEG Only
+ 	void redraw();
+ 
+-	void doSlice();
++	bool doSlice();
++	bool confirmSlices();
++	void chooseBatchPlaybackMode(deluge::gui::slicer_playback::BatchMode newMode);
++	SampleRepeatMode getBatchRepeatMode(uint32_t lengthMSPerSlice) const;
++	void restoreManualPreviewRepeatMode();
+ };
+ 
+ extern Slicer slicer;
+diff --git a/src/deluge/gui/ui/slicer_batch_playback_mode.h b/src/deluge/gui/ui/slicer_batch_playback_mode.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..415bad9cd925848fdab5507157c2b1301a74cfc4
+--- /dev/null
++++ b/src/deluge/gui/ui/slicer_batch_playback_mode.h
+@@ -0,0 +1,64 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
++ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program. If not, see
++ * <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++#include <cstdint>
++
++namespace deluge::gui::slicer_playback {
++
++enum class BatchMode : uint8_t {
++	AUTO,
++	CUT,
++	ONCE,
++};
++
++constexpr int32_t toMenuIndex(BatchMode mode) {
++	return static_cast<int32_t>(mode);
++}
++
++constexpr bool setFromMenuIndex(BatchMode& mode, int32_t menuIndex) {
++	switch (menuIndex) {
++	case 0:
++		mode = BatchMode::AUTO;
++		return true;
++	case 1:
++		mode = BatchMode::CUT;
++		return true;
++	case 2:
++		mode = BatchMode::ONCE;
++		return true;
++	default:
++		return false;
++	}
++}
++
++constexpr SampleRepeatMode resolve(BatchMode mode, uint32_t lengthMSPerSlice, SampleRepeatMode configuredDefault) {
++	switch (mode) {
++	case BatchMode::AUTO:
++		return lengthMSPerSlice < 2002 ? SampleRepeatMode::ONCE : configuredDefault;
++	case BatchMode::CUT:
++		return SampleRepeatMode::CUT;
++	case BatchMode::ONCE:
++		return SampleRepeatMode::ONCE;
++	}
++
++	return configuredDefault;
++}
++
++} // namespace deluge::gui::slicer_playback
+diff --git a/src/deluge/gui/views/instrument_clip_view.cpp b/src/deluge/gui/views/instrument_clip_view.cpp
+index 1c92b1f3b6ba96cc8a493670f3d0c8a6e4307851..e0770a26c008ca4b2f4a46635ee7414b60ecc28f 100644
+--- a/src/deluge/gui/views/instrument_clip_view.cpp
++++ b/src/deluge/gui/views/instrument_clip_view.cpp
+@@ -464,7 +464,8 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
+ 				return ActionResult::DEALT_WITH;
+ 			}
+ 
+-			ModelStackWithNoteRow* modelStackWithNoteRow = modelStack->addNoteRow(noteRowIndex, newNoteRow);
++			int32_t noteRowId = getCurrentInstrumentClip()->getNoteRowId(newNoteRow, noteRowIndex);
++			ModelStackWithNoteRow* modelStackWithNoteRow = modelStack->addNoteRow(noteRowId, newNoteRow);
+ 
+ 			enterDrumCreator(modelStackWithNoteRow, false);
+ 
+diff --git a/src/deluge/model/clip/instrument_clip.cpp b/src/deluge/model/clip/instrument_clip.cpp
+index 569462c5aabf61f72431509ed651cfeb1fc0b129..4efa5456b460b584b6544c4bfaec4f5ee604666a 100644
+--- a/src/deluge/model/clip/instrument_clip.cpp
++++ b/src/deluge/model/clip/instrument_clip.cpp
+@@ -33,6 +33,7 @@
+ #include "model/consequence/consequence_note_row_mute.h"
+ #include "model/consequence/consequence_scale_add_note.h"
+ #include "model/drum/drum_name.h"
++#include "model/drum/generated_slice_name.h"
+ #include "model/instrument/cv_instrument.h"
+ #include "model/instrument/midi_instrument.h"
+ #include "model/iterance/iterance.h"
+@@ -1979,7 +1980,9 @@ bool InstrumentClip::possiblyDeleteEmptyNoteRow(NoteRow* noteRow, bool onlyIfNoD
+ 			return false;
+ 		}
+ 
+-		if (onlyIfNonNumeric && drum->type == DrumType::SOUND && stringIsNumericChars(drum->drumName.c_str())) {
++		if (onlyIfNonNumeric && drum->type == DrumType::SOUND
++		    && (stringIsNumericChars(drum->drumName.c_str())
++		        || deluge::generated_slice_name::isGeneratedSliceName(drum->drumName))) {
+ 			return false;
+ 		}
+ 
+diff --git a/src/deluge/model/drum/generated_slice_name.cpp b/src/deluge/model/drum/generated_slice_name.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..86ecf9e6bbe7cd933f3530485ac9d7db466d4cbc
+--- /dev/null
++++ b/src/deluge/model/drum/generated_slice_name.cpp
+@@ -0,0 +1,101 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation,
++ * either version 3 of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
++ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++ * See the GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#include "model/drum/generated_slice_name.h"
++
++#include <limits>
++
++namespace deluge::generated_slice_name {
++
++namespace {
++
++bool isAsciiLetter(char character) {
++	return (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z');
++}
++
++int32_t letterValue(char character) {
++	if (character >= 'a' && character <= 'z') {
++		character -= 'a' - 'A';
++	}
++	return character - 'A' + 1;
++}
++
++} // namespace
++
++int32_t getSeriesIndex(std::string_view name) {
++	uint32_t series = 0;
++	size_t position = 0;
++	while (position < name.size() && isAsciiLetter(name[position])) {
++		uint32_t letter = letterValue(name[position]);
++		if (series > (std::numeric_limits<int32_t>::max() - letter) / 26) {
++			return -1;
++		}
++		series = series * 26 + letter;
++		position++;
++	}
++
++	if (position == 0 || position == name.size() || name[position++] != '-') {
++		return -1;
++	}
++
++	size_t partStart = position;
++	uint32_t partNumber = 0;
++	while (position < name.size() && name[position] >= '0' && name[position] <= '9') {
++		if (partNumber > 256 / 10) {
++			return -1;
++		}
++		partNumber = partNumber * 10 + (name[position] - '0');
++		if (partNumber > 256) {
++			return -1;
++		}
++		position++;
++	}
++
++	if (position != name.size() || partNumber == 0) {
++		return -1;
++	}
++
++	size_t canonicalPartLength = partNumber < 100 ? 2 : 3;
++	if (position - partStart != canonicalPartLength) {
++		return -1;
++	}
++
++	return series - 1;
++}
++
++bool isGeneratedSliceName(std::string_view name) {
++	return getSeriesIndex(name) >= 0;
++}
++
++std::string makeName(int32_t seriesIndex, int32_t partNumber) {
++	std::string name;
++	uint32_t series = seriesIndex + 1;
++	while (series) {
++		uint32_t next = (series - 1) % 26;
++		name.insert(name.begin(), static_cast<char>('A' + next));
++		series = (series - 1) / 26;
++	}
++
++	name += '-';
++	if (partNumber < 10) {
++		name += '0';
++	}
++	name += std::to_string(partNumber);
++	return name;
++}
++
++} // namespace deluge::generated_slice_name
+diff --git a/src/deluge/model/drum/generated_slice_name.h b/src/deluge/model/drum/generated_slice_name.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..fadb96ec8887d7123bf8a5e3a1bb0bdfddc67b60
+--- /dev/null
++++ b/src/deluge/model/drum/generated_slice_name.h
+@@ -0,0 +1,30 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation,
++ * either version 3 of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
++ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++ * See the GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <cstdint>
++#include <string>
++#include <string_view>
++
++namespace deluge::generated_slice_name {
++
++int32_t getSeriesIndex(std::string_view name);
++bool isGeneratedSliceName(std::string_view name);
++std::string makeName(int32_t seriesIndex, int32_t partNumber);
++
++} // namespace deluge::generated_slice_name
+diff --git a/src/deluge/model/note/note_row.cpp b/src/deluge/model/note/note_row.cpp
+index c58d8164f924a4503f82b6a4be0fb0a51e85dd05..1a692acc70bbc07694553e45b5432bf02041de3c 100644
+--- a/src/deluge/model/note/note_row.cpp
++++ b/src/deluge/model/note/note_row.cpp
+@@ -27,6 +27,7 @@
+ #include "model/clip/instrument_clip.h"
+ #include "model/consequence/consequence_note_existence.h"
+ #include "model/drum/drum_name.h"
++#include "model/drum/generated_slice_name.h"
+ #include "model/drum/gate_drum.h"
+ #include "model/instrument/kit.h"
+ #include "model/note/copied_note_row.h"
+@@ -3869,8 +3870,9 @@ void NoteRow::rememberDrumName() {
+ 
+ 		SoundDrum* soundDrum = (SoundDrum*)drum;
+ 
+-		// If it's all numeric (most likely meaning it's a slice), don't store it
+-		if (stringIsNumericChars(soundDrum->drumName)) {
++		// Generated slices are recreated from their Kit position, so don't retain their names as manual assignments.
++		if (stringIsNumericChars(soundDrum->drumName)
++		    || deluge::generated_slice_name::isGeneratedSliceName(soundDrum->drumName)) {
+ 			return;
+ 		}
+ 
+diff --git a/tests/unit/CMakeLists.txt b/tests/unit/CMakeLists.txt
+index b991a5a5cd5c48faef34993aafae20d2c9368a4d..3109524ef256368d03d8c90b4bada24b596ccf8a 100644
+--- a/tests/unit/CMakeLists.txt
++++ b/tests/unit/CMakeLists.txt
+@@ -64,6 +64,8 @@ file(GLOB_RECURSE deluge_SOURCES
+         # For name comparison / default naming tests
+         ../../src/deluge/util/name_compare.cpp
+         ../../src/deluge/gui/ui/browser/default_name.cpp
++        # For generated slice-name tests
++        ../../src/deluge/model/drum/generated_slice_name.cpp
+ )
+ 
+ add_executable(UnitTests
+@@ -80,12 +82,14 @@ add_executable(UnitTests
+         clock_output_scheduler_tests.cpp
+         name_compare_tests.cpp
+         default_name_tests.cpp
++        generated_slice_name_tests.cpp
+         rgb_tests.cpp
+         notes_state_tests.cpp
+ )
+ add_test(NAME UnitTests
+         COMMAND UnitTests)
+ target_sources(UnitTests PRIVATE ${deluge_SOURCES})
++target_sources(UnitTests PRIVATE slicer_batch_playback_mode_tests.cpp)
+ target_include_directories(UnitTests PRIVATE
+         # include the non test project source
+         mocks
+diff --git a/tests/unit/generated_slice_name_tests.cpp b/tests/unit/generated_slice_name_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..9397cbd847eb299892a73fe7d84fb6a0a7597ab9
+--- /dev/null
++++ b/tests/unit/generated_slice_name_tests.cpp
+@@ -0,0 +1,28 @@
++#include "CppUTest/TestHarness.h"
++
++#include "model/drum/generated_slice_name.h"
++
++TEST_GROUP(GeneratedSliceNameTests){};
++
++TEST(GeneratedSliceNameTests, identifiesSeriesIndicesCaseInsensitively) {
++	LONGS_EQUAL(0, deluge::generated_slice_name::getSeriesIndex("A-01"));
++	LONGS_EQUAL(1, deluge::generated_slice_name::getSeriesIndex("b-12"));
++	LONGS_EQUAL(25, deluge::generated_slice_name::getSeriesIndex("Z-64"));
++	LONGS_EQUAL(26, deluge::generated_slice_name::getSeriesIndex("AA-01"));
++}
++
++TEST(GeneratedSliceNameTests, rejectsNamesOutsideTheGeneratedFormat) {
++	LONGS_EQUAL(-1, deluge::generated_slice_name::getSeriesIndex("1"));
++	LONGS_EQUAL(-1, deluge::generated_slice_name::getSeriesIndex("A-1"));
++	LONGS_EQUAL(-1, deluge::generated_slice_name::getSeriesIndex("A-00"));
++	LONGS_EQUAL(-1, deluge::generated_slice_name::getSeriesIndex("A-001"));
++	LONGS_EQUAL(-1, deluge::generated_slice_name::getSeriesIndex("A-257"));
++	LONGS_EQUAL(-1, deluge::generated_slice_name::getSeriesIndex("A-01 take"));
++	LONGS_EQUAL(-1, deluge::generated_slice_name::getSeriesIndex("Kick"));
++}
++
++TEST(GeneratedSliceNameTests, formatsZeroPaddedPartsAndRollsPastZ) {
++	STRCMP_EQUAL("A-01", deluge::generated_slice_name::makeName(0, 1).c_str());
++	STRCMP_EQUAL("B-12", deluge::generated_slice_name::makeName(1, 12).c_str());
++	STRCMP_EQUAL("AA-256", deluge::generated_slice_name::makeName(26, 256).c_str());
++}
+diff --git a/tests/unit/slicer_batch_playback_mode_tests.cpp b/tests/unit/slicer_batch_playback_mode_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..86c37b8357e005bb01f7b6a136aa45b1c48d7fb3
+--- /dev/null
++++ b/tests/unit/slicer_batch_playback_mode_tests.cpp
+@@ -0,0 +1,59 @@
++#include "CppUTest/TestHarness.h"
++
++#include "gui/ui/slicer_batch_playback_mode.h"
++
++using deluge::gui::slicer_playback::BatchMode;
++
++TEST_GROUP(SlicerBatchPlaybackModeTests){};
++
++TEST(SlicerBatchPlaybackModeTests, mapsEachMenuIndexToItsBatchMode) {
++	BatchMode mode = BatchMode::ONCE;
++
++	CHECK_TRUE(deluge::gui::slicer_playback::setFromMenuIndex(mode, 0));
++	LONGS_EQUAL(static_cast<int32_t>(BatchMode::AUTO), static_cast<int32_t>(mode));
++	CHECK_TRUE(deluge::gui::slicer_playback::setFromMenuIndex(mode, 1));
++	LONGS_EQUAL(static_cast<int32_t>(BatchMode::CUT), static_cast<int32_t>(mode));
++	CHECK_TRUE(deluge::gui::slicer_playback::setFromMenuIndex(mode, 2));
++	LONGS_EQUAL(static_cast<int32_t>(BatchMode::ONCE), static_cast<int32_t>(mode));
++}
++
++TEST(SlicerBatchPlaybackModeTests, rejectsInvalidMenuIndexWithoutChangingMode) {
++	BatchMode mode = BatchMode::CUT;
++
++	CHECK_FALSE(deluge::gui::slicer_playback::setFromMenuIndex(mode, -1));
++	LONGS_EQUAL(static_cast<int32_t>(BatchMode::CUT), static_cast<int32_t>(mode));
++	CHECK_FALSE(deluge::gui::slicer_playback::setFromMenuIndex(mode, 3));
++	LONGS_EQUAL(static_cast<int32_t>(BatchMode::CUT), static_cast<int32_t>(mode));
++}
++
++TEST(SlicerBatchPlaybackModeTests, mapsEachBatchModeBackToItsMenuIndex) {
++	LONGS_EQUAL(0, deluge::gui::slicer_playback::toMenuIndex(BatchMode::AUTO));
++	LONGS_EQUAL(1, deluge::gui::slicer_playback::toMenuIndex(BatchMode::CUT));
++	LONGS_EQUAL(2, deluge::gui::slicer_playback::toMenuIndex(BatchMode::ONCE));
++}
++
++TEST(SlicerBatchPlaybackModeTests, autoUsesOnceForShortSlicesAndConfiguredModeOtherwise) {
++	LONGS_EQUAL(
++	    static_cast<int32_t>(SampleRepeatMode::ONCE),
++	    static_cast<int32_t>(deluge::gui::slicer_playback::resolve(BatchMode::AUTO, 2001, SampleRepeatMode::CUT)));
++	LONGS_EQUAL(static_cast<int32_t>(SampleRepeatMode::CUT), static_cast<int32_t>(deluge::gui::slicer_playback::resolve(
++	                                                             BatchMode::AUTO, 2002, SampleRepeatMode::CUT)));
++	LONGS_EQUAL(
++	    static_cast<int32_t>(SampleRepeatMode::LOOP),
++	    static_cast<int32_t>(deluge::gui::slicer_playback::resolve(BatchMode::AUTO, 8000, SampleRepeatMode::LOOP)));
++}
++
++TEST(SlicerBatchPlaybackModeTests, cutOverridesDurationAndConfiguredMode) {
++	LONGS_EQUAL(static_cast<int32_t>(SampleRepeatMode::CUT),
++	            static_cast<int32_t>(deluge::gui::slicer_playback::resolve(BatchMode::CUT, 1, SampleRepeatMode::ONCE)));
++	LONGS_EQUAL(static_cast<int32_t>(SampleRepeatMode::CUT), static_cast<int32_t>(deluge::gui::slicer_playback::resolve(
++	                                                             BatchMode::CUT, 8000, SampleRepeatMode::LOOP)));
++}
++
++TEST(SlicerBatchPlaybackModeTests, onceOverridesDurationAndConfiguredMode) {
++	LONGS_EQUAL(static_cast<int32_t>(SampleRepeatMode::ONCE),
++	            static_cast<int32_t>(deluge::gui::slicer_playback::resolve(BatchMode::ONCE, 1, SampleRepeatMode::CUT)));
++	LONGS_EQUAL(
++	    static_cast<int32_t>(SampleRepeatMode::ONCE),
++	    static_cast<int32_t>(deluge::gui::slicer_playback::resolve(BatchMode::ONCE, 8000, SampleRepeatMode::LOOP)));
++}

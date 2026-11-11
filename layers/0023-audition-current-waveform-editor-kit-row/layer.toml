@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "audition current Waveform Editor Kit row\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

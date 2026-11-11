@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "reject unsupported Song compatibility versions\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "reuse a Kit from Manual Slice\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

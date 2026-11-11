@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add MIDI sustain pedal feature flag\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,2252 @@
+diff --git a/contrib/sd_card/MIDI/KORG/minilogue xd.xml b/contrib/sd_card/MIDI/KORG/minilogue xd.xml
+deleted file mode 100755
+index ff6cbef6ba73b3c9db097781f07a822ada2d6706..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI/KORG/minilogue xd.xml	
++++ /dev/null
+@@ -1,169 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midi
+-	firmwareVersion="c1.3.0"
+-	earliestCompatibleFirmware="4.1.0-alpha"
+-	channel="1"
+-	suffix="-1">
+-	<modKnobs>
+-		<modKnob
+-			cc="40" />
+-		<modKnob
+-			cc="39" />
+-		<modKnob
+-			cc="44" />
+-		<modKnob
+-			cc="43" />
+-		<modKnob
+-			cc="19" />
+-		<modKnob
+-			cc="16" />
+-		<modKnob
+-			cc="106" />
+-		<modKnob
+-			cc="105" />
+-		<modKnob
+-			cc="109" />
+-		<modKnob
+-			cc="108" />
+-		<modKnob
+-			cc="26" />
+-		<modKnob
+-			cc="24" />
+-		<modKnob
+-			cc="22" />
+-		<modKnob
+-			cc="21" />
+-		<modKnob
+-			cc="29" />
+-		<modKnob
+-			cc="28" />
+-	</modKnobs>
+-	<polyToMonoConversion
+-		aftertouch="0"
+-		mpe="1"
+-		yCC="74" />
+-	<midiDevice>
+-		<definitionFile
+-			name="MIDI_DEVICES/DEFINITION/KORG/minilogue xd.xml" />
+-		<ccLabels
+-			0="Bank"
+-			2="Y"
+-			3=""
+-			4=""
+-			5="Porta"
+-			6=""
+-			7=""
+-			8=""
+-			9=""
+-			10=""
+-			11=""
+-			12=""
+-			13=""
+-			14=""
+-			15=""
+-			16="AmpEnv-Att"
+-			17="AmpEnv-Dec"
+-			18="AmpEnv-Sus"
+-			19="AmpEnv-Rel"
+-			20="EG-Att"
+-			21="EG-Dec"
+-			22="EG-Int"
+-			23="EG-Target"
+-			24="LFO-Rate"
+-			25=""
+-			26="LFO-Int"
+-			27="VoiceMode-Depth"
+-			28="ModFX-Time"
+-			29="ModFX-Depth"
+-			30=""
+-			31=""
+-			32=""
+-			33="MOSC-Lvl"
+-			34="OSC1-Pitch"
+-			35="OSC2-Pitch"
+-			36="OSC1-Shape"
+-			37="OSC2-Shape"
+-			38=""
+-			39="OSC1-Lvl"
+-			40="OSC2-Lvl"
+-			41="XMod-Depth"
+-			42=""
+-			43="Ffreq"
+-			44="Fres"
+-			45=""
+-			46=""
+-			47=""
+-			48="OSC1-Oct"
+-			49="OSC2-Oct"
+-			50="OSC1-Wave"
+-			51="OSC2-Wave"
+-			52=""
+-			53="MOSC-Type"
+-			54="MOSC-Shape"
+-			55=""
+-			56="LFO-Target"
+-			57="LFO-Wave"
+-			58="LFO-Mode"
+-			59="VoiceMode-Depth"
+-			60=""
+-			61=""
+-			62=""
+-			63=""
+-			64="Damper"
+-			65=""
+-			66=""
+-			67=""
+-			68=""
+-			69=""
+-			70=""
+-			71=""
+-			72=""
+-			73=""
+-			74=""
+-			75=""
+-			76=""
+-			77=""
+-			78=""
+-			79=""
+-			80="Sync"
+-			81="Ring"
+-			82=""
+-			83="FKtrack"
+-			84="FDrive"
+-			85=""
+-			86=""
+-			87=""
+-			88="ModFX-Type"
+-			89="Delay-SubType"
+-			90="Rever-SubType"
+-			91=""
+-			92="ModFX-Enable"
+-			93="Delay-Enable"
+-			94="Rever-Enable"
+-			95=""
+-			96="ModFX-SubType"
+-			97=""
+-			98=""
+-			99=""
+-			100=""
+-			101=""
+-			102=""
+-			103="MOSC-SubType"
+-			104=""
+-			105="Delay-Time"
+-			106="Delay-Depth"
+-			107="Delay-DryWet"
+-			108="Rever-Time"
+-			109="Rever-Depth"
+-			110="Rever-DryWet"
+-			111=""
+-			112=""
+-			113=""
+-			114=""
+-			115=""
+-			116=""
+-			117=""
+-			118="CV-in-1"
+-			119="CV-in-2" />
+-	</midiDevice>
+-</midi>
+diff --git a/contrib/sd_card/MIDI/Korg/minilogue xd.xml b/contrib/sd_card/MIDI/Korg/minilogue xd.xml
+new file mode 100755
+index 0000000000000000000000000000000000000000..ff6cbef6ba73b3c9db097781f07a822ada2d6706
+--- /dev/null
++++ b/contrib/sd_card/MIDI/Korg/minilogue xd.xml	
+@@ -0,0 +1,169 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midi
++	firmwareVersion="c1.3.0"
++	earliestCompatibleFirmware="4.1.0-alpha"
++	channel="1"
++	suffix="-1">
++	<modKnobs>
++		<modKnob
++			cc="40" />
++		<modKnob
++			cc="39" />
++		<modKnob
++			cc="44" />
++		<modKnob
++			cc="43" />
++		<modKnob
++			cc="19" />
++		<modKnob
++			cc="16" />
++		<modKnob
++			cc="106" />
++		<modKnob
++			cc="105" />
++		<modKnob
++			cc="109" />
++		<modKnob
++			cc="108" />
++		<modKnob
++			cc="26" />
++		<modKnob
++			cc="24" />
++		<modKnob
++			cc="22" />
++		<modKnob
++			cc="21" />
++		<modKnob
++			cc="29" />
++		<modKnob
++			cc="28" />
++	</modKnobs>
++	<polyToMonoConversion
++		aftertouch="0"
++		mpe="1"
++		yCC="74" />
++	<midiDevice>
++		<definitionFile
++			name="MIDI_DEVICES/DEFINITION/KORG/minilogue xd.xml" />
++		<ccLabels
++			0="Bank"
++			2="Y"
++			3=""
++			4=""
++			5="Porta"
++			6=""
++			7=""
++			8=""
++			9=""
++			10=""
++			11=""
++			12=""
++			13=""
++			14=""
++			15=""
++			16="AmpEnv-Att"
++			17="AmpEnv-Dec"
++			18="AmpEnv-Sus"
++			19="AmpEnv-Rel"
++			20="EG-Att"
++			21="EG-Dec"
++			22="EG-Int"
++			23="EG-Target"
++			24="LFO-Rate"
++			25=""
++			26="LFO-Int"
++			27="VoiceMode-Depth"
++			28="ModFX-Time"
++			29="ModFX-Depth"
++			30=""
++			31=""
++			32=""
++			33="MOSC-Lvl"
++			34="OSC1-Pitch"
++			35="OSC2-Pitch"
++			36="OSC1-Shape"
++			37="OSC2-Shape"
++			38=""
++			39="OSC1-Lvl"
++			40="OSC2-Lvl"
++			41="XMod-Depth"
++			42=""
++			43="Ffreq"
++			44="Fres"
++			45=""
++			46=""
++			47=""
++			48="OSC1-Oct"
++			49="OSC2-Oct"
++			50="OSC1-Wave"
++			51="OSC2-Wave"
++			52=""
++			53="MOSC-Type"
++			54="MOSC-Shape"
++			55=""
++			56="LFO-Target"
++			57="LFO-Wave"
++			58="LFO-Mode"
++			59="VoiceMode-Depth"
++			60=""
++			61=""
++			62=""
++			63=""
++			64="Damper"
++			65=""
++			66=""
++			67=""
++			68=""
++			69=""
++			70=""
++			71=""
++			72=""
++			73=""
++			74=""
++			75=""
++			76=""
++			77=""
++			78=""
++			79=""
++			80="Sync"
++			81="Ring"
++			82=""
++			83="FKtrack"
++			84="FDrive"
++			85=""
++			86=""
++			87=""
++			88="ModFX-Type"
++			89="Delay-SubType"
++			90="Rever-SubType"
++			91=""
++			92="ModFX-Enable"
++			93="Delay-Enable"
++			94="Rever-Enable"
++			95=""
++			96="ModFX-SubType"
++			97=""
++			98=""
++			99=""
++			100=""
++			101=""
++			102=""
++			103="MOSC-SubType"
++			104=""
++			105="Delay-Time"
++			106="Delay-Depth"
++			107="Delay-DryWet"
++			108="Rever-Time"
++			109="Rever-Depth"
++			110="Rever-DryWet"
++			111=""
++			112=""
++			113=""
++			114=""
++			115=""
++			116=""
++			117=""
++			118="CV-in-1"
++			119="CV-in-2" />
++	</midiDevice>
++</midi>
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/ARP 2600 M.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/ARP 2600 M.xml
+deleted file mode 100644
+index ca4d2518a571c2975f325900dff9d247326607e6..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/ARP 2600 M.xml	
++++ /dev/null
+@@ -1,9 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		5="Portamento time"
+-		65="Portamento"
+-		69="Hold 2"
+-		120="All sound off"
+-		121="Reset all controllers"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/EMX-1.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/EMX-1.xml
+deleted file mode 100644
+index f9f822c9d4e3b8448998382c66383b895cb4098e..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/EMX-1.xml
++++ /dev/null
+@@ -1,136 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		70="Osc Type"
+-		14="Osc Edit1"
+-		15="Osc Edit2"
+-        
+-		89="Mod Speed"
+-		90="Mod Depth"
+-		87="Mod Type"
+-		88="Mod Dest"
+-		82="Mod BPM Sync"
+-        
+-		74="Cutoff"
+-		71="Resonance"
+-		79="EG Int"
+-		84="Drive"
+-		83="Filter Type"
+-        
+-		5="Glide"
+-		10="Pan"
+-		75="EG Time"
+-		7="Level"
+-		86="Amp EG"
+-		85="Roll"
+-		91="Fx Send"
+-		81="Fx Select"
+-		80="Motion Seq"
+-        
+-		12="Fx1 Type"
+-		92="Fx1 Edit1"
+-		93="Fx1 Edit2"
+-		20="Fx1 Motion Seq"
+-        
+-		13="Fx2 Type"
+-		94="Fx2 Edit1"
+-		95="Fx2 Edit2"
+-		21="Fx2 Motion Seq"
+-        
+-		24="Fx3 Type"
+-		25="Fx3 Edit1"
+-		26="Fx3 Edit2"
+-		22="Fx3 Motion Seq"
+-        
+-		23="Fx Chain"/>
+-</midiDevice>
+-
+-	<!------ VALUE TABLES ------
+-	
+-	
+-
+-		--------OSC TYPE-------
+-		0-7       : WAVE FORM
+-		8-15      : DUAL OSC
+-		16-23     : CHORD OSC
+-		24-31     : UNISON OSC
+-		32-39     : RING MOD
+-		40-47     : OSC SYNC
+-		48-55     : CROSS MOD
+-		56-63     : VPM OSC
+-		64-71     : WS
+-		72-79     : ADDITIVE OSC
+-		80-87     : COMB OSC
+-		88-95     : FORMANT OSC
+-		96-103    : NOISE OSC
+-		104-111   : PCM OSC + COMB
+-		112-119   : PCM OSC + WS
+-		120-127   : AUDIO IN + COMB
+-		
+-		-------MOD TYPE------
+-		0-15    : Saw
+-		16-31   : Squ
+-		32-47   : Tri
+-		48-63   : S&H
+-		64-127  : EG
+-		
+-		-------MOD DEST------
+-		0-15    : PITCH
+-		16-31   : OSC EDIT1
+-		32-47   : OSC EDIT2
+-		48-63   : CUTOFF
+-		64-79   : AMP
+-		80-127  : PAN
+-		
+-		-------FILTER TYPE------
+-		0-31    : LPF
+-		32-63   : HPF
+-		64-95   : BPF
+-		96-127  : BPF+
+-		
+-		-------FX SELECT------
+-		0-42    : FX1
+-		43-85   : FX2
+-		86-127  : FX3
+-		
+-		-------MOTION SEQ------
+-		0-42    : Off
+-		43-85   : Smooth
+-		86-127  : Trig Hold
+-		
+-		-------FX TYPE--------
+-		0-7     : REVERB
+-		8-15    : BPM SYNC DELAY
+-		16-23   : SHORT DELAY
+-		24-31   : MOD DELAY
+-		32-39   : GRAIN SHIFTER
+-		40-47   : CHO/FLG
+-		48-55   : PHASER
+-		56-63   : RING MOD
+-		64-71   : TALKING MOD
+-		72-79   : PITCH SHIFTER
+-		80-87   : COMPRESSOR
+-		88-95   : DISTORTION
+-		96-103  : DECIMATOR
+-		104-111 : EQ
+-		112-119 : LPF
+-		120-127 : HPF
+-		
+-		-------FX CHAIN------
+-		0-31    : none
+-		32-63   : FX1-FX2
+-		64-95   : FX2-FX3
+-		96-127  : FX1-FX2-FX3
+-        
+-        ------Bool Toggles-------
+-        Mod BPM Sync,
+-        Amp EG,
+-        Roll,
+-        Fx Send,
+-        Fx1 Motion Seq,
+-        Fx2 Motion Seq,
+-        Fx3 Motion Seq
+-        
+-        0-63	: OFF
+-        64-127	: ON
+-		-->
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/MS2000.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/MS2000.xml
+deleted file mode 100644
+index 1077730f4ae068591eccd6aa1e3126f00dceae96..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/MS2000.xml
++++ /dev/null
+@@ -1,49 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		5="Portamento"
+-		77="OSC 1 wave"
+-		14="OSC 1 control 1"
+-		15="OSC 1 control 2"
+-		78="OSC 2 wave"
+-		82="OSC 2 modulation"
+-		18="OSC 2 semitone"
+-		19="OSC 2 tune"
+-		20="OSC 1 level"
+-		21="OSC 2 level"
+-		22="Noise level"
+-		83="Filter type"
+-		74="Filter cutoff"
+-		71="Filter resonance"
+-		79="Filter EG 1 intensity"
+-		85="Filter KBD track"
+-		7="Amp level"
+-		10="Amp panpot"
+-		86="Amp EG2/gate"
+-		92="Amp distortion"
+-		23="EG 1 attack"
+-		24="EG 1 decay"
+-		25="EG 1 sustain"
+-		26="EG 1 release"
+-		73="EG 2 attack"
+-		75="EG 2 decay"
+-		70="EG 2 sustain"
+-		72="EG 2 release"
+-		87="LFO 1 wave"
+-		27="LFO 1 frequency"
+-		88="LFO 2 wave"
+-		76="LFO 2 frequency"
+-		28="Patch 1 intensity"
+-		29="Patch 2 intensity"
+-		30="Patch 3 intensity"
+-		31="Patch 4 intensity"
+-		89="Sequencer on/off"
+-		12="Mod FX LFO speed"
+-		93="Mod FX depth"
+-		13="Delay time"
+-		94="Delay depth"
+-		18="Audio in 2 HPF level"
+-		19="Audio in 2 threshold"
+-		83="Formant shift"
+-		79="Filter modulation intensity"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/NTS-1.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/NTS-1.xml
+deleted file mode 100644
+index 99ddd1b4d2d69f48cecfa525e28b260f04a865ba..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/NTS-1.xml
++++ /dev/null
+@@ -1,33 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		14="Type"
+-		16="Attack"
+-		19="Release"
+-		20="Depth"
+-		21="Rate"
+-		24="LFO Rate"
+-		26="LFO Depth"
+-		28="Time"
+-		29="Depth"
+-		30="Time"
+-		31="Depth"
+-		33="Mix"
+-		34="Time"
+-		35="Depth"
+-		36="Mix"
+-		42="Type"
+-		43="Cutoff"
+-		44="Resonance"
+-		45="Sweep Depth"
+-		46="Sweep Rate"
+-		53="Type"
+-		54="Shape"
+-		55="Alt"
+-		88="Modulation type"
+-		89="Delay type"
+-		90="Reverb type"
+-		117="Pattern"
+-		118="Intervals"
+-		119="Length"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/Opsix.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/Opsix.xml
+deleted file mode 100644
+index c981e951ffcccc2a111d6d8cc56306f36babd800..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/Opsix.xml
++++ /dev/null
+@@ -1,43 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		70="Algorithm"
+-		102="OP1 LVL"
+-		103="OP2 LVL"
+-		104="OP3 LVL"
+-		105="OP4 LVL"
+-		106="OP5 LVL"
+-		107="OP6 LVL"
+-		108="OP1 Ratio"
+-		109="OP2 Ratio"
+-		110="OP3 Ratio"
+-		111="OP4 Ratio"
+-		112="OP5 Ratio"
+-		113="OP6 Ratio"
+-		73="Attack"
+-		79="Decay Release"
+-		74="Filter Cutofff"
+-		71="Resonance"
+-		81="FX1"
+-		82="FX2"
+-		83="FX3"
+-		12="UNI CC12"
+-		13="UNI CC13"
+-		14="UNI CC14"
+-		15="UNI CC15"
+-		16="UNI CC16"
+-		17="BIP CC17"
+-		18="BIP CC18"
+-		19="BIP CC19"
+-		20="BIP CC20"
+-		21="BIP CC21"
+-		1="Modwheel"
+-		5="Gldetime"
+-		7="Volume"
+-		10="PAN"
+-		11="Expression"
+-		64="Damper"
+-		65="Glide Mode"
+-		66="Sostenuto"
+-		67="Soft"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/Wavestate.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/Wavestate.xml
+deleted file mode 100644
+index f1391091ab8df34d4929962d662f151cb216002e..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/Wavestate.xml
++++ /dev/null
+@@ -1,122 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		1="Modulation"
+-		7="Volume"
+-		10="Pan"
+-		11="Expression"
+-		16="Vector joystick X"
+-		17="Vector joystick Y"
+-		64="Damper"
+-		66="Sostenuto"
+-		67="Soft"
+-		120="All sounds off"
+-		121="Reset all controllers"
+-		2="Assignable CC 2"
+-		3="Assignable CC 3"
+-		4="Assignable CC 4"
+-		5="Assignable CC 5"
+-		6="Assignable CC 6"
+-		8="Assignable CC 8"
+-		9="Assignable CC 9"
+-		12="Assignable CC 12"
+-		13="Assignable CC 13"
+-		14="Assignable CC 14"
+-		15="Assignable CC 15"
+-		16="Assignable CC 16"
+-		17="Assignable CC 17"
+-		18="Assignable CC 18"
+-		19="Assignable CC 19"
+-		20="Assignable CC 20"
+-		21="Assignable CC 21"
+-		22="Assignable CC 22"
+-		23="Assignable CC 23"
+-		24="Assignable CC 24"
+-		25="Assignable CC 25"
+-		26="Assignable CC 26"
+-		27="Assignable CC 27"
+-		28="Assignable CC 28"
+-		29="Assignable CC 29"
+-		30="Assignable CC 30"
+-		31="Assignable CC 31"
+-		32="Assignable CC 32"
+-		33="Assignable CC 33"
+-		34="Assignable CC 34"
+-		35="Assignable CC 35"
+-		36="Assignable CC 36"
+-		37="Assignable CC 37"
+-		38="Assignable CC 38"
+-		39="Assignable CC 39"
+-		40="Assignable CC 40"
+-		41="Assignable CC 41"
+-		42="Assignable CC 42"
+-		43="Assignable CC 43"
+-		44="Assignable CC 44"
+-		45="Assignable CC 45"
+-		46="Assignable CC 46"
+-		47="Assignable CC 47"
+-		48="Assignable CC 48"
+-		49="Assignable CC 49"
+-		50="Assignable CC 50"
+-		51="Assignable CC 51"
+-		52="Assignable CC 52"
+-		53="Assignable CC 53"
+-		54="Assignable CC 54"
+-		55="Assignable CC 55"
+-		56="Assignable CC 56"
+-		57="Assignable CC 57"
+-		58="Assignable CC 58"
+-		59="Assignable CC 59"
+-		60="Assignable CC 60"
+-		61="Assignable CC 61"
+-		62="Assignable CC 62"
+-		63="Assignable CC 63"
+-		65="Assignable CC 65"
+-		67="Assignable CC 67"
+-		68="Assignable CC 68"
+-		69="Assignable CC 69"
+-		70="Assignable CC 70"
+-		71="Assignable CC 71"
+-		72="Assignable CC 72"
+-		73="Assignable CC 73"
+-		74="Assignable CC 74"
+-		75="Assignable CC 75"
+-		76="Assignable CC 76"
+-		77="Assignable CC 77"
+-		78="Assignable CC 78"
+-		79="Assignable CC 79"
+-		80="Assignable CC 80"
+-		81="Assignable CC 81"
+-		82="Assignable CC 82"
+-		83="Assignable CC 83"
+-		84="Assignable CC 84"
+-		85="Assignable CC 85"
+-		86="Assignable CC 86"
+-		87="Assignable CC 87"
+-		88="Assignable CC 88"
+-		89="Assignable CC 89"
+-		90="Assignable CC 90"
+-		91="Assignable CC 91"
+-		92="Assignable CC 92"
+-		93="Assignable CC 93"
+-		94="Assignable CC 94"
+-		95="Assignable CC 95"
+-		102="Assignable CC 102"
+-		103="Assignable CC 103"
+-		104="Assignable CC 104"
+-		105="Assignable CC 105"
+-		106="Assignable CC 106"
+-		107="Assignable CC 107"
+-		108="Assignable CC 108"
+-		109="Assignable CC 109"
+-		110="Assignable CC 110"
+-		111="Assignable CC 111"
+-		112="Assignable CC 112"
+-		113="Assignable CC 113"
+-		114="Assignable CC 114"
+-		115="Assignable CC 115"
+-		116="Assignable CC 116"
+-		117="Assignable CC 117"
+-		118="Assignable CC 118"
+-		119="Assignable CC 119"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/electribe2.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/electribe2.xml
+deleted file mode 100644
+index 1ca24fa486dd77dc2d9c6525934acf5836bc58ef..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/electribe2.xml
++++ /dev/null
+@@ -1,28 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		80="Osc Pitch"
+-		81="Osc Glide"
+-		82="Osc Edit"
+-		
+-		74="Cutoff"
+-		71="Resonance"
+-		83="Filter EG Int"
+-		
+-		85="Mod Depth"
+-		86="Mod Speed"
+-		
+-		7="Level"
+-		10="Pan"
+-		73="Attack"
+-		72="Decay"
+-		105="MFX Send"
+-		
+-		87="IFX Edit"
+-		104="IFX Toggle"
+-		
+-		102="TouchPad X"
+-		103="TouchPad Y"
+-		106="TouchPad Toggle"
+-		/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/micro KORG.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/micro KORG.xml
+deleted file mode 100644
+index 22f238c2a63e4c1fab3644db09464f71304c9e26..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/micro KORG.xml	
++++ /dev/null
+@@ -1,51 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		5="Portamento"
+-		77="Wave"
+-		14="Control 1"
+-		15="Control 2"
+-		78="Wave"
+-		82="OSC mod"
+-		18="Semitone"
+-		19="Tune"
+-		18="Vocoder HPF level"
+-		19="Vocoder threshold"
+-		20="OSC 1 level"
+-		21="OSC 2 level"
+-		21="Vocoder inst level"
+-		22="Noise level"
+-		83="Filter type"
+-		83="Vocoder formant shift"
+-		74="Filter cutoff"
+-		74="Vocoder filter cutoff"
+-		71="Filter resonance"
+-		79="Filter EG intensity"
+-		79="Vocoder mod intensity"
+-		23="Filter EG attack"
+-		24="Filter EG decay"
+-		25="Filter EG sustain"
+-		26="Filter EG release"
+-		7="Amp level"
+-		10="Panpot"
+-		10="Vocoder direct level"
+-		92="Distortion"
+-		73="Amp EG attack"
+-		75="Amp EG decay"
+-		70="Amp EG sustain"
+-		72="Amp EG release"
+-		87="LFO 1 wave"
+-		27="LFO 1 frequency"
+-		88="LFO 2 wave"
+-		76="LFO 2 frequency"
+-		28="Patch 1 intensity"
+-		29="Patch 2 intensity"
+-		30="Patch 3 intensity"
+-		31="Patch 4 intensity"
+-		12="Mod FX LFO speed"
+-		93="Mod FX depth"
+-		13="Delay time"
+-		94="Delay depth"
+-		95="Timbre select"
+-		90="Sync control"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/minilogue xd.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/minilogue xd.xml
+deleted file mode 100755
+index 3a5f44b0645274980375a5b8836d1101225fe660..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/minilogue xd.xml	
++++ /dev/null
+@@ -1,125 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		0="Bank"
+-		1="X"
+-		2="Y"
+-		3=""
+-		4=""
+-		5="Porta"
+-		6=""
+-		7=""
+-		8=""
+-		9=""
+-		10=""
+-		11=""
+-		12=""
+-		13=""
+-		14=""
+-		15=""
+-		16="AmpEnv-Att"
+-		17="AmpEnv-Dec"
+-		18="AmpEnv-Sus"
+-		19="AmpEnv-Rel"
+-		20="EG-Att"
+-		21="EG-Dec"
+-		22="EG-Int"
+-		23="EG-Target"
+-		24="LFO-Rate"
+-		25=""
+-		26="LFO-Int"
+-		27="VoiceMode-Depth"
+-		28="ModFX-Time"
+-		29="ModFX-Depth"
+-		30=""
+-		31=""
+-		32=""
+-		33="MOSC-Lvl"
+-		34="OSC1-Pitch"
+-		35="OSC2-Pitch"
+-		36="OSC1-Shape"
+-		37="OSC2-Shape"
+-		38=""
+-		39="OSC1-Lvl"
+-		40="OSC2-Lvl"
+-		41="XMod-Depth"
+-		42=""
+-		43="Ffreq"
+-		44="Fres"
+-		45=""
+-		46=""
+-		47=""
+-		48="OSC1-Oct"
+-		49="OSC2-Oct"
+-		50="OSC1-Wave"
+-		51="OSC2-Wave"
+-		52=""
+-		53="MOSC-Type"
+-		54="MOSC-Shape"
+-		55=""
+-		56="LFO-Target"
+-		57="LFO-Wave"
+-		58="LFO-Mode"
+-		59="VoiceMode-Depth"
+-		60=""
+-		61=""
+-		62=""
+-		63=""
+-		64="Damper"
+-		65=""
+-		66=""
+-		67=""
+-		68=""
+-		69=""
+-		70=""
+-		71=""
+-		72=""
+-		73=""
+-		74=""
+-		75=""
+-		76=""
+-		77=""
+-		78=""
+-		79=""
+-		80="Sync"
+-		81="Ring"
+-		82=""
+-		83="FKtrack"
+-		84="FDrive"
+-		85=""
+-		86=""
+-		87=""
+-		88="ModFX-Type"
+-		89="Delay-SubType"
+-		90="Rever-SubType"
+-		91=""
+-		92="ModFX-Enable"
+-		93="Delay-Enable"
+-		94="Rever-Enable"
+-		95=""
+-		96="ModFX-SubType"
+-		97=""
+-		98=""
+-		99=""
+-		100=""
+-		101=""
+-		102=""
+-		103="MOSC-SubType"
+-		104=""
+-		105="Delay-Time"
+-		106="Delay-Depth"
+-		107="Delay-DryWet"
+-		108="Rever-Time"
+-		109="Rever-Depth"
+-		110="Rever-DryWet"
+-		111=""
+-		112=""
+-		113=""
+-		114=""
+-		115=""
+-		116=""
+-		117=""
+-		118="CV-in-1"
+-		119="CV-in-2"
+-		123="All-OFF" />
+-</midiDevice>
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/minilogue.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/minilogue.xml
+deleted file mode 100644
+index 3bef6c40d79c499242bc92046408533523c79b27..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/minilogue.xml
++++ /dev/null
+@@ -1,44 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		0="Bank select"
+-		16="Amp EG attack"
+-		17="Amp EG decay"
+-		18="Amp EG sustain"
+-		19="Amp EG release"
+-		20="EG attack"
+-		21="EG decay"
+-		22="EG sustain"
+-		23="EG release"
+-		24="LFO rate"
+-		26="LFO depth"
+-		27="Voice depth"
+-		29="Delay hi-pass"
+-		30="Delay time"
+-		31="Delay feedback"
+-		34="VCO 1 pitch"
+-		35="VCO 2 pitch"
+-		36="VCO 1 shape"
+-		37="VCO 2 shape"
+-		33="Noise level"
+-		39="VCO 1 level"
+-		40="VCO 2 level"
+-		41="Cross mod depth"
+-		42="Pitch EG intensity"
+-		43="Filter cutoff"
+-		44="Filter resonance"
+-		45="Filter EG intensity"
+-		48="VCO 1 octave"
+-		49="VCO 2 octave"
+-		50="VCO 1 wave"
+-		51="VCO 2 wave"
+-		56="LFO target"
+-		57="LFO EG mod"
+-		58="LFO wave"
+-		80="Sync"
+-		81="Ring"
+-		82="Velocity key track"
+-		83="Keyboard track"
+-		84="Filter type"
+-		88="Delay output routing"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/monologue.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/monologue.xml
+deleted file mode 100644
+index 567c5123f6604b1e4eeef657756418630471b5e1..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/monologue.xml
++++ /dev/null
+@@ -1,26 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		16="Envelope attack"
+-		17="Envelope decay"
+-		25="Envelope intensity"
+-		24="LFO rate"
+-		26="LFO depth"
+-		28="Drive"
+-		35="VCO 2 pitch"
+-		36="VCO 1 shape"
+-		37="VCO 2 shape"
+-		39="VCO 1 level"
+-		40="VCO 2 level"
+-		43="Filter cutoff"
+-		44="Resonance"
+-		49="VCO 2 octave"
+-		50="VCO 1 wave"
+-		51="VCO 2 wave"
+-		56="LFO target"
+-		58="LFO wave"
+-		59="LFO mode"
+-		60="Sync/ring"
+-		61="Envelope generator type"
+-		62="Envelope generator target"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca bass.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca bass.xml
+deleted file mode 100644
+index 4015088f2d5ca82240f1e8a83fc813d295bbd2f4..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca bass.xml	
++++ /dev/null
+@@ -1,16 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		5="Slide time"
+-		11="Expression"
+-		40="Octave"
+-		41="LFO rate"
+-		42="LFO intensity"
+-		43="VCO pitch 1"
+-		44="VCO pitch 2"
+-		45="VCO pitch 3"
+-		46="EG attack"
+-		47="EG decay/release"
+-		48="Cutoff EG intensity"
+-		49="Gate time"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca beats.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca beats.xml
+deleted file mode 100644
+index 9671110acdf8d8cc0b7765685d16ed53f60f62c7..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca beats.xml	
++++ /dev/null
+@@ -1,24 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		40="Kick level"
+-		41="Snare level"
+-		42="Lo tom level"
+-		43="Hi tom level"
+-		44="Closed hat level"
+-		45="Open hat level"
+-		46="Clap level"
+-		47="Claves level"
+-		48="Agogo level"
+-		49="Crash level"
+-		50="Clap PCM speed"
+-		51="Claves PCM speed"
+-		52="Agogo PCM speed"
+-		53="Crash PCM speed"
+-		54="Stutter time"
+-		55="Stutter depth"
+-		56="Tom decay"
+-		57="Closed hat decay"
+-		58="Open hat decay"
+-		59="Hat grain"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca drum.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca drum.xml
+deleted file mode 100644
+index 1490f2d7e20382a1c2d34b42a2bb149204161541..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca drum.xml	
++++ /dev/null
+@@ -1,35 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		10="Pan"
+-		14="Select 1"
+-		15="Select 2"
+-		16="Select 1-2"
+-		17="Level 1"
+-		18="Level 2"
+-		19="Level 1-2"
+-		20="EG attack 1"
+-		21="EG attack 2"
+-		22="EG attack 1-2"
+-		23="EG release 1"
+-		24="EG release 2"
+-		25="EG release 1-2"
+-		26="Pitch 1"
+-		27="Pitch 2"
+-		28="Pitch 1-2"
+-		29="Mod amount 1"
+-		30="Mod amount 2"
+-		31="Mod amount 1-2"
+-		46="Mod rate 1"
+-		47="Mod rate 2"
+-		48="Mod rate 1-2"
+-		49="Bit reduction"
+-		50="Fold"
+-		51="Drive"
+-		52="Dry gain"
+-		103="Send"
+-		116="Waveguide model"
+-		117="Decay"
+-		118="Body"
+-		119="Tune"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca fm.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca fm.xml
+deleted file mode 100644
+index a812964c51e9d54d6ec20c2fd34b5f3a95532fcf..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca fm.xml	
++++ /dev/null
+@@ -1,15 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		40="Transpose"
+-		41="Velocity"
+-		42="Modulator attack"
+-		43="Modulator decay"
+-		44="Carrier attack"
+-		45="Carrier decay"
+-		46="LFO rate"
+-		47="LFO pitch depth"
+-		48="Algorithm"
+-		48="Arpeggiator type"
+-		50="Arpeggiator div"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca keys.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca keys.xml
+deleted file mode 100644
+index 8295a21a32e4576989bf0fe0e66a00124e8893b6..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca keys.xml	
++++ /dev/null
+@@ -1,20 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		5="Portamento"
+-		11="Expression"
+-		40="Voice"
+-		41="Octave"
+-		42="Detune"
+-		43="VCO EG depth"
+-		49="Attack"
+-		50="Decay/release"
+-		51="Sustain"
+-		44="Cutoff"
+-		45="VCF EG intensity"
+-		46="Rate"
+-		47="Pitch intensity"
+-		48="Cutoff intensity"
+-		52="Delay time"
+-		53="Delay feedback"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca kick.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca kick.xml
+deleted file mode 100644
+index d899ca06ac79892ef5b8d96cd35ea89ff89919d5..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca kick.xml	
++++ /dev/null
+@@ -1,14 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		40="Pulse color"
+-		41="Pulse level"
+-		42="Amp attack"
+-		43="Amp decay"
+-		44="Drive"
+-		45="Tone"
+-		46="Resonator pitch"
+-		47="Resonator bend"
+-		48="Resonator time"
+-		49="Accent"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca nubass.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca nubass.xml
+deleted file mode 100644
+index aebe37714690bdf75a28ff1d2d887f9e59e3daab..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca nubass.xml	
++++ /dev/null
+@@ -1,15 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		40="VTO pitch"
+-		41="VTO saturation"
+-		42="VTO level"
+-		43="VCF cutoff"
+-		44="VCF peak"
+-		45="VCF attack"
+-		46="VCF decay"
+-		47="VCF EG intensity"
+-		48="Accent"
+-		49="LFO rate"
+-		50="LFO intensity"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca sample.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca sample.xml
+deleted file mode 100644
+index 2082ef8d80bca6dd4706387774bfaea067a2dbb8..0000000000000000000000000000000000000000
+--- a/contrib/sd_card/MIDI_DEVICES/DEFINITION/KORG/volca sample.xml	
++++ /dev/null
+@@ -1,15 +0,0 @@
+-<?xml version="1.0" encoding="UTF-8"?>
+-<midiDevice>
+-	<ccLabels
+-		7="Level"
+-		10="Pan"
+-		40="Sample start point"
+-		41="Sample length"
+-		42="Hi cutoff"
+-		43="Speed"
+-		44="Pitch EG intensity"
+-		45="Pitch EG attack"
+-		46="Pitch EG decay"
+-		47="Amp EG attack"
+-		48="Amp EG decay"/>
+-</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/ARP 2600 M.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/ARP 2600 M.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca4d2518a571c2975f325900dff9d247326607e6
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/ARP 2600 M.xml	
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		5="Portamento time"
++		65="Portamento"
++		69="Hold 2"
++		120="All sound off"
++		121="Reset all controllers"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/EMX-1.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/EMX-1.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..f9f822c9d4e3b8448998382c66383b895cb4098e
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/EMX-1.xml
+@@ -0,0 +1,136 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		70="Osc Type"
++		14="Osc Edit1"
++		15="Osc Edit2"
++        
++		89="Mod Speed"
++		90="Mod Depth"
++		87="Mod Type"
++		88="Mod Dest"
++		82="Mod BPM Sync"
++        
++		74="Cutoff"
++		71="Resonance"
++		79="EG Int"
++		84="Drive"
++		83="Filter Type"
++        
++		5="Glide"
++		10="Pan"
++		75="EG Time"
++		7="Level"
++		86="Amp EG"
++		85="Roll"
++		91="Fx Send"
++		81="Fx Select"
++		80="Motion Seq"
++        
++		12="Fx1 Type"
++		92="Fx1 Edit1"
++		93="Fx1 Edit2"
++		20="Fx1 Motion Seq"
++        
++		13="Fx2 Type"
++		94="Fx2 Edit1"
++		95="Fx2 Edit2"
++		21="Fx2 Motion Seq"
++        
++		24="Fx3 Type"
++		25="Fx3 Edit1"
++		26="Fx3 Edit2"
++		22="Fx3 Motion Seq"
++        
++		23="Fx Chain"/>
++</midiDevice>
++
++	<!------ VALUE TABLES ------
++	
++	
++
++		--------OSC TYPE-------
++		0-7       : WAVE FORM
++		8-15      : DUAL OSC
++		16-23     : CHORD OSC
++		24-31     : UNISON OSC
++		32-39     : RING MOD
++		40-47     : OSC SYNC
++		48-55     : CROSS MOD
++		56-63     : VPM OSC
++		64-71     : WS
++		72-79     : ADDITIVE OSC
++		80-87     : COMB OSC
++		88-95     : FORMANT OSC
++		96-103    : NOISE OSC
++		104-111   : PCM OSC + COMB
++		112-119   : PCM OSC + WS
++		120-127   : AUDIO IN + COMB
++		
++		-------MOD TYPE------
++		0-15    : Saw
++		16-31   : Squ
++		32-47   : Tri
++		48-63   : S&H
++		64-127  : EG
++		
++		-------MOD DEST------
++		0-15    : PITCH
++		16-31   : OSC EDIT1
++		32-47   : OSC EDIT2
++		48-63   : CUTOFF
++		64-79   : AMP
++		80-127  : PAN
++		
++		-------FILTER TYPE------
++		0-31    : LPF
++		32-63   : HPF
++		64-95   : BPF
++		96-127  : BPF+
++		
++		-------FX SELECT------
++		0-42    : FX1
++		43-85   : FX2
++		86-127  : FX3
++		
++		-------MOTION SEQ------
++		0-42    : Off
++		43-85   : Smooth
++		86-127  : Trig Hold
++		
++		-------FX TYPE--------
++		0-7     : REVERB
++		8-15    : BPM SYNC DELAY
++		16-23   : SHORT DELAY
++		24-31   : MOD DELAY
++		32-39   : GRAIN SHIFTER
++		40-47   : CHO/FLG
++		48-55   : PHASER
++		56-63   : RING MOD
++		64-71   : TALKING MOD
++		72-79   : PITCH SHIFTER
++		80-87   : COMPRESSOR
++		88-95   : DISTORTION
++		96-103  : DECIMATOR
++		104-111 : EQ
++		112-119 : LPF
++		120-127 : HPF
++		
++		-------FX CHAIN------
++		0-31    : none
++		32-63   : FX1-FX2
++		64-95   : FX2-FX3
++		96-127  : FX1-FX2-FX3
++        
++        ------Bool Toggles-------
++        Mod BPM Sync,
++        Amp EG,
++        Roll,
++        Fx Send,
++        Fx1 Motion Seq,
++        Fx2 Motion Seq,
++        Fx3 Motion Seq
++        
++        0-63	: OFF
++        64-127	: ON
++		-->
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/MS2000.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/MS2000.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..1077730f4ae068591eccd6aa1e3126f00dceae96
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/MS2000.xml
+@@ -0,0 +1,49 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		5="Portamento"
++		77="OSC 1 wave"
++		14="OSC 1 control 1"
++		15="OSC 1 control 2"
++		78="OSC 2 wave"
++		82="OSC 2 modulation"
++		18="OSC 2 semitone"
++		19="OSC 2 tune"
++		20="OSC 1 level"
++		21="OSC 2 level"
++		22="Noise level"
++		83="Filter type"
++		74="Filter cutoff"
++		71="Filter resonance"
++		79="Filter EG 1 intensity"
++		85="Filter KBD track"
++		7="Amp level"
++		10="Amp panpot"
++		86="Amp EG2/gate"
++		92="Amp distortion"
++		23="EG 1 attack"
++		24="EG 1 decay"
++		25="EG 1 sustain"
++		26="EG 1 release"
++		73="EG 2 attack"
++		75="EG 2 decay"
++		70="EG 2 sustain"
++		72="EG 2 release"
++		87="LFO 1 wave"
++		27="LFO 1 frequency"
++		88="LFO 2 wave"
++		76="LFO 2 frequency"
++		28="Patch 1 intensity"
++		29="Patch 2 intensity"
++		30="Patch 3 intensity"
++		31="Patch 4 intensity"
++		89="Sequencer on/off"
++		12="Mod FX LFO speed"
++		93="Mod FX depth"
++		13="Delay time"
++		94="Delay depth"
++		18="Audio in 2 HPF level"
++		19="Audio in 2 threshold"
++		83="Formant shift"
++		79="Filter modulation intensity"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/NTS-1.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/NTS-1.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..99ddd1b4d2d69f48cecfa525e28b260f04a865ba
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/NTS-1.xml
+@@ -0,0 +1,33 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		14="Type"
++		16="Attack"
++		19="Release"
++		20="Depth"
++		21="Rate"
++		24="LFO Rate"
++		26="LFO Depth"
++		28="Time"
++		29="Depth"
++		30="Time"
++		31="Depth"
++		33="Mix"
++		34="Time"
++		35="Depth"
++		36="Mix"
++		42="Type"
++		43="Cutoff"
++		44="Resonance"
++		45="Sweep Depth"
++		46="Sweep Rate"
++		53="Type"
++		54="Shape"
++		55="Alt"
++		88="Modulation type"
++		89="Delay type"
++		90="Reverb type"
++		117="Pattern"
++		118="Intervals"
++		119="Length"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/Opsix.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/Opsix.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..c981e951ffcccc2a111d6d8cc56306f36babd800
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/Opsix.xml
+@@ -0,0 +1,43 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		70="Algorithm"
++		102="OP1 LVL"
++		103="OP2 LVL"
++		104="OP3 LVL"
++		105="OP4 LVL"
++		106="OP5 LVL"
++		107="OP6 LVL"
++		108="OP1 Ratio"
++		109="OP2 Ratio"
++		110="OP3 Ratio"
++		111="OP4 Ratio"
++		112="OP5 Ratio"
++		113="OP6 Ratio"
++		73="Attack"
++		79="Decay Release"
++		74="Filter Cutofff"
++		71="Resonance"
++		81="FX1"
++		82="FX2"
++		83="FX3"
++		12="UNI CC12"
++		13="UNI CC13"
++		14="UNI CC14"
++		15="UNI CC15"
++		16="UNI CC16"
++		17="BIP CC17"
++		18="BIP CC18"
++		19="BIP CC19"
++		20="BIP CC20"
++		21="BIP CC21"
++		1="Modwheel"
++		5="Gldetime"
++		7="Volume"
++		10="PAN"
++		11="Expression"
++		64="Damper"
++		65="Glide Mode"
++		66="Sostenuto"
++		67="Soft"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/Wavestate.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/Wavestate.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..f1391091ab8df34d4929962d662f151cb216002e
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/Wavestate.xml
+@@ -0,0 +1,122 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		1="Modulation"
++		7="Volume"
++		10="Pan"
++		11="Expression"
++		16="Vector joystick X"
++		17="Vector joystick Y"
++		64="Damper"
++		66="Sostenuto"
++		67="Soft"
++		120="All sounds off"
++		121="Reset all controllers"
++		2="Assignable CC 2"
++		3="Assignable CC 3"
++		4="Assignable CC 4"
++		5="Assignable CC 5"
++		6="Assignable CC 6"
++		8="Assignable CC 8"
++		9="Assignable CC 9"
++		12="Assignable CC 12"
++		13="Assignable CC 13"
++		14="Assignable CC 14"
++		15="Assignable CC 15"
++		16="Assignable CC 16"
++		17="Assignable CC 17"
++		18="Assignable CC 18"
++		19="Assignable CC 19"
++		20="Assignable CC 20"
++		21="Assignable CC 21"
++		22="Assignable CC 22"
++		23="Assignable CC 23"
++		24="Assignable CC 24"
++		25="Assignable CC 25"
++		26="Assignable CC 26"
++		27="Assignable CC 27"
++		28="Assignable CC 28"
++		29="Assignable CC 29"
++		30="Assignable CC 30"
++		31="Assignable CC 31"
++		32="Assignable CC 32"
++		33="Assignable CC 33"
++		34="Assignable CC 34"
++		35="Assignable CC 35"
++		36="Assignable CC 36"
++		37="Assignable CC 37"
++		38="Assignable CC 38"
++		39="Assignable CC 39"
++		40="Assignable CC 40"
++		41="Assignable CC 41"
++		42="Assignable CC 42"
++		43="Assignable CC 43"
++		44="Assignable CC 44"
++		45="Assignable CC 45"
++		46="Assignable CC 46"
++		47="Assignable CC 47"
++		48="Assignable CC 48"
++		49="Assignable CC 49"
++		50="Assignable CC 50"
++		51="Assignable CC 51"
++		52="Assignable CC 52"
++		53="Assignable CC 53"
++		54="Assignable CC 54"
++		55="Assignable CC 55"
++		56="Assignable CC 56"
++		57="Assignable CC 57"
++		58="Assignable CC 58"
++		59="Assignable CC 59"
++		60="Assignable CC 60"
++		61="Assignable CC 61"
++		62="Assignable CC 62"
++		63="Assignable CC 63"
++		65="Assignable CC 65"
++		67="Assignable CC 67"
++		68="Assignable CC 68"
++		69="Assignable CC 69"
++		70="Assignable CC 70"
++		71="Assignable CC 71"
++		72="Assignable CC 72"
++		73="Assignable CC 73"
++		74="Assignable CC 74"
++		75="Assignable CC 75"
++		76="Assignable CC 76"
++		77="Assignable CC 77"
++		78="Assignable CC 78"
++		79="Assignable CC 79"
++		80="Assignable CC 80"
++		81="Assignable CC 81"
++		82="Assignable CC 82"
++		83="Assignable CC 83"
++		84="Assignable CC 84"
++		85="Assignable CC 85"
++		86="Assignable CC 86"
++		87="Assignable CC 87"
++		88="Assignable CC 88"
++		89="Assignable CC 89"
++		90="Assignable CC 90"
++		91="Assignable CC 91"
++		92="Assignable CC 92"
++		93="Assignable CC 93"
++		94="Assignable CC 94"
++		95="Assignable CC 95"
++		102="Assignable CC 102"
++		103="Assignable CC 103"
++		104="Assignable CC 104"
++		105="Assignable CC 105"
++		106="Assignable CC 106"
++		107="Assignable CC 107"
++		108="Assignable CC 108"
++		109="Assignable CC 109"
++		110="Assignable CC 110"
++		111="Assignable CC 111"
++		112="Assignable CC 112"
++		113="Assignable CC 113"
++		114="Assignable CC 114"
++		115="Assignable CC 115"
++		116="Assignable CC 116"
++		117="Assignable CC 117"
++		118="Assignable CC 118"
++		119="Assignable CC 119"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/electribe2.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/electribe2.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ca24fa486dd77dc2d9c6525934acf5836bc58ef
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/electribe2.xml
+@@ -0,0 +1,28 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		80="Osc Pitch"
++		81="Osc Glide"
++		82="Osc Edit"
++		
++		74="Cutoff"
++		71="Resonance"
++		83="Filter EG Int"
++		
++		85="Mod Depth"
++		86="Mod Speed"
++		
++		7="Level"
++		10="Pan"
++		73="Attack"
++		72="Decay"
++		105="MFX Send"
++		
++		87="IFX Edit"
++		104="IFX Toggle"
++		
++		102="TouchPad X"
++		103="TouchPad Y"
++		106="TouchPad Toggle"
++		/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/micro KORG.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/micro KORG.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..22f238c2a63e4c1fab3644db09464f71304c9e26
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/micro KORG.xml	
+@@ -0,0 +1,51 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		5="Portamento"
++		77="Wave"
++		14="Control 1"
++		15="Control 2"
++		78="Wave"
++		82="OSC mod"
++		18="Semitone"
++		19="Tune"
++		18="Vocoder HPF level"
++		19="Vocoder threshold"
++		20="OSC 1 level"
++		21="OSC 2 level"
++		21="Vocoder inst level"
++		22="Noise level"
++		83="Filter type"
++		83="Vocoder formant shift"
++		74="Filter cutoff"
++		74="Vocoder filter cutoff"
++		71="Filter resonance"
++		79="Filter EG intensity"
++		79="Vocoder mod intensity"
++		23="Filter EG attack"
++		24="Filter EG decay"
++		25="Filter EG sustain"
++		26="Filter EG release"
++		7="Amp level"
++		10="Panpot"
++		10="Vocoder direct level"
++		92="Distortion"
++		73="Amp EG attack"
++		75="Amp EG decay"
++		70="Amp EG sustain"
++		72="Amp EG release"
++		87="LFO 1 wave"
++		27="LFO 1 frequency"
++		88="LFO 2 wave"
++		76="LFO 2 frequency"
++		28="Patch 1 intensity"
++		29="Patch 2 intensity"
++		30="Patch 3 intensity"
++		31="Patch 4 intensity"
++		12="Mod FX LFO speed"
++		93="Mod FX depth"
++		13="Delay time"
++		94="Delay depth"
++		95="Timbre select"
++		90="Sync control"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/minilogue xd.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/minilogue xd.xml
+new file mode 100755
+index 0000000000000000000000000000000000000000..3a5f44b0645274980375a5b8836d1101225fe660
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/minilogue xd.xml	
+@@ -0,0 +1,125 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		0="Bank"
++		1="X"
++		2="Y"
++		3=""
++		4=""
++		5="Porta"
++		6=""
++		7=""
++		8=""
++		9=""
++		10=""
++		11=""
++		12=""
++		13=""
++		14=""
++		15=""
++		16="AmpEnv-Att"
++		17="AmpEnv-Dec"
++		18="AmpEnv-Sus"
++		19="AmpEnv-Rel"
++		20="EG-Att"
++		21="EG-Dec"
++		22="EG-Int"
++		23="EG-Target"
++		24="LFO-Rate"
++		25=""
++		26="LFO-Int"
++		27="VoiceMode-Depth"
++		28="ModFX-Time"
++		29="ModFX-Depth"
++		30=""
++		31=""
++		32=""
++		33="MOSC-Lvl"
++		34="OSC1-Pitch"
++		35="OSC2-Pitch"
++		36="OSC1-Shape"
++		37="OSC2-Shape"
++		38=""
++		39="OSC1-Lvl"
++		40="OSC2-Lvl"
++		41="XMod-Depth"
++		42=""
++		43="Ffreq"
++		44="Fres"
++		45=""
++		46=""
++		47=""
++		48="OSC1-Oct"
++		49="OSC2-Oct"
++		50="OSC1-Wave"
++		51="OSC2-Wave"
++		52=""
++		53="MOSC-Type"
++		54="MOSC-Shape"
++		55=""
++		56="LFO-Target"
++		57="LFO-Wave"
++		58="LFO-Mode"
++		59="VoiceMode-Depth"
++		60=""
++		61=""
++		62=""
++		63=""
++		64="Damper"
++		65=""
++		66=""
++		67=""
++		68=""
++		69=""
++		70=""
++		71=""
++		72=""
++		73=""
++		74=""
++		75=""
++		76=""
++		77=""
++		78=""
++		79=""
++		80="Sync"
++		81="Ring"
++		82=""
++		83="FKtrack"
++		84="FDrive"
++		85=""
++		86=""
++		87=""
++		88="ModFX-Type"
++		89="Delay-SubType"
++		90="Rever-SubType"
++		91=""
++		92="ModFX-Enable"
++		93="Delay-Enable"
++		94="Rever-Enable"
++		95=""
++		96="ModFX-SubType"
++		97=""
++		98=""
++		99=""
++		100=""
++		101=""
++		102=""
++		103="MOSC-SubType"
++		104=""
++		105="Delay-Time"
++		106="Delay-Depth"
++		107="Delay-DryWet"
++		108="Rever-Time"
++		109="Rever-Depth"
++		110="Rever-DryWet"
++		111=""
++		112=""
++		113=""
++		114=""
++		115=""
++		116=""
++		117=""
++		118="CV-in-1"
++		119="CV-in-2"
++		123="All-OFF" />
++</midiDevice>
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/minilogue.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/minilogue.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..3bef6c40d79c499242bc92046408533523c79b27
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/minilogue.xml
+@@ -0,0 +1,44 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		0="Bank select"
++		16="Amp EG attack"
++		17="Amp EG decay"
++		18="Amp EG sustain"
++		19="Amp EG release"
++		20="EG attack"
++		21="EG decay"
++		22="EG sustain"
++		23="EG release"
++		24="LFO rate"
++		26="LFO depth"
++		27="Voice depth"
++		29="Delay hi-pass"
++		30="Delay time"
++		31="Delay feedback"
++		34="VCO 1 pitch"
++		35="VCO 2 pitch"
++		36="VCO 1 shape"
++		37="VCO 2 shape"
++		33="Noise level"
++		39="VCO 1 level"
++		40="VCO 2 level"
++		41="Cross mod depth"
++		42="Pitch EG intensity"
++		43="Filter cutoff"
++		44="Filter resonance"
++		45="Filter EG intensity"
++		48="VCO 1 octave"
++		49="VCO 2 octave"
++		50="VCO 1 wave"
++		51="VCO 2 wave"
++		56="LFO target"
++		57="LFO EG mod"
++		58="LFO wave"
++		80="Sync"
++		81="Ring"
++		82="Velocity key track"
++		83="Keyboard track"
++		84="Filter type"
++		88="Delay output routing"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/monologue.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/monologue.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..567c5123f6604b1e4eeef657756418630471b5e1
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/monologue.xml
+@@ -0,0 +1,26 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		16="Envelope attack"
++		17="Envelope decay"
++		25="Envelope intensity"
++		24="LFO rate"
++		26="LFO depth"
++		28="Drive"
++		35="VCO 2 pitch"
++		36="VCO 1 shape"
++		37="VCO 2 shape"
++		39="VCO 1 level"
++		40="VCO 2 level"
++		43="Filter cutoff"
++		44="Resonance"
++		49="VCO 2 octave"
++		50="VCO 1 wave"
++		51="VCO 2 wave"
++		56="LFO target"
++		58="LFO wave"
++		59="LFO mode"
++		60="Sync/ring"
++		61="Envelope generator type"
++		62="Envelope generator target"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca bass.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca bass.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..4015088f2d5ca82240f1e8a83fc813d295bbd2f4
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca bass.xml	
+@@ -0,0 +1,16 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		5="Slide time"
++		11="Expression"
++		40="Octave"
++		41="LFO rate"
++		42="LFO intensity"
++		43="VCO pitch 1"
++		44="VCO pitch 2"
++		45="VCO pitch 3"
++		46="EG attack"
++		47="EG decay/release"
++		48="Cutoff EG intensity"
++		49="Gate time"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca beats.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca beats.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..9671110acdf8d8cc0b7765685d16ed53f60f62c7
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca beats.xml	
+@@ -0,0 +1,24 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		40="Kick level"
++		41="Snare level"
++		42="Lo tom level"
++		43="Hi tom level"
++		44="Closed hat level"
++		45="Open hat level"
++		46="Clap level"
++		47="Claves level"
++		48="Agogo level"
++		49="Crash level"
++		50="Clap PCM speed"
++		51="Claves PCM speed"
++		52="Agogo PCM speed"
++		53="Crash PCM speed"
++		54="Stutter time"
++		55="Stutter depth"
++		56="Tom decay"
++		57="Closed hat decay"
++		58="Open hat decay"
++		59="Hat grain"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca drum.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca drum.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..1490f2d7e20382a1c2d34b42a2bb149204161541
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca drum.xml	
+@@ -0,0 +1,35 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		10="Pan"
++		14="Select 1"
++		15="Select 2"
++		16="Select 1-2"
++		17="Level 1"
++		18="Level 2"
++		19="Level 1-2"
++		20="EG attack 1"
++		21="EG attack 2"
++		22="EG attack 1-2"
++		23="EG release 1"
++		24="EG release 2"
++		25="EG release 1-2"
++		26="Pitch 1"
++		27="Pitch 2"
++		28="Pitch 1-2"
++		29="Mod amount 1"
++		30="Mod amount 2"
++		31="Mod amount 1-2"
++		46="Mod rate 1"
++		47="Mod rate 2"
++		48="Mod rate 1-2"
++		49="Bit reduction"
++		50="Fold"
++		51="Drive"
++		52="Dry gain"
++		103="Send"
++		116="Waveguide model"
++		117="Decay"
++		118="Body"
++		119="Tune"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca fm.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca fm.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..a812964c51e9d54d6ec20c2fd34b5f3a95532fcf
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca fm.xml	
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		40="Transpose"
++		41="Velocity"
++		42="Modulator attack"
++		43="Modulator decay"
++		44="Carrier attack"
++		45="Carrier decay"
++		46="LFO rate"
++		47="LFO pitch depth"
++		48="Algorithm"
++		48="Arpeggiator type"
++		50="Arpeggiator div"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca keys.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca keys.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..8295a21a32e4576989bf0fe0e66a00124e8893b6
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca keys.xml	
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		5="Portamento"
++		11="Expression"
++		40="Voice"
++		41="Octave"
++		42="Detune"
++		43="VCO EG depth"
++		49="Attack"
++		50="Decay/release"
++		51="Sustain"
++		44="Cutoff"
++		45="VCF EG intensity"
++		46="Rate"
++		47="Pitch intensity"
++		48="Cutoff intensity"
++		52="Delay time"
++		53="Delay feedback"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca kick.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca kick.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..d899ca06ac79892ef5b8d96cd35ea89ff89919d5
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca kick.xml	
+@@ -0,0 +1,14 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		40="Pulse color"
++		41="Pulse level"
++		42="Amp attack"
++		43="Amp decay"
++		44="Drive"
++		45="Tone"
++		46="Resonator pitch"
++		47="Resonator bend"
++		48="Resonator time"
++		49="Accent"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca nubass.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca nubass.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..aebe37714690bdf75a28ff1d2d887f9e59e3daab
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca nubass.xml	
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		40="VTO pitch"
++		41="VTO saturation"
++		42="VTO level"
++		43="VCF cutoff"
++		44="VCF peak"
++		45="VCF attack"
++		46="VCF decay"
++		47="VCF EG intensity"
++		48="Accent"
++		49="LFO rate"
++		50="LFO intensity"/>
++</midiDevice>
+\ No newline at end of file
+diff --git a/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca sample.xml b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca sample.xml
+new file mode 100644
+index 0000000000000000000000000000000000000000..2082ef8d80bca6dd4706387774bfaea067a2dbb8
+--- /dev/null
++++ b/contrib/sd_card/MIDI_DEVICES/DEFINITION/Korg/volca sample.xml	
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<midiDevice>
++	<ccLabels
++		7="Level"
++		10="Pan"
++		40="Sample start point"
++		41="Sample length"
++		42="Hi cutoff"
++		43="Speed"
++		44="Pitch EG intensity"
++		45="Pitch EG attack"
++		46="Pitch EG decay"
++		47="Amp EG attack"
++		48="Amp EG decay"/>
++</midiDevice>
+\ No newline at end of file

@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "fix repeated Audio Looper recording\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

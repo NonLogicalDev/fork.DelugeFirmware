@@ -1,0 +1,585 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 060ac45d0c76da60f7c9f6739c76a6e3404c4d9a..dbb92c8e4ae387966c3d2c8002cbf23d5269a84c 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -4,7 +4,7 @@
+ 
+ This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
+ 
+-The local stack currently contains seven deviations:
++The local stack currently contains nine deviations:
+ 
+ 1. Normalize the Korg MIDI-definition directory casing.
+ 2. Provide a reproducible Apple Silicon Nix build environment.
+@@ -13,6 +13,8 @@ The local stack currently contains seven deviations:
+ 5. Start kit creation in Manual Slice mode directly from the sample browser.
+ 6. Improve Manual Slicer positioning and preview stopping.
+ 7. Stop the browser preview on direct Manual Slice entry.
++8. Organize local revisions by coherent firmware area or core capability.
++9. Provide a global Panic action for immediate silence.
+ 
+ No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
+ 
+@@ -184,6 +186,56 @@ Enter direct Manual Slice ready for deliberate slice placement, without the sele
+ - A human runtime check on a physical Deluge should confirm that a playing browser preview is silent when Manual Slicer opens, that the first Manual Slicer pad can still audition the selected sample, and that standard Slice behavior is unchanged.
+ - The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
+ 
++## 8. Local revision grouping
++
++### Intent
++
++Keep the local change stack understandable by grouping related revisions under one stable firmware area while preserving a clear name for a distinct core capability.
++
++### Required behavior
++
++- Local user-facing revisions use bookmarks named `nl/patch-<group>-<NN>`, where `NN` starts at `01` within that group.
++- Related Manual Slicer work uses the `sample-slicer` group in stack order: direct Manual entry, editing controls, then direct-entry preview stopping.
++- Related Keyboard View chord-display work uses the `kb-chords` group.
++- A distinct core capability may use its own group. The Panic feature uses the `panic` group rather than the incidental Settings menu that exposes it.
++- The repository-compatibility revision remains `local/fixups` at the bottom of the local stack, before user-facing revisions.
++- When a new decision replaces earlier local behavior, fold it into the affected feature revision and update this document. Do not retain a later revision solely to cancel obsolete behavior, source, or contract text.
++- Use Jujutsu, not Git commands, for local repository inspection, revision management, and diff review.
++
++### Compatibility and verification
++
++- This convention changes local revision names and organization only. It does not change firmware behavior, build outputs, installation, flashing, or upstream state.
++- A local Jujutsu bookmark listing shows one sequential series for each firmware area or core capability, with no duplicate feature-specific group for the same area.
++- The stack tip and this document contain only active local behavior. Superseded local behavior is absent rather than preserved as a follow-up cancellation.
++
++## 9. Panic action
++
++### Intent
++
++Give the player one visible emergency action that immediately silences any source or effect that is currently making sound, including feedback loops and runaway samples.
++
++### Required behavior
++
++- The global Settings menu opened with Shift + Select presents Panic as its first action, before all existing Settings actions.
++- Selecting Panic stops active playback, scheduled audio events, instrument notes, audio clips, MIDI and gate notes, auditions, and sample-browser preview sound.
++- Panic removes active delay, stutter, modulation, compressor, filter, and reverb runtime state so no existing effect tail or feedback continues after the normal short output-buffer latency.
++- The Panic routine immediately aborts active audio recording or stem export whenever a caller invokes it. An unfinished capture is intentionally not preserved, because emergency silence takes precedence.
++- Panic gives the existing localized stopped feedback and keeps the Settings menu usable for a later action.
++
++### Compatibility and boundaries
++
++- The first Panic entry is available only through the normal-operation Settings menu. Recording and stem export retain their established controls until a later local deviation exposes the existing Panic routine in those modes.
++- Panic changes only live audio and unfinished capture state. It does not change saved songs, presets, samples, sequences, automation, settings, MIDI configuration, or undo history.
++- Panic does not directly clear the raw hardware output buffer. Any already queued output may finish during the normal short device latency; no new sound or effect tail may follow it.
++- Existing transport controls, menu navigation, audio routing, and device installation behavior remain unchanged until Panic is selected.
++- Panic is local-only. It does not authorize flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- The host unit-test suite and a local Release build pass.
++- A physical Deluge check verifies silence after invoking Panic during each currently reachable normal-mode scenario: a playing synth or kit, an audio clip, a sample-browser preview, a MIDI or gate note, delay feedback, stutter, modulation effects, reverb, a resonant filter, and compressor-driven audio. When a later caller exposes Panic during recording and stem export, validate the existing abort behavior in those modes too.
++- The same check confirms no project content, settings, automation, or undo history changed after Panic outside the intentionally aborted unfinished capture.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/dsp/compressor/rms_feedback.h b/src/deluge/dsp/compressor/rms_feedback.h
+index 86a27eb5165fb84ffc48443a31faf887f31e02bb..8331ad7b948fe821e513723f7fee0e5fcf3c099d 100644
+--- a/src/deluge/dsp/compressor/rms_feedback.h
++++ b/src/deluge/dsp/compressor/rms_feedback.h
+@@ -42,7 +42,15 @@ public:
+ 	void reset() {
+ 		state = 0;
+ 		er = 0;
++		rms = 0;
+ 		mean = 0;
++		currentVolumeL = 0;
++		currentVolumeR = 0;
++		gainReduction = 0;
++		lastSaturationTanHWorkingValue[0] = 0;
++		lastSaturationTanHWorkingValue[1] = 0;
++		hpfL.reset();
++		hpfR.reset();
+ 		onLastTime = false;
+ 	}
+ 
+diff --git a/src/deluge/dsp/reverb/reverb.hpp b/src/deluge/dsp/reverb/reverb.hpp
+index 1f3a564b7fc092561256e989cd71f95055b2a107..13bae36b0b9cbf372381ac7846de8bd71e09b2bf 100644
+--- a/src/deluge/dsp/reverb/reverb.hpp
++++ b/src/deluge/dsp/reverb/reverb.hpp
+@@ -30,12 +30,15 @@ public:
+ 		switch (m) {
+ 		case Model::FREEVERB:
+ 			reverb_.emplace<reverb::Freeverb>();
++			base_ = &std::get<reverb::Freeverb>(reverb_);
+ 			break;
+ 		case Model::DIGITAL:
+ 			reverb_.emplace<reverb::Digital>();
++			base_ = &std::get<reverb::Digital>(reverb_);
+ 			break;
+ 		case Model::MUTABLE:
+ 			reverb_.emplace<reverb::Mutable>();
++			base_ = &std::get<reverb::Mutable>(reverb_);
+ 			break;
+ 		}
+ 		base_->setRoomSize(room_size_);
+@@ -67,6 +70,8 @@ public:
+ 		base_->setPanLevels(amplitude_left, amplitude_right);
+ 	}
+ 
++	void clear() { setModel(model_); }
++
+ 	void setRoomSize(float value) override {
+ 		room_size_ = value;
+ 		base_->setRoomSize(value);
+diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
+index 2a4fe459069f415be28ec183fcb38345071c813b..7c07a74b7992e4c25cc7f0212d3a23f77969c824 100644
+--- a/src/deluge/gui/l10n/english.json
++++ b/src/deluge/gui/l10n/english.json
+@@ -720,6 +720,7 @@
+     "STRING_FOR_AUDIO_CLIP": "Audio clip",
+     "STRING_FOR_SONG": "Song",
+     "STRING_FOR_SETTINGS": "Settings",
++    "STRING_FOR_PANIC": "Panic",
+     "STRING_FOR_COMP_THRESHOLD_MENU_TITLE": "Comp threshold",
+     "STRING_FOR_ENV_ATTACK_MENU_TITLE": "Env* attack",
+     "STRING_FOR_ENV_DECAY_MENU_TITLE": "Env* decay",
+diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
+index 4ea0207006cad6e6733296eb231aba0d07016bd6..7f7eb8d0707bfc83c432689f6630eaa7d5910767 100644
+--- a/src/deluge/gui/l10n/g_english.cpp
++++ b/src/deluge/gui/l10n/g_english.cpp
+@@ -733,6 +733,7 @@ PLACE_SDRAM_DATA Language english{
+         {STRING_FOR_AUDIO_CLIP, "Audio clip"},
+         {STRING_FOR_SONG, "Song"},
+         {STRING_FOR_SETTINGS, "Settings"},
++        {STRING_FOR_PANIC, "Panic"},
+         {STRING_FOR_COMP_THRESHOLD_MENU_TITLE, "Comp threshold"},
+         {STRING_FOR_ENV_ATTACK_MENU_TITLE, "Env* attack"},
+         {STRING_FOR_ENV_DECAY_MENU_TITLE, "Env* decay"},
+diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
+index 9fe413435cb395f493bbced262102d0561d96189..d025e0013f0b048fdcce69f5cc9e8c76da0bdb76 100644
+--- a/src/deluge/gui/l10n/g_seven_segment.cpp
++++ b/src/deluge/gui/l10n/g_seven_segment.cpp
+@@ -526,6 +526,7 @@ PLACE_SDRAM_DATA Language seven_segment{
+         {STRING_FOR_SONG_MACRO_KIND_NONE, "NONE"},
+         {STRING_FOR_MIDI_LEARN, "MIDI"},
+         {STRING_FOR_ACTIONS, "ACT"},
++        {STRING_FOR_PANIC, "PNIC"},
+         {STRING_FOR_RESET_SETTINGS, "RSET"},
+         {STRING_FOR_RESET_FLASH, "FLSH"},
+         {STRING_FOR_RESET_COMMUNITY_FEATURES, "COMM"},
+diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
+index bcc4425973ed50c34cbecdb1eb8f5539c122107a..baf31f0a594b8f6033c393d74408c06bc574d35c 100644
+--- a/src/deluge/gui/l10n/seven_segment.json
++++ b/src/deluge/gui/l10n/seven_segment.json
+@@ -563,6 +563,7 @@
+         "STRING_FOR_MIDI_LEARN": "MIDI",
+ 
+         "STRING_FOR_ACTIONS": "ACT",
++        "STRING_FOR_PANIC": "PNIC",
+         "STRING_FOR_RESET_SETTINGS": "RSET",
+         "STRING_FOR_RESET_FLASH": "FLSH",
+         "STRING_FOR_RESET_COMMUNITY_FEATURES": "COMM",
+diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
+index 139af3260eec0cf32c4b70a4175b0ae06a68ca25..903d79c5b2a785cb6bf06649256e377a2753754e 100644
+--- a/src/deluge/gui/l10n/strings.h
++++ b/src/deluge/gui/l10n/strings.h
+@@ -788,6 +788,7 @@ enum class String : size_t {
+ 	STRING_FOR_AUDIO_CLIP,
+ 	STRING_FOR_SONG,
+ 	STRING_FOR_SETTINGS,
++	STRING_FOR_PANIC,
+ 	STRING_FOR_STUTTER,
+ 	STRING_FOR_STUTTER_RATE,
+ 	STRING_FOR_METRONOME,
+diff --git a/src/deluge/gui/menu_item/panic.cpp b/src/deluge/gui/menu_item/panic.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..08a6bf8135ecdd17c70abcb5f3e73fa19b7b03ad
+--- /dev/null
++++ b/src/deluge/gui/menu_item/panic.cpp
+@@ -0,0 +1,33 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation,
++ * either version 3 of the License, or (at your option) any later version.
++ *
++ * The Deluge Firmware is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
++ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++ * See the GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License along with the Deluge Firmware.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#include "gui/menu_item/panic.h"
++
++#include "extern.h"
++#include "gui/l10n/l10n.h"
++#include "hid/display/display.h"
++#include "processing/engines/audio_engine.h"
++
++namespace deluge::gui::menu_item::panic {
++
++MenuItem* Panic::selectButtonPress() {
++	AudioEngine::panic();
++	display->displayPopup(l10n::get(l10n::String::STRING_FOR_STOPPED));
++	return NO_NAVIGATION;
++}
++
++} // namespace deluge::gui::menu_item::panic
+diff --git a/src/deluge/gui/menu_item/panic.h b/src/deluge/gui/menu_item/panic.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..7c0933e3d05c0147b8f5d343410093f908bd93af
+--- /dev/null
++++ b/src/deluge/gui/menu_item/panic.h
+@@ -0,0 +1,32 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation,
++ * either version 3 of the License, or (at your option) any later version.
++ *
++ * The Deluge Firmware is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
++ * without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++ * See the GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License along with the Deluge Firmware.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "gui/menu_item/menu_item.h"
++
++namespace deluge::gui::menu_item::panic {
++
++class Panic final : public MenuItem {
++public:
++	using MenuItem::MenuItem;
++
++	MenuItem* selectButtonPress() override;
++	bool shouldEnterSubmenu() override { return false; }
++};
++
++} // namespace deluge::gui::menu_item::panic
+diff --git a/src/deluge/gui/ui/audio_recorder.cpp b/src/deluge/gui/ui/audio_recorder.cpp
+index 6cb4aab5e19c5c6a09a14e38f7924f9e5bf07d0e..9b3ad86615e0f58dffc24b3b4e76d34b06b2cb50 100644
+--- a/src/deluge/gui/ui/audio_recorder.cpp
++++ b/src/deluge/gui/ui/audio_recorder.cpp
+@@ -147,6 +147,7 @@ bool AudioRecorder::setupRecordingToFile(AudioInputChannel newMode, int32_t newN
+ 
+ 	recorder->allowFileAlterationAfter = true;
+ 	recorder->allowNormalization = shouldNormalize;
++	inputMonitoringSuppressed = false;
+ 
+ 	recordingSource = newMode; // This sets recording to begin happening even as the file is created, below
+ 
+@@ -178,6 +179,19 @@ void AudioRecorder::endRecordingSoon(int32_t buttonLatency) {
+ 	}
+ }
+ 
++void AudioRecorder::abortRecording() {
++	inputMonitoringSuppressed = true;
++	if (recorder && recorder->status < RecorderStatus::COMPLETE) {
++		// The card routine owns deletion of an abandoned file; finishRecording() runs after that cleanup.
++		recorder->abort();
++	}
++}
++
++bool AudioRecorder::isInputMonitoringActive() const {
++	return !inputMonitoringSuppressed
++	       && (recordingSource == AudioInputChannel::STEREO || recordingSource == AudioInputChannel::LEFT);
++}
++
+ void AudioRecorder::slowRoutine() {
+ 	// finishRecording() frees the SampleRecorder, which discardRecorder() forbids doing from inside the SD card
+ 	// routine - the recorder may be suspended part-way through its own cardRoutine(), and freeing it there leaves
+@@ -196,7 +210,9 @@ void AudioRecorder::slowRoutine() {
+ 			FREEZE_WITH_ERROR("E250");
+ 			return;
+ 		}
+-		if (recorder->status >= RecorderStatus::COMPLETE) {
++		const bool abortAwaitingCardCleanup =
++		    inputMonitoringSuppressed && recorder->status == RecorderStatus::ABORTED && recorder->sample != nullptr;
++		if (recorder->status >= RecorderStatus::COMPLETE && !abortAwaitingCardCleanup) {
+ 			indicator_leds::setLedState(IndicatorLED::RECORD, (playbackHandler.recording == RecordingMode::NORMAL));
+ 			finishRecording();
+ 		}
+@@ -219,7 +235,9 @@ void AudioRecorder::process() {
+ 		AudioEngine::slowRoutine();
+ 
+ 		// If recording has finished...
+-		if (recorder->status >= RecorderStatus::COMPLETE || recorder->hadCardError) {
++		const bool abortAwaitingCardCleanup =
++		    inputMonitoringSuppressed && recorder->status == RecorderStatus::ABORTED && recorder->sample != nullptr;
++		if ((recorder->status >= RecorderStatus::COMPLETE || recorder->hadCardError) && !abortAwaitingCardCleanup) {
+ 
+ 			if (recorder->status == RecorderStatus::ABORTED || recorder->hadCardError) {}
+ 
+@@ -270,6 +288,7 @@ void AudioRecorder::finishRecording() {
+ 
+ 	recorder = nullptr;
+ 	recordingSource = AudioInputChannel::NONE;
++	inputMonitoringSuppressed = false;
+ 	display->removeLoadingAnimation();
+ }
+ 
+diff --git a/src/deluge/gui/ui/audio_recorder.h b/src/deluge/gui/ui/audio_recorder.h
+index d46e2fb81b8c93ec8b8023f65025e8ef987945ab..915b5bbe0f54d7a67937647c2497de03404679e8 100644
+--- a/src/deluge/gui/ui/audio_recorder.h
++++ b/src/deluge/gui/ui/audio_recorder.h
+@@ -46,6 +46,8 @@ public:
+ 	SampleRecorder* recorder;
+ 
+ 	void endRecordingSoon(int32_t buttonLatency = 0);
++	void abortRecording();
++	[[nodiscard]] bool isInputMonitoringActive() const;
+ 
+ 	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
+ 
+@@ -58,6 +60,7 @@ private:
+ 	void finishRecording();
+ 	bool setupRecordingToFile(AudioInputChannel newMode, int32_t newNumChannels, AudioRecordingFolder folderID,
+ 	                          bool writeLoopPoints = false, bool shouldNormalize = true);
++	bool inputMonitoringSuppressed = false;
+ };
+ 
+ extern AudioRecorder audioRecorder;
+diff --git a/src/deluge/gui/ui/menus.cpp b/src/deluge/gui/ui/menus.cpp
+index 032e8daab6aac738b0f4b4fc01fb088c05b905a4..0d18a9382e8aa80ad63534aeecd7d5bc5f90c6bb 100644
+--- a/src/deluge/gui/ui/menus.cpp
++++ b/src/deluge/gui/ui/menus.cpp
+@@ -147,6 +147,7 @@
+ #include "gui/menu_item/osc/source/wave_index.h"
+ #include "gui/menu_item/osc/sync.h"
+ #include "gui/menu_item/osc/type.h"
++#include "gui/menu_item/panic.h"
+ #include "gui/menu_item/patch_cable_strength/fixed.h"
+ #include "gui/menu_item/patch_cables.h"
+ #include "gui/menu_item/patched_param/integer.h"
+@@ -1895,9 +1896,11 @@ PLACE_SDRAM_BSS menu_item::Submenu soundEditorRootMenuKitGlobalFX{
+ };
+ 
+ // Root Menu
++PLACE_SDRAM_BSS menu_item::panic::Panic panicMenu{STRING_FOR_PANIC};
+ PLACE_SDRAM_BSS Submenu settingsRootMenu{
+     STRING_FOR_SETTINGS,
+     {
++        &panicMenu,
+         &settingsActionsSubmenu,
+         &cvSelectionMenu,
+         &gateSelectionMenu,
+diff --git a/src/deluge/model/fx/stutterer.cpp b/src/deluge/model/fx/stutterer.cpp
+index e5dd4a57c1526fc7882583dbfe0a55e5961b7c98..9e1ddb40d8c870e160e2bb952d1d95c6c84a66cf 100644
+--- a/src/deluge/model/fx/stutterer.cpp
++++ b/src/deluge/model/fx/stutterer.cpp
+@@ -103,6 +103,7 @@ Error Stutterer::beginStutter(void* source, ParamManagerForTimeline* paramManage
+ 		status = Status::RECORDING;
+ 		sizeLeftUntilRecordFinished = buffer.size();
+ 		stutterSource = source;
++		stutterParamManager = paramManager;
+ 	}
+ 	return error;
+ }
+@@ -234,4 +235,9 @@ void Stutterer::endStutter(ParamManagerForTimeline* paramManager) {
+ 	lastQuantizedKnobDiff = 0;
+ 	valueBeforeStuttering = 0;
+ 	stutterSource = nullptr;
++	stutterParamManager = nullptr;
++}
++
++void Stutterer::endStutterAndRestoreValue() {
++	endStutter(stutterParamManager);
+ }
+diff --git a/src/deluge/model/fx/stutterer.h b/src/deluge/model/fx/stutterer.h
+index 90b603ef8fc7b07e6597cfd1ef5dc47be820c25b..d154477f767bac6bedd3020269ac5e16bae394ec 100644
+--- a/src/deluge/model/fx/stutterer.h
++++ b/src/deluge/model/fx/stutterer.h
+@@ -44,6 +44,7 @@ public:
+ 	void processStutter(std::span<StereoSample> audio, ParamManager* paramManager, int32_t magnitude,
+ 	                    uint32_t timePerTickInverse);
+ 	void endStutter(ParamManagerForTimeline* paramManager = nullptr);
++	void endStutterAndRestoreValue();
+ 
+ private:
+ 	enum class Status {
+@@ -62,6 +63,7 @@ private:
+ 	int32_t sizeLeftUntilRecordFinished = 0;
+ 	int32_t valueBeforeStuttering = 0;
+ 	int32_t lastQuantizedKnobDiff = 0;
++	ParamManagerForTimeline* stutterParamManager = nullptr;
+ 	/// This functions as cookie, allowing different users to know who is currently stuttering, so only those who
+ 	/// are will send audio here.
+ 	void* stutterSource = nullptr;
+diff --git a/src/deluge/model/global_effectable/global_effectable.cpp b/src/deluge/model/global_effectable/global_effectable.cpp
+index a7bbbd46a46149aa3b3d7b98981607c9b98a1fb5..69d30faf662fb7c6316c609ebd8cb0b54a96f949 100644
+--- a/src/deluge/model/global_effectable/global_effectable.cpp
++++ b/src/deluge/model/global_effectable/global_effectable.cpp
+@@ -59,6 +59,11 @@ void GlobalEffectable::cloneFrom(ModControllableAudio* other) {
+ 	currentFilterType = ((GlobalEffectable*)other)->currentFilterType;
+ }
+ 
++void GlobalEffectable::clearRuntimeFXState() {
++	ModControllableAudio::clearRuntimeFXState();
++	filterSet.reset();
++}
++
+ void GlobalEffectable::initParams(ParamManager* paramManager) {
+ 	ModControllableAudio::initParams(paramManager);
+ 
+diff --git a/src/deluge/model/global_effectable/global_effectable.h b/src/deluge/model/global_effectable/global_effectable.h
+index 24472813b2fd31f9cfd5d7772c9017eb6be444e4..5f593a4ac1fd61c03aa143ba49ef502d79b19a2e 100644
+--- a/src/deluge/model/global_effectable/global_effectable.h
++++ b/src/deluge/model/global_effectable/global_effectable.h
+@@ -28,6 +28,7 @@ class GlobalEffectable : public ModControllableAudio {
+ public:
+ 	GlobalEffectable();
+ 	void cloneFrom(ModControllableAudio* other) override;
++	void clearRuntimeFXState() override;
+ 
+ 	static void initParams(ParamManager* paramManager);
+ 	static void initParamsForAudioClip(ParamManagerForTimeline* paramManager);
+diff --git a/src/deluge/model/mod_controllable/mod_controllable_audio.cpp b/src/deluge/model/mod_controllable/mod_controllable_audio.cpp
+index 573cf90f808b4481e05f24e6fa07734a14382620..8924a849befb6e73c40a06332b2557260b8ea728 100644
+--- a/src/deluge/model/mod_controllable/mod_controllable_audio.cpp
++++ b/src/deluge/model/mod_controllable/mod_controllable_audio.cpp
+@@ -1484,8 +1484,36 @@ void ModControllableAudio::wontBeRenderedForAWhile() {
+ 	endStutter(nullptr);
+ }
+ 
++void ModControllableAudio::clearRuntimeFXState() {
++	delay.discardBuffers();
++	compressor.reset();
++	if (stutterer.isStuttering(this)) {
++		stutterer.endStutterAndRestoreValue();
++		exitUIMode(UI_MODE_STUTTERING);
++	}
++	clearModFXMemory();
++
++	lowSampleRatePos = 0;
++	highSampleRatePos = 0;
++	lastSample = {0, 0};
++	grabbedSample = {0, 0};
++	lastGrabbedSample = {0, 0};
++	sampleRateReductionOnLastTime = false;
++	withoutTrebleL = 0;
++	bassOnlyL = 0;
++	withoutTrebleR = 0;
++	bassOnlyR = 0;
++	postReverbVolumeLastTime = 0;
++	sidechain.status = EnvelopeStage::OFF;
++	sidechain.pos = 0;
++	sidechain.lastValue = ONE_Q31;
++	sidechain.pendingHitStrength = 0;
++	sidechain.envelopeOffset = 0;
++	sidechain.envelopeHeight = 0;
++}
++
+ void ModControllableAudio::clearModFXMemory() {
+-	if (modFXType_ == ModFXType::GRAIN) {
++	if (modFXType_ == ModFXType::GRAIN && grainFX) {
+ 		grainFX->clearGrainFXBuffer();
+ 	}
+ 	else if (modFXType_ != ModFXType::NONE) {
+diff --git a/src/deluge/model/mod_controllable/mod_controllable_audio.h b/src/deluge/model/mod_controllable/mod_controllable_audio.h
+index 64f25db18d38857d00dc768b1e25a5d85126645d..82adee0ab16faf392658f4fe2db0ec29722797f2 100644
+--- a/src/deluge/model/mod_controllable/mod_controllable_audio.h
++++ b/src/deluge/model/mod_controllable/mod_controllable_audio.h
+@@ -69,6 +69,7 @@ public:
+ 	virtual void wontBeRenderedForAWhile();
+ 	void beginStutter(ParamManagerForTimeline* paramManager);
+ 	void endStutter(ParamManagerForTimeline* paramManager);
++	virtual void clearRuntimeFXState();
+ 	virtual ModFXType getModFXType() = 0;
+ 	virtual bool setModFXType(ModFXType newType);
+ 	bool offerReceivedCCToLearnedParamsForClip(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value,
+diff --git a/src/deluge/processing/engines/audio_engine.cpp b/src/deluge/processing/engines/audio_engine.cpp
+index 7c245516f034fe587e9f0305f7dbc54590a6b164..fdf10b1b98399c3cc860eff8be0a2253833cb84a 100644
+--- a/src/deluge/processing/engines/audio_engine.cpp
++++ b/src/deluge/processing/engines/audio_engine.cpp
+@@ -249,6 +249,62 @@ void killAllVoices(bool deletingSong) {
+ 	}
+ }
+ 
++void panic() {
++	if (stemExport.processStarted) {
++		stemExport.stopStemExportProcess();
++	}
++
++	audioRecorder.abortRecording();
++
++	if (currentSong) {
++		currentSong->stopAllMIDIAndGateNotesPlaying();
++		currentSong->stopAllAuditioning();
++	}
++
++	stopAnyPreviewing();
++	killAllVoices();
++
++	for (Sound* sound : sounds) {
++		sound->clearRuntimeFXState();
++	}
++
++	if (currentSong) {
++		currentSong->globalEffectable.clearRuntimeFXState();
++		for (Output* output = currentSong->firstOutput; output != nullptr; output = output->next) {
++			switch (output->type) {
++			case OutputType::AUDIO:
++				static_cast<AudioOutput*>(output)->clearRuntimeFXState();
++				break;
++			case OutputType::KIT:
++				static_cast<Kit*>(output)->clearRuntimeFXState();
++				break;
++			default:
++				break;
++			}
++		}
++	}
++
++	reverb.clear();
++	reverbSidechain.status = EnvelopeStage::OFF;
++	reverbSidechain.pos = 0;
++	reverbSidechain.lastValue = ONE_Q31;
++	reverbSidechain.pendingHitStrength = 0;
++	reverbSidechain.envelopeOffset = 0;
++	reverbSidechain.envelopeHeight = 0;
++	timeThereWasLastSomeReverb = audioSampleTimer - (kSampleRate * 12);
++	sideChainHitPending = 0;
++	timeLastSideChainHit = audioSampleTimer;
++	sizeLastSideChainHit = 0;
++	approxRMSLevel = {0};
++
++	if (playbackHandler.isEitherClockActive()) {
++		playbackHandler.endPlayback();
++	}
++	else {
++		playbackHandler.stopAnyRecording();
++	}
++}
++
+ void songSwapAboutToHappen() {
+ 	// Otherwise, a timer might get called and try to access Clips that we may have deleted below
+ 	uiTimerManager.unsetTimer(TimerName::PLAY_ENABLE_FLASH);
+@@ -945,8 +1001,7 @@ void renderSongFX(size_t numSamples) { // LPF and stutter for song (must happen
+ }
+ void setMonitoringMode() { // Monitoring setup
+ 	doMonitoring = false;
+-	if (audioRecorder.recordingSource == AudioInputChannel::STEREO
+-	    || audioRecorder.recordingSource == AudioInputChannel::LEFT) {
++	if (audioRecorder.isInputMonitoringActive()) {
+ 		if (inputMonitoringMode == InputMonitoringMode::SMART) {
+ 			doMonitoring = (lineInPluggedIn || headphonesPluggedIn);
+ 		}
+diff --git a/src/deluge/processing/engines/audio_engine.h b/src/deluge/processing/engines/audio_engine.h
+index 86f5d7204085bb15ab2f53067f4d5a9bf300ae2b..b9174852cf02422164e0a1822643fbb4f65621c4 100644
+--- a/src/deluge/processing/engines/audio_engine.h
++++ b/src/deluge/processing/engines/audio_engine.h
+@@ -147,6 +147,7 @@ void runRoutine();
+ void init();
+ void previewSample(String* path, FilePointer* filePointer, bool shouldActuallySound);
+ void stopAnyPreviewing();
++void panic();
+ 
+ void songSwapAboutToHappen();
+ void killAllVoices(bool deletingSong = false);

@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add precise envelope time controls\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

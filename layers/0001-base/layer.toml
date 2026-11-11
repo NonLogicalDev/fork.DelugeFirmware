@@ -1,0 +1,9 @@
+[vcs]
+commit-msg = "Import Deluge firmware base\n"
+
+[[operation]]
+[operation.git-clone]
+url = "git@github.com:NonLogicalDev/fork.DelugeFirmware.git"
+dir = ""
+ref = "refs/heads/nl/latest"
+commit = "9e3132dc17070695b40f69bada5565a33ce428b4"

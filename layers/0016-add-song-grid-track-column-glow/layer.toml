@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add Song Grid track column glow\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

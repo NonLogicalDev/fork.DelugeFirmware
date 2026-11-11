@@ -1,0 +1,1405 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 9082c68443d7e4571f62d1f6c76fcb37e90dea27..cba319c89271056ed2300472f39b19f2ea2de2eb 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -4,7 +4,7 @@
+ 
+ This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
+ 
+-The local stack currently contains seventeen deviations:
++The local stack currently contains eighteen deviations:
+ 
+ 1. Normalize the Korg MIDI-definition directory casing.
+ 2. Provide a reproducible Apple Silicon Nix build environment.
+@@ -23,6 +23,7 @@ The local stack currently contains seventeen deviations:
+ 15. Keep waveform peak addressing valid throughout the supported long-file range.
+ 16. Keep reversed single-row waveform ranges inside their half-open display bounds.
+ 17. Show efficient OLED waveform companions while editing sample bounds and slices.
++18. Show a compact OLED Clip timeline ruler.
+ 
+ No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
+ 
+@@ -137,6 +138,9 @@ Let a player add a folder, region slices, or manual slices safely to the top of
+ - Confirming two or more slices in a brand-new or existing Kit creates exactly one playable Sound Drum per requested slice. Every generated row retains its assigned sample bounds, transpose, mode, and batch name; no later slice may be omitted because its row object was not retained during confirmation.
+ - A confirmed Slice or Manual slice longer than two seconds uses the configured default sample mode. A slice shorter than two seconds uses Once so very short fragments do not choke later hits. Temporary Manual Slicer audition may also use Once while the player is editing.
+ - The top three pads in Slicer's far-right status column choose the pending batch mode in vertical order: Default, All Cut, All Once. The selected pad is visibly brighter and gives immediate display feedback. The main slice grid and the far-right audition column keep their existing roles.
++- Pressing Select in either Region or Manual Slicer opens a fixed Auto, Cut, Once confirmation menu. Its initial highlight matches the pending batch mode already shown by the far-right controls on both OLED and seven-segment devices.
++- Turning Select in that menu changes only the highlight. Pressing Select on an item closes the menu, applies that choice to the same pending batch state used by the far-right controls, and immediately runs the existing slice-confirmation action.
++- Pressing Back from the menu returns to the exact in-progress Slicer session without changing its source, mode, boundaries, slice count, transpose values, preview state, or pending batch mode. If slice confirmation fails, Slicer remains open with the accepted mode and its existing failure feedback.
+ - Default retains the normal duration-based behavior. All Cut makes every newly confirmed slice in that batch use Cut, including short slices. All Once makes every newly confirmed slice in that batch use Once. These choices never change the stored device default or existing Kit rows.
+ - A Manual Slicer audition may temporarily use Once, but cancelling Slicer restores the selected anchor's prior mode. Only confirmation commits a generated batch's mode.
+ - Each confirmed Slice or Manual slice batch receives a series name and zero-padded part number: the first is `A-01`, `A-02`, and onward. A later batch uses the series after the highest existing generated series, such as `B-01`, then `C-01`, with `AA-01` after `Z-01`.
+@@ -159,7 +163,7 @@ Let a player add a folder, region slices, or manual slices safely to the top of
+ 
+ ### Verification contract
+ 
+-- A human runtime check on a physical Deluge should confirm that holding Select on a chosen audio file opens the Manual slice action without a timing-sensitive shortcut; the Manual Slicer waveform and its slice pad audition the selected sample; standard Slice still starts in Region mode; and a normal entry after Manual slice is still Region mode. It should also confirm that a second batch started from a selected top Sound Drum, with a different selected file, shows and uses that new file rather than a tail or preview from the earlier batch; that the selected Sound Drum receives the first slice, later slices appear above it, existing rows below remain unchanged, and a Sound Drum with an occupied row above is refused. In both modes, check Default, All Cut, and All Once with long and short slices; confirm that a cancelled Manual audition restores its earlier mode.
++- A human runtime check on a physical Deluge should confirm that holding Select on a chosen audio file opens the Manual slice action without a timing-sensitive shortcut; the Manual Slicer waveform and its slice pad audition the selected sample; standard Slice still starts in Region mode; and a normal entry after Manual slice is still Region mode. It should also confirm that a second batch started from a selected top Sound Drum, with a different selected file, shows and uses that new file rather than a tail or preview from the earlier batch; that the selected Sound Drum receives the first slice, later slices appear above it, existing rows below remain unchanged, and a Sound Drum with an occupied row above is refused. In both Slicer modes and on both display types, check that Select opens the Auto, Cut, Once menu at the pending right-pad choice; turning Select does not change that choice; Back restores the unchanged session; and accepting each mode confirms long and short slices with the required playback behavior. Also confirm that a failed confirmation returns to the same session with the accepted mode and existing error, and that a cancelled Manual audition restores its earlier mode.
+ - The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
+ 
+ ## 6. Manual Slicer positioning and preview stop
+@@ -509,6 +513,41 @@ Show sample shape and the edited region on an OLED Deluge without adding sample
+ - Compare the baseline and changed Release ELF sizes, run the complete configured host test suite, and complete a local Release firmware build.
+ - On a physical OLED Deluge, check instrument Sample start, end, loop-start, and loop-end; Audio Clip start and end; zoomed, scrolled, and reversed views; Slicer Region divisions; and Manual/Lazy slice selection and boundary movement. Leave each editor idle while audio, storage streaming, CV output, and optional OLED mirroring are active, and confirm the waveform remains readable without visible display churn or new audio interruption. This check does not authorize flashing.
+ 
++## 18. OLED Clip timeline ruler
++
++### Intent
++
++Give a player a compact visual reference for progress through the complete Clip loop, its beat grid, and the part currently visible on the pad matrix without displacing the OLED information already used for sound, Clip, and recording feedback.
++
++### Required behavior
++
++- Normal Instrument Clip View for Synth, Kit, MIDI Out, and CV Clips, normal Audio Clip View, and every non-Arranger Clip Automation surface show a monochrome ruler in the three display rows at the OLED's top visible edge. Supported Automation surfaces include Automation Overview, parameter automation, and note Velocity editing for Instrument and Audio Clips where those modes apply.
++- The ruler's 128 columns always span the complete Clip loop from time zero through its exclusive end. Horizontal scroll, zoom, and Triplet layout changes must not rescale this whole-Clip domain or reset the playhead when it leaves the 16-pad view.
++- A separate clipped span shows the part of the Clip visible on the 16 main pad columns. Horizontal scroll moves that span, zoom changes its width, and a view covering the complete Clip fills the ruler. A pad view entirely outside the Clip shows no false selection.
++- The top row shows played progress, the middle row shows the visible pad range, and the bottom row shows musical marks. Quarter-note marks are one pixel wide. Bar marks are two adjacent pixels wide; a bar at the right edge shifts inward instead of being clipped to one pixel. Clip start and end caps and the live playhead cross all three rows and are drawn over those lanes.
++- Quarter-note marks appear when they remain at least four pixels apart across the complete loop. At greater density the ruler uses bar marks and then evenly coarser bar intervals. Marks remain bounded and never merge into a solid block.
++- While the current Clip is actively playing or recording, a three-pixel playhead crosses the ruler and a one-pixel progress segment reaches from Clip time zero to that position. The indicator follows forward, Reverse, and Ping-Pong motion, continues beyond the visible pad range, traverses the OLED once per complete loop, and wraps only at the Clip boundary.
++- A stopped Clip retains its whole-Clip caps, musical marks, and visible-range selection but does not show moving progress. Count-in and an inactive Clip likewise show no false live position.
++- A cloned overdub shown against its source Clip follows the same repeated-position and direction behavior as the established pad playhead.
++- During clocked linear Arrangement Audio recording, the ruler uses the growing live recording extent as its provisional whole-Clip length instead of the maximum-length sentinel, while the playhead remains at the growing right edge. A tempoless first-loop recording has no settled musical length, so it shows an explicit full-width progress and right-edge playhead state without beat marks or a false viewport selection until the musical length is established.
++- Kit Clips with independently looping rows show the master Clip timeline. The single OLED ruler must not imply that all independently looping rows share another row's position.
++- Normal OLED notifications and popups remain visually authoritative over the ruler. Entering Arranger Automation, Keyboard or Chord layouts, a menu, Sound Editor, Song or Arranger View, Sample Browser, Slicer, Sample Marker Editor, stem export, or a view transition removes or suppresses the live ruler update.
++- Static ruler changes appear immediately after Clip change, scroll, zoom, transport state change, or recording-state change. Moving playback and growing-recording projections occur no more than 20 times per second and only when the visible result changes, including when unrelated OLED content causes a full display redraw between cadence checkpoints.
++
++### Compatibility and boundaries
++
++- Preserve every existing Clip title, parameter value, icon, popup, side scroller, stem-export display, pad playhead, pad color, navigation gesture, Clip timing rule, recording rule, and project format.
++- Preserve 7SEG behavior and every OLED surface outside normal Instrument and Audio Clip views and non-Arranger Clip Automation.
++- The ruler is display-only. It must not add a separate timer, allocate memory while updating, read samples or storage, scan a Clip's events, run from an audio-rendering path, send an unchanged display frame, or increase per-Clip saved or runtime state.
++- Do not add a Song-level transport ruler, waveform, per-row Kit ruler, playhead trail, animation outside active playback or recording, user setting, color option, flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- Focused host checks cover complete-loop mapping; ordinary, scrolled, zoomed, clipped, and Triplet-derived viewport ranges; quarter, two-pixel bar, right-edge bar, and coarsened marks; maximum supported timeline positions; forward, Reverse, Ping-Pong, wrapped, stopped, playing, and recording positions beyond the pad view; cloned overdubs; clocked Arrangement growth; tempoless first-loop state; exact three-row bounds and lane separation; unchanged-state suppression; full-render cache reuse; and the 20 Hz moving-update ceiling.
++- Source review confirms that normal Instrument and Audio Clip views and non-Arranger Clip Automation own the ruler, Automation repaints it after replacing the OLED canvas, inactive delegated Clip views do not invalidate Automation's shared cached frame, existing musical and viewport sources remain authoritative, all mapping work is fixed and bounded, and OLED animation adds no timer, allocation, storage or sample access, audio-path work, direct display transfer, or unchanged redraw.
++- Compare baseline and changed Release ELF sizes, run the complete configured host test suite, and complete a local Release firmware build.
++- On a physical OLED Deluge, check Synth, Kit, MIDI Out, CV, and Audio Clips in their normal Clip views and in non-Arranger Automation Overview, parameter automation, and note Velocity editing while stopped, playing, recording, wrapping, reversing, zooming, and scrolling. Confirm Arranger Automation, Keyboard and Chord layouts remain unchanged; titles and popups remain clear; movement is readable without dominating the screen; and simultaneous CV output, audio playback, recording, and storage streaming show no new interruption. This check does not authorize flashing.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+index 0d52a8da49708ad2f68d03a3a1c96212d628acd9..6cb2511b2d578d43865e526021a4c4dfaabbf594 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+@@ -81,6 +81,11 @@ KeyboardScreen::KeyboardScreen() {
+ 	lastNotesState = {0};
+ }
+ 
++void KeyboardScreen::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
++	InstrumentClipMinder::renderOLED(canvas);
++	instrumentClipView.renderKeyboardClipProgressRuler(canvas, *this);
++}
++
+ static const uint32_t padActionUIModes[] = {UI_MODE_AUDITIONING, UI_MODE_RECORD_COUNT_IN,
+                                             0}; // Careful - this is referenced in two places // I'm always careful ;)
+ 
+@@ -1011,6 +1016,8 @@ const uint8_t keyboardTickColoursBasicRecording[kDisplayHeight] = {0, 0, 0, 0, 0
+ const uint8_t keyboardTickColoursLinearRecording[kDisplayHeight] = {0, 0, 0, 0, 0, 0, 0, 2};
+ 
+ void KeyboardScreen::graphicsRoutine() {
++	instrumentClipView.refreshKeyboardClipProgressRuler(*this);
++
+ 	int32_t newTickSquare;
+ 
+ 	const uint8_t* colours = keyboardTickColoursBasicRecording;
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.h b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+index 06c1c0aebddc7ff4819c048c46983885c129a710..680ba2c7b327f220b63aca0f4effdb8de9218421 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.h
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+@@ -84,9 +84,7 @@ private:
+ 
+ 	void unscrolledPadAudition(int32_t velocity, int32_t note, bool shiftButtonDown);
+ 
+-	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override {
+-		InstrumentClipMinder::renderOLED(canvas);
+-	}
++	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
+ 
+ 	void selectLayout(int8_t offset);
+ 	void enterScaleMode(int32_t selectedRootNote = kDefaultCalculateRootNote);
+diff --git a/src/deluge/gui/views/audio_clip_view.cpp b/src/deluge/gui/views/audio_clip_view.cpp
+index 7f3e5865181efdce01f453d050c4623ad268c494..5d4126cb969ff25e36ea2a70274208fcf7c92e7f 100644
+--- a/src/deluge/gui/views/audio_clip_view.cpp
++++ b/src/deluge/gui/views/audio_clip_view.cpp
+@@ -94,6 +94,7 @@ void AudioClipView::focusRegained() {
+ 
+ void AudioClipView::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+ 	view.displayOutputName(getCurrentOutput(), false, getCurrentClip());
++	renderClipProgressRuler(canvas, ClipProgressRulerKind::AUDIO);
+ }
+ 
+ bool AudioClipView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+@@ -267,6 +268,7 @@ bool AudioClipView::renderSidebar(uint32_t whichRows, RGB image[][kDisplayWidth
+ }
+ 
+ void AudioClipView::graphicsRoutine() {
++	refreshClipProgressRuler(ClipProgressRulerKind::AUDIO);
+ 	if (isUIModeActive(UI_MODE_AUDIO_CLIP_COLLAPSING)) {
+ 		return;
+ 	}
+diff --git a/src/deluge/gui/views/automation_view.cpp b/src/deluge/gui/views/automation_view.cpp
+index 0a42de3544b9893300134940925bc2b538928093..269e37c4c19fbea58b30793e52fcda0a595c0634 100644
+--- a/src/deluge/gui/views/automation_view.cpp
++++ b/src/deluge/gui/views/automation_view.cpp
+@@ -584,12 +584,14 @@ void AutomationView::graphicsRoutine() {
+ 		arrangerView.graphicsRoutine();
+ 	}
+ 	else {
+-		if (getCurrentClip()->type == ClipType::AUDIO) {
++		const bool isAudioClip = getCurrentClip()->type == ClipType::AUDIO;
++		if (isAudioClip) {
+ 			audioClipView.graphicsRoutine();
+ 		}
+ 		else {
+ 			instrumentClipView.graphicsRoutine();
+ 		}
++		refreshClipProgressRuler(isAudioClip ? ClipProgressRulerKind::AUDIO : ClipProgressRulerKind::INSTRUMENT);
+ 	}
+ 	// if we changed probability, then a pop-up may be currently stuck on display
+ 	// if more than half a second has past since last knob turn, cancel the pop-up
+@@ -1022,6 +1024,11 @@ void AutomationView::renderDisplayOLED(Clip* clip, Output* output, OutputType ou
+ 		}
+ 	}
+ 
++	if (!onArrangerView) {
++		renderClipProgressRuler(canvas, clip->type == ClipType::AUDIO ? ClipProgressRulerKind::AUDIO
++		                                                              : ClipProgressRulerKind::INSTRUMENT);
++	}
++
+ 	deluge::hid::display::OLED::markChanged();
+ }
+ 
+diff --git a/src/deluge/gui/views/clip_progress_ruler.h b/src/deluge/gui/views/clip_progress_ruler.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..747b197d1f1285837d06e7e718145fff03c705bc
+--- /dev/null
++++ b/src/deluge/gui/views/clip_progress_ruler.h
+@@ -0,0 +1,273 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
++ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program. If not, see
++ * <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++
++#include <algorithm>
++#include <array>
++#include <cstddef>
++#include <cstdint>
++#include <limits>
++
++namespace deluge::gui::views::clip_progress_ruler {
++
++constexpr int32_t kMinimumMarkSpacing = 4;
++constexpr size_t kMaxMarkCount = OLED_MAIN_WIDTH_PIXELS / kMinimumMarkSpacing;
++constexpr int32_t kStripHeight = 3;
++
++struct Viewport {
++	int32_t start{};
++	int32_t end{};
++
++	[[nodiscard]] constexpr bool valid() const { return start < end; }
++	bool operator==(Viewport const&) const = default;
++};
++
++enum class ViewportPolicy : uint8_t { TIMELINE, NONE };
++
++[[nodiscard]] constexpr Viewport viewportForPolicy(ViewportPolicy policy, Viewport timelineViewport) {
++	return policy == ViewportPolicy::TIMELINE ? timelineViewport : Viewport{};
++}
++
++/// Use the captured extent as the provisional whole-Clip domain while a linear recording still carries a sentinel
++/// loop length. The addition saturates only at the uint32 limit, beyond the firmware's supported sequence length.
++[[nodiscard]] constexpr uint32_t growingLoopLength(uint32_t livePosition) {
++	return livePosition == std::numeric_limits<uint32_t>::max() ? livePosition : livePosition + 1;
++}
++
++/// Map a position within one complete Clip loop to its fixed OLED column.
++[[nodiscard]] constexpr int32_t loopPositionToX(uint64_t position, uint32_t clipLength) {
++	if (clipLength == 0 || position >= clipLength) {
++		return -1;
++	}
++	return static_cast<int32_t>((position * OLED_MAIN_WIDTH_PIXELS) / clipLength);
++}
++
++/// Map an exclusive boundary within one complete Clip loop to the final pixel covered before it.
++[[nodiscard]] constexpr int32_t loopEndBoundaryToX(uint64_t position, uint32_t clipLength) {
++	if (clipLength == 0 || position == 0 || position > clipLength) {
++		return -1;
++	}
++	return static_cast<int32_t>((position * OLED_MAIN_WIDTH_PIXELS + clipLength - 1) / clipLength - 1);
++}
++
++struct Mark {
++	uint8_t x{};
++	bool isBar{};
++
++	bool operator==(Mark const&) const = default;
++};
++
++struct StaticGeometry {
++	bool visible{};
++	bool selectionVisible{};
++	uint8_t selectionStartX{};
++	uint8_t selectionEndX{};
++	std::array<Mark, kMaxMarkCount> marks{};
++	uint8_t markCount{};
++
++	bool operator==(StaticGeometry const&) const = default;
++};
++
++struct MovingGeometry {
++	bool visible{};
++	uint8_t playheadX{};
++
++	bool operator==(MovingGeometry const&) const = default;
++};
++
++struct RefreshFrame {
++	MovingGeometry movingGeometry{};
++	uint32_t staticGeometryRevision{};
++	uint32_t mainImageGeneration{};
++
++	bool operator==(RefreshFrame const&) const = default;
++};
++
++struct RefreshState {
++	RefreshFrame frame{};
++	uint32_t lastRefreshTime{};
++	bool valid{};
++	bool transportMoving{};
++	bool pinToRightEdge{};
++};
++
++struct RefreshDecision {
++	bool draw{};
++	bool markDirty{};
++	bool checkpointCadence{};
++};
++
++enum class RepeatedDirection : uint8_t { FORWARD, REVERSE, PINGPONG };
++
++/// Re-project a recording clone's longer live position onto the displayed source Clip, matching Session playheads.
++[[nodiscard]] constexpr uint32_t mapRepeatedPosition(uint32_t livePosition, uint32_t loopLength,
++                                                     RepeatedDirection direction) {
++	if (loopLength == 0) {
++		return 0;
++	}
++
++	const uint32_t repeat = livePosition / loopLength;
++	uint32_t position = livePosition - repeat * loopLength;
++	if (direction == RepeatedDirection::REVERSE || (direction == RepeatedDirection::PINGPONG && (repeat & 1U) != 0)) {
++		if (position != 0) {
++			position = loopLength - position;
++		}
++	}
++	return position;
++}
++
++namespace detail {
++
++[[nodiscard]] constexpr uint64_t minimumSparseStep(uint32_t clipLength) {
++	return (static_cast<uint64_t>(clipLength) * kMinimumMarkSpacing + OLED_MAIN_WIDTH_PIXELS - 1)
++	       / OLED_MAIN_WIDTH_PIXELS;
++}
++
++constexpr void populateMarks(StaticGeometry& geometry, uint32_t clipLength, uint64_t step, uint32_t barLength,
++                             bool barsOnly) {
++	for (uint64_t position = 0; step != 0 && position < clipLength && geometry.markCount < geometry.marks.size();
++	     position += step) {
++		const int32_t x = loopPositionToX(position, clipLength);
++		if (x < 0) {
++			continue;
++		}
++		geometry.marks[geometry.markCount++] = {
++		    .x = static_cast<uint8_t>(x),
++		    .isBar = barsOnly || (barLength != 0 && position % barLength == 0),
++		};
++	}
++}
++
++} // namespace detail
++
++[[nodiscard]] constexpr StaticGeometry calculateStaticGeometry(Viewport const& viewport, uint32_t clipLength,
++                                                               uint32_t quarterNoteLength, uint32_t barLength) {
++	StaticGeometry geometry{};
++	if (clipLength == 0) {
++		return geometry;
++	}
++	geometry.visible = true;
++
++	if (viewport.valid()) {
++		const int64_t selectionStart = std::max<int64_t>(0, viewport.start);
++		const int64_t selectionEnd = std::min<int64_t>(clipLength, viewport.end);
++		if (selectionStart < selectionEnd) {
++			geometry.selectionVisible = true;
++			geometry.selectionStartX =
++			    static_cast<uint8_t>(loopPositionToX(static_cast<uint64_t>(selectionStart), clipLength));
++			geometry.selectionEndX =
++			    static_cast<uint8_t>(loopEndBoundaryToX(static_cast<uint64_t>(selectionEnd), clipLength));
++		}
++	}
++
++	const uint64_t minimumMarkStep = detail::minimumSparseStep(clipLength);
++	if (quarterNoteLength != 0 && quarterNoteLength >= minimumMarkStep) {
++		detail::populateMarks(geometry, clipLength, quarterNoteLength, barLength, false);
++		return geometry;
++	}
++
++	uint64_t stride = barLength;
++	while (stride != 0 && stride < minimumMarkStep) {
++		stride *= 2;
++	}
++	if (stride != 0) {
++		detail::populateMarks(geometry, clipLength, stride, barLength, true);
++	}
++	return geometry;
++}
++
++[[nodiscard]] constexpr MovingGeometry calculateMovingGeometry(StaticGeometry const& staticGeometry,
++                                                               uint32_t clipLength, bool moving, uint32_t playPosition,
++                                                               bool pinToRightEdge = false) {
++	MovingGeometry geometry{};
++	if (!moving || !staticGeometry.visible || clipLength == 0) {
++		return geometry;
++	}
++
++	geometry.visible = true;
++	geometry.playheadX = pinToRightEdge ? OLED_MAIN_WIDTH_PIXELS - 1
++	                                    : static_cast<uint8_t>(loopPositionToX(playPosition % clipLength, clipLength));
++	return geometry;
++}
++
++/// Unsigned subtraction keeps the cadence correct when the 32-bit audio sample timer wraps.
++[[nodiscard]] constexpr bool refreshDue(uint32_t now, uint32_t previous, uint32_t interval, bool urgent) {
++	return urgent || static_cast<uint32_t>(now - previous) >= interval;
++}
++
++/// A full OLED redraw still needs the cached ruler painted onto the replacement canvas, but it must not sample a new
++/// moving frame before the shared cadence checkpoint.
++[[nodiscard]] constexpr bool fullRenderProjectionDue(RefreshState const& displayed, uint32_t now, uint32_t interval,
++                                                     bool urgent) {
++	return !displayed.valid || refreshDue(now, displayed.lastRefreshTime, interval, urgent);
++}
++
++/// Decide whether a projected ruler frame must replace the cached frame and whether that hidden-canvas update should
++/// request an OLED transfer. Keeping this independent of ClipView makes the actual cache and dirty protocol testable.
++[[nodiscard]] constexpr RefreshDecision decideRefresh(RefreshState const& displayed, RefreshFrame const& current,
++                                                      uint32_t now, uint32_t interval, bool urgent,
++                                                      bool topStripCovered) {
++	if (displayed.valid && displayed.frame == current) {
++		return {.checkpointCadence = refreshDue(now, displayed.lastRefreshTime, interval, urgent)};
++	}
++
++	const bool mainImageReplaced =
++	    displayed.valid && displayed.frame.mainImageGeneration != current.mainImageGeneration;
++	if (!refreshDue(now, displayed.lastRefreshTime, interval, urgent || mainImageReplaced || !displayed.valid)) {
++		return {};
++	}
++
++	return {.draw = true, .markDirty = !topStripCovered, .checkpointCadence = true};
++}
++
++template <typename Canvas>
++void render(Canvas& canvas, StaticGeometry const& staticGeometry, MovingGeometry const& movingGeometry,
++            int32_t top = OLED_MAIN_TOPMOST_PIXEL) {
++	if (!staticGeometry.visible) {
++		return;
++	}
++
++	const int32_t middle = top + 1;
++	const int32_t bottom = top + kStripHeight - 1;
++	if (movingGeometry.visible) {
++		canvas.drawHorizontalLine(top, 0, movingGeometry.playheadX);
++	}
++	if (staticGeometry.selectionVisible) {
++		canvas.drawHorizontalLine(middle, staticGeometry.selectionStartX, staticGeometry.selectionEndX);
++	}
++	for (size_t i = 0; i < staticGeometry.markCount; i++) {
++		const Mark& mark = staticGeometry.marks[i];
++		if (mark.isBar) {
++			const int32_t start = std::min<int32_t>(mark.x, OLED_MAIN_WIDTH_PIXELS - 2);
++			canvas.drawHorizontalLine(bottom, start, start + 1);
++		}
++		else {
++			canvas.drawPixel(mark.x, bottom);
++		}
++	}
++
++	canvas.drawVerticalLine(0, top, bottom);
++	canvas.drawVerticalLine(OLED_MAIN_WIDTH_PIXELS - 1, top, bottom);
++	if (movingGeometry.visible) {
++		canvas.drawVerticalLine(movingGeometry.playheadX, top, bottom);
++	}
++}
++
++} // namespace deluge::gui::views::clip_progress_ruler
+diff --git a/src/deluge/gui/views/clip_view.cpp b/src/deluge/gui/views/clip_view.cpp
+index d6dee42d3e162f0eec8337367276a1b8662d8360..5c22fbb65d59470f9724c5e248e57dfd893e99c7 100644
+--- a/src/deluge/gui/views/clip_view.cpp
++++ b/src/deluge/gui/views/clip_view.cpp
+@@ -19,18 +19,117 @@
+ #include "definitions_cxx.hpp"
+ #include "extern.h"
+ #include "gui/l10n/l10n.h"
++#include "gui/ui/ui.h"
+ #include "gui/views/automation_view.h"
++#include "gui/views/clip_progress_ruler.h"
+ #include "gui/views/view.h"
+ #include "hid/buttons.h"
+ #include "hid/display/display.h"
++#include "hid/display/oled.h"
++#include "hid/display/screensaver.h"
+ #include "memory/general_memory_allocator.h"
+ #include "model/action/action_logger.h"
+ #include "model/clip/clip.h"
+ #include "model/consequence/consequence_clip_horizontal_shift.h"
+ #include "model/song/song.h"
++#include "playback/mode/arrangement.h"
+ #include "playback/mode/playback_mode.h"
+ #include "playback/mode/session.h"
+ #include "playback/playback_handler.h"
++#include "processing/engines/audio_engine.h"
++#include "processing/stem_export/stem_export.h"
++
++namespace ruler = deluge::gui::views::clip_progress_ruler;
++
++enum class ClipProgressRulerDomain : uint8_t {
++	LOOP,
++	GROWING_RECORDING,
++	INDETERMINATE_RECORDING,
++};
++
++struct ClipView::ClipProgressRulerCache {
++	ClipView const* owner{};
++	// KeyboardScreen projects the Instrument Clip through instrumentClipView, so the visible surface and its
++	// viewport policy must remain separate from the data/render owner.
++	UI const* activeSurface{};
++	Clip const* clip{};
++	int32_t xScroll{};
++	uint32_t xZoom{};
++	uint32_t tripletsLevel{};
++	uint32_t loopLength{};
++	uint32_t quarterNoteLength{};
++	uint32_t barLength{};
++	ClipProgressRulerDomain domain{};
++	ruler::ViewportPolicy viewportPolicy{};
++	ruler::Viewport viewport{};
++	ruler::StaticGeometry staticGeometry{};
++	uint32_t staticGeometryRevision{};
++	ruler::RefreshState displayed{};
++};
++
++struct ClipView::ClipProgressRulerInput {
++	Clip* clip{};
++	Clip* recordTarget{};
++	UI const* activeSurface{};
++	int32_t xScroll{};
++	uint32_t xZoom{};
++	uint32_t tripletsLevel{};
++	uint32_t loopLength{};
++	uint32_t quarterNoteLength{};
++	uint32_t barLength{};
++	ClipProgressRulerDomain domain{};
++	ruler::ViewportPolicy viewportPolicy{};
++	bool transportMoving{};
++	bool pinToRightEdge{};
++	bool recordingLinearly{};
++};
++
++struct ClipView::ClipProgressRulerChanges {
++	bool structural{};
++	bool length{};
++};
++
++struct ClipView::ClipProgressRulerUpdate {
++	ruler::MovingGeometry movingGeometry{};
++	bool transportMoving{};
++	bool pinToRightEdge{};
++};
++
++PLACE_SDRAM_BSS ClipView::ClipProgressRulerCache ClipView::clipProgressRulerCache_{};
++
++namespace {
++
++constexpr uint32_t kClipProgressRulerRefreshInterval = kSampleRate / 20;
++
++bool clipProgressRulerTransitionActive() {
++	return isUIModeActive(UI_MODE_INSTRUMENT_CLIP_COLLAPSING) || isUIModeActive(UI_MODE_INSTRUMENT_CLIP_EXPANDING)
++	       || isUIModeActive(UI_MODE_AUDIO_CLIP_COLLAPSING) || isUIModeActive(UI_MODE_AUDIO_CLIP_EXPANDING)
++	       || isUIModeActive(UI_MODE_EXPLODE_ANIMATION) || isUIModeActive(UI_MODE_IMPLODE_ANIMATION)
++	       || isUIModeActive(UI_MODE_ANIMATION_FADE) || isUIModeActive(UI_MODE_STEM_EXPORT);
++}
++
++bool clipProgressRulerSuppressed() {
++	using deluge::hid::display::OLED;
++	using deluge::hid::display::Screensaver;
++
++	return stemExport.processStarted || clipProgressRulerTransitionActive() || OLED::isPermanentPopupPresent()
++	       || OLED::isWorkingAnimationPresent() || Screensaver::isActive();
++}
++
++ruler::RepeatedDirection repeatedDirectionForClip(Clip const& clip) {
++	switch (clip.sequenceDirectionMode) {
++	case SequenceDirection::REVERSE:
++		return ruler::RepeatedDirection::REVERSE;
++	case SequenceDirection::PINGPONG:
++		return ruler::RepeatedDirection::PINGPONG;
++	case SequenceDirection::FORWARD:
++	case SequenceDirection::OBEY_PARENT:
++		return ruler::RepeatedDirection::FORWARD;
++	}
++	return ruler::RepeatedDirection::FORWARD;
++}
++
++} // namespace
+ 
+ uint32_t ClipView::getMaxZoom() {
+ 	return getCurrentClip()->getMaxZoom();
+@@ -42,6 +141,256 @@ uint32_t ClipView::getMaxLength() {
+ 
+ void ClipView::focusRegained() {
+ 	ClipNavigationTimelineView::focusRegained();
++	invalidateClipProgressRuler();
++}
++
++void ClipView::invalidateClipProgressRuler() {
++	clipProgressRulerCache_.displayed.valid = false;
++}
++
++void ClipView::collectClipProgressRulerInput(ClipProgressRulerKind kind, UI const* activeSurface,
++                                             ruler::ViewportPolicy viewportPolicy, ClipProgressRulerInput& input) {
++	input = {};
++	input.activeSurface = activeSurface ? activeSurface : this;
++	input.viewportPolicy = viewportPolicy;
++	if (!currentSong) {
++		return;
++	}
++
++	Clip* clip = getCurrentClip();
++	if (!clip || clip->loopLength <= 0) {
++		return;
++	}
++
++	input.clip = clip;
++	input.xScroll = currentSong->xScroll[NAVIGATION_CLIP];
++	input.xZoom = currentSong->xZoom[NAVIGATION_CLIP];
++	input.tripletsLevel = inTripletsView() ? currentSong->tripletsLevel : 0;
++	input.loopLength = static_cast<uint32_t>(clip->loopLength);
++	input.quarterNoteLength = currentSong->getQuarterNoteLength();
++	input.barLength = currentSong->getBarLength();
++	input.recordingLinearly = clip->getCurrentlyRecordingLinearly();
++
++	const bool clipActive = currentSong->isClipActive(clip);
++	const bool countInActive = playbackHandler.ticksLeftInCountIn != 0;
++	const bool clockActive = playbackHandler.isEitherClockActive();
++	if (kind == ClipProgressRulerKind::AUDIO) {
++		input.transportMoving = playbackHandler.playbackState && clipActive && !countInActive;
++		input.pinToRightEdge =
++		    input.transportMoving && (!clockActive || (currentPlaybackMode == &arrangement && input.recordingLinearly));
++	}
++	else {
++		input.transportMoving = playbackHandler.isEitherClockActive() && clipActive && !countInActive;
++	}
++
++	if (input.transportMoving) {
++		input.recordTarget = clip->getClipToRecordTo();
++		if (!input.recordTarget) {
++			input.transportMoving = false;
++			input.pinToRightEdge = false;
++		}
++	}
++
++	if (kind == ClipProgressRulerKind::AUDIO && input.transportMoving && input.recordingLinearly) {
++		if (!clockActive) {
++			input.domain = ClipProgressRulerDomain::INDETERMINATE_RECORDING;
++			input.quarterNoteLength = 0;
++			input.barLength = 0;
++		}
++		else if (currentPlaybackMode == &arrangement) {
++			input.domain = ClipProgressRulerDomain::GROWING_RECORDING;
++		}
++	}
++}
++
++ClipView::ClipProgressRulerChanges ClipView::getClipProgressRulerChanges(ClipProgressRulerInput const& input) const {
++	ClipProgressRulerCache const& cache = clipProgressRulerCache_;
++	if (!input.clip) {
++		return {.structural = cache.owner != nullptr};
++	}
++
++	return {
++	    .structural = cache.owner != this || cache.activeSurface != input.activeSurface || cache.clip != input.clip
++	                  || cache.xScroll != input.xScroll || cache.xZoom != input.xZoom
++	                  || cache.tripletsLevel != input.tripletsLevel
++	                  || cache.quarterNoteLength != input.quarterNoteLength || cache.barLength != input.barLength
++	                  || cache.domain != input.domain || cache.viewportPolicy != input.viewportPolicy,
++	    .length = cache.owner != this || cache.loopLength != input.loopLength
++	              || input.domain == ClipProgressRulerDomain::GROWING_RECORDING,
++	};
++}
++
++ClipView::ClipProgressRulerUpdate ClipView::prepareClipProgressRuler(ClipProgressRulerInput const& input,
++                                                                     ClipProgressRulerChanges changes) {
++	ClipProgressRulerUpdate update{
++	    .transportMoving = input.transportMoving,
++	    .pinToRightEdge = input.pinToRightEdge,
++	};
++	ClipProgressRulerCache& cache = clipProgressRulerCache_;
++	if (!input.clip) {
++		if (cache.owner) {
++			cache.owner = nullptr;
++			cache.clip = nullptr;
++			cache.staticGeometry = {};
++			++cache.staticGeometryRevision;
++		}
++		return update;
++	}
++
++	uint32_t playPosition = 0;
++	if (input.transportMoving && input.domain != ClipProgressRulerDomain::INDETERMINATE_RECORDING) {
++		playPosition = input.recordTarget->getLivePos();
++		if (!input.pinToRightEdge && input.recordTarget != input.clip) {
++			playPosition =
++			    ruler::mapRepeatedPosition(playPosition, input.loopLength, repeatedDirectionForClip(*input.clip));
++		}
++	}
++	const uint32_t effectiveLoopLength = input.domain == ClipProgressRulerDomain::GROWING_RECORDING
++	                                         ? ruler::growingLoopLength(playPosition)
++	                                         : input.loopLength;
++	const bool effectiveLengthChanged = cache.owner != this || cache.loopLength != effectiveLoopLength;
++
++	if (changes.structural) {
++		// Keyboard columns represent notes and controls rather than Clip time, so they must not inherit the timeline
++		// view's selection span.
++		const ruler::Viewport timelineViewport =
++		    input.domain == ClipProgressRulerDomain::INDETERMINATE_RECORDING
++		        ? ruler::Viewport{}
++		        : ruler::Viewport{
++		              .start = getPosFromSquare(0, input.xScroll, input.xZoom),
++		              .end = getPosFromSquare(kDisplayWidth, input.xScroll, input.xZoom),
++		          };
++		cache.viewport = ruler::viewportForPolicy(input.viewportPolicy, timelineViewport);
++	}
++	if (changes.structural || effectiveLengthChanged) {
++		const ruler::StaticGeometry geometry = ruler::calculateStaticGeometry(cache.viewport, effectiveLoopLength,
++		                                                                      input.quarterNoteLength, input.barLength);
++		if (cache.staticGeometry != geometry) {
++			cache.staticGeometry = geometry;
++			++cache.staticGeometryRevision;
++		}
++	}
++
++	cache.owner = this;
++	cache.activeSurface = input.activeSurface;
++	cache.clip = input.clip;
++	cache.xScroll = input.xScroll;
++	cache.xZoom = input.xZoom;
++	cache.tripletsLevel = input.tripletsLevel;
++	cache.loopLength = effectiveLoopLength;
++	cache.quarterNoteLength = input.quarterNoteLength;
++	cache.barLength = input.barLength;
++	cache.domain = input.domain;
++	cache.viewportPolicy = input.viewportPolicy;
++
++	update.movingGeometry = ruler::calculateMovingGeometry(cache.staticGeometry, effectiveLoopLength,
++	                                                       input.transportMoving, playPosition, input.pinToRightEdge);
++	return update;
++}
++
++void ClipView::recordClipProgressRulerDisplay(ClipProgressRulerUpdate const& update, uint32_t mainImageGeneration,
++                                              uint32_t now) {
++	ClipProgressRulerCache& cache = clipProgressRulerCache_;
++	cache.displayed.frame = {
++	    .movingGeometry = update.movingGeometry,
++	    .staticGeometryRevision = cache.staticGeometryRevision,
++	    .mainImageGeneration = mainImageGeneration,
++	};
++	cache.displayed.lastRefreshTime = now;
++	cache.displayed.valid = true;
++	cache.displayed.transportMoving = update.transportMoving;
++	cache.displayed.pinToRightEdge = update.pinToRightEdge;
++}
++
++void ClipView::renderClipProgressRuler(deluge::hid::display::oled_canvas::Canvas& canvas, ClipProgressRulerKind kind,
++                                       UI const* activeSurface, ruler::ViewportPolicy viewportPolicy) {
++	using deluge::hid::display::OLED;
++
++	if (clipProgressRulerSuppressed()) {
++		invalidateClipProgressRuler();
++		return;
++	}
++
++	ClipProgressRulerInput input{};
++	collectClipProgressRulerInput(kind, activeSurface, viewportPolicy, input);
++	ClipProgressRulerCache& cache = clipProgressRulerCache_;
++	const ClipProgressRulerChanges changes = getClipProgressRulerChanges(input);
++	const bool transportChange = !cache.displayed.valid || cache.displayed.transportMoving != input.transportMoving
++	                             || cache.displayed.pinToRightEdge != input.pinToRightEdge;
++	const bool urgent = changes.structural || transportChange || (changes.length && !input.recordingLinearly);
++	const uint32_t now = AudioEngine::audioSampleTimer;
++	const uint32_t mainImageGeneration = OLED::getMainImageGeneration();
++	if (!ruler::fullRenderProjectionDue(cache.displayed, now, kClipProgressRulerRefreshInterval, urgent)) {
++		ruler::render(canvas, cache.staticGeometry, cache.displayed.frame.movingGeometry);
++		cache.displayed.frame.mainImageGeneration = mainImageGeneration;
++		return;
++	}
++
++	ClipProgressRulerUpdate update = prepareClipProgressRuler(input, changes);
++	ruler::render(canvas, cache.staticGeometry, update.movingGeometry);
++	recordClipProgressRulerDisplay(update, mainImageGeneration, now);
++}
++
++void ClipView::refreshClipProgressRuler(ClipProgressRulerKind kind, UI const* activeSurface,
++                                        ruler::ViewportPolicy viewportPolicy) {
++	using deluge::hid::display::OLED;
++
++	if (!display->haveOLED() || clipProgressRulerSuppressed()) {
++		invalidateClipProgressRuler();
++		return;
++	}
++	UI const* expectedSurface = activeSurface ? activeSurface : this;
++	if (getCurrentUI() != expectedSurface) {
++		// Automation delegates its pad-playhead work to the underlying Clip view. That inactive view must not
++		// invalidate the ruler frame owned and refreshed by Automation itself.
++		if (expectedSurface == this && getCurrentUI() == &automationView) {
++			return;
++		}
++		invalidateClipProgressRuler();
++		return;
++	}
++
++	ClipProgressRulerCache& cache = clipProgressRulerCache_;
++	ClipProgressRulerInput input{};
++	collectClipProgressRulerInput(kind, expectedSurface, viewportPolicy, input);
++	const ClipProgressRulerChanges changes = getClipProgressRulerChanges(input);
++	const bool transportChange = !cache.displayed.valid || cache.displayed.transportMoving != input.transportMoving
++	                             || cache.displayed.pinToRightEdge != input.pinToRightEdge;
++	const bool urgent = changes.structural || transportChange || (changes.length && !input.recordingLinearly);
++	const uint32_t now = AudioEngine::audioSampleTimer;
++	const uint32_t mainImageGeneration = OLED::getMainImageGeneration();
++	const bool mainImageReplaced =
++	    cache.displayed.valid && cache.displayed.frame.mainImageGeneration != mainImageGeneration;
++	if (!urgent && !mainImageReplaced
++	    && !ruler::refreshDue(now, cache.displayed.lastRefreshTime, kClipProgressRulerRefreshInterval, false)) {
++		return;
++	}
++
++	ClipProgressRulerUpdate update = prepareClipProgressRuler(input, changes);
++	const ruler::RefreshFrame frame{
++	    .movingGeometry = update.movingGeometry,
++	    .staticGeometryRevision = cache.staticGeometryRevision,
++	    .mainImageGeneration = mainImageGeneration,
++	};
++	const bool topStripCovered = OLED::isPopupPresentOfType(PopupType::NOTIFICATION);
++	const ruler::RefreshDecision decision =
++	    ruler::decideRefresh(cache.displayed, frame, now, kClipProgressRulerRefreshInterval, urgent, topStripCovered);
++	if (decision.checkpointCadence) {
++		cache.displayed.lastRefreshTime = now;
++	}
++	cache.displayed.transportMoving = update.transportMoving;
++	cache.displayed.pinToRightEdge = update.pinToRightEdge;
++	if (!decision.draw) {
++		return;
++	}
++
++	constexpr int32_t top = OLED_MAIN_TOPMOST_PIXEL;
++	OLED::main.clearAreaExact(0, top, OLED_MAIN_WIDTH_PIXELS - 1, top + ruler::kStripHeight - 1);
++	ruler::render(OLED::main, cache.staticGeometry, update.movingGeometry, top);
++	if (decision.markDirty) {
++		OLED::markChanged();
++	}
++	recordClipProgressRulerDisplay(update, mainImageGeneration, now);
+ }
+ 
+ ActionResult ClipView::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
+diff --git a/src/deluge/gui/views/clip_view.h b/src/deluge/gui/views/clip_view.h
+index 356b1bd9d7ed850659c48dd2881d8961a166194c..7cfdb08ab2b174ae125b5364af8595ac48201381 100644
+--- a/src/deluge/gui/views/clip_view.h
++++ b/src/deluge/gui/views/clip_view.h
+@@ -18,10 +18,12 @@
+ #pragma once
+ 
+ #include "gui/views/clip_navigation_timeline_view.h"
++#include "gui/views/clip_progress_ruler.h"
+ #include "hid/button.h"
+ 
+ class Action;
+ class ModControllableAudio;
++class UI;
+ 
+ class ClipView : public ClipNavigationTimelineView {
+ public:
+@@ -36,8 +38,17 @@ public:
+ 	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
+ 
+ protected:
++	enum class ClipProgressRulerKind : uint8_t { INSTRUMENT, AUDIO };
++
+ 	int32_t getTickSquare();
+ 	virtual ModControllableAudio* getModControllableAudioOrNone() { return nullptr; }
++	void renderClipProgressRuler(deluge::hid::display::oled_canvas::Canvas& canvas, ClipProgressRulerKind kind,
++	                             UI const* activeSurface = nullptr,
++	                             deluge::gui::views::clip_progress_ruler::ViewportPolicy viewportPolicy =
++	                                 deluge::gui::views::clip_progress_ruler::ViewportPolicy::TIMELINE);
++	void refreshClipProgressRuler(ClipProgressRulerKind kind, UI const* activeSurface = nullptr,
++	                              deluge::gui::views::clip_progress_ruler::ViewportPolicy viewportPolicy =
++	                                  deluge::gui::views::clip_progress_ruler::ViewportPolicy::TIMELINE);
+ 
+ 	Action* lengthenClip(int32_t newLength);
+ 	Action* shortenClip(int32_t newLength);
+@@ -50,4 +61,22 @@ protected:
+ 	                                  uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea);
+ 	bool renderedShortcutOverview{false};
+ 	bool exitedShortcutOverview{false};
++
++private:
++	struct ClipProgressRulerCache;
++	struct ClipProgressRulerChanges;
++	struct ClipProgressRulerInput;
++	struct ClipProgressRulerUpdate;
++
++	void collectClipProgressRulerInput(ClipProgressRulerKind kind, UI const* activeSurface,
++	                                   deluge::gui::views::clip_progress_ruler::ViewportPolicy viewportPolicy,
++	                                   ClipProgressRulerInput& input);
++	[[nodiscard]] ClipProgressRulerChanges getClipProgressRulerChanges(ClipProgressRulerInput const& input) const;
++	[[nodiscard]] ClipProgressRulerUpdate prepareClipProgressRuler(ClipProgressRulerInput const& input,
++	                                                               ClipProgressRulerChanges changes);
++	void recordClipProgressRulerDisplay(ClipProgressRulerUpdate const& update, uint32_t mainImageGeneration,
++	                                    uint32_t now);
++	void invalidateClipProgressRuler();
++
++	static ClipProgressRulerCache clipProgressRulerCache_;
+ };
+diff --git a/src/deluge/gui/views/instrument_clip_view.cpp b/src/deluge/gui/views/instrument_clip_view.cpp
+index e0770a26c008ca4b2f4a46635ee7414b60ecc28f..cceb30c280dce002cc9fc58f0f69a95a3a809465 100644
+--- a/src/deluge/gui/views/instrument_clip_view.cpp
++++ b/src/deluge/gui/views/instrument_clip_view.cpp
+@@ -103,6 +103,22 @@ using namespace deluge::gui;
+ 
+ PLACE_SDRAM_DATA InstrumentClipView instrumentClipView{};
+ 
++void InstrumentClipView::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
++	InstrumentClipMinder::renderOLED(canvas);
++	renderClipProgressRuler(canvas, ClipProgressRulerKind::INSTRUMENT);
++}
++
++void InstrumentClipView::renderKeyboardClipProgressRuler(deluge::hid::display::oled_canvas::Canvas& canvas,
++                                                         UI const& activeSurface) {
++	renderClipProgressRuler(canvas, ClipProgressRulerKind::INSTRUMENT, &activeSurface,
++	                        deluge::gui::views::clip_progress_ruler::ViewportPolicy::NONE);
++}
++
++void InstrumentClipView::refreshKeyboardClipProgressRuler(UI const& activeSurface) {
++	refreshClipProgressRuler(ClipProgressRulerKind::INSTRUMENT, &activeSurface,
++	                         deluge::gui::views::clip_progress_ruler::ViewportPolicy::NONE);
++}
++
+ InstrumentClipView::InstrumentClipView() : numEditPadPresses(0) {
+ 
+ 	for (auto& edit_pad_pressed : editPadPresses) {
+@@ -717,8 +733,7 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
+ 	// with Shift it pastes onto the held target. Shift + Learn before Audition remains the normal MIDI-unlearn route:
+ 	// once MIDI Learn is active, this handler must leave Learn to it. The first copy is sound-only; a second quick
+ 	// Learn press on the same row deliberately replaces it with a full row copy.
+-	else if (b == LEARN && getCurrentOutputType() == OutputType::KIT
+-	         && !isUIModeActive(UI_MODE_MIDI_LEARN)
++	else if (b == LEARN && getCurrentOutputType() == OutputType::KIT && !isUIModeActive(UI_MODE_MIDI_LEARN)
+ 	         && (oneNoteAuditioning() || currentUIMode == UI_MODE_ADDING_DRUM_NOTEROW)) {
+ 		if (inCardRoutine) {
+ 			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
+@@ -746,8 +761,7 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
+ 				goto passToOthers;
+ 			}
+ 
+-			bool includeNotes = lastKitRowLearnPressTime != 0
+-			                    && lastKitRowLearnYDisplay == lastAuditionedYDisplay
++			bool includeNotes = lastKitRowLearnPressTime != 0 && lastKitRowLearnYDisplay == lastAuditionedYDisplay
+ 			                    && (AudioEngine::audioSampleTimer - lastKitRowLearnPressTime) < kShortPressTime;
+ 			if (includeNotes) {
+ 				lastKitRowLearnPressTime = 0;
+@@ -7431,6 +7445,7 @@ void InstrumentClipView::graphicsRoutine() {
+ 	if (!currentSong) {
+ 		return; // Briefly, if loading a song fails, during the creation of a new blank one, this could happen.
+ 	}
++	refreshClipProgressRuler(ClipProgressRulerKind::INSTRUMENT);
+ 
+ 	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+ 	ModelStackWithTimelineCounter* modelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
+diff --git a/src/deluge/gui/views/instrument_clip_view.h b/src/deluge/gui/views/instrument_clip_view.h
+index e4a2fc01b009c7af82d3691cb39b35f5fb920626..686d6838dad18ebc28ec3c86fd32884050303552 100644
+--- a/src/deluge/gui/views/instrument_clip_view.h
++++ b/src/deluge/gui/views/instrument_clip_view.h
+@@ -235,9 +235,9 @@ public:
+ 	void pasteAutomation(int32_t whichModEncoder, int32_t navSysId = NAVIGATION_CLIP);
+ 	// made these public so they can be accessed by the automation clip view
+ 
+-	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override {
+-		InstrumentClipMinder::renderOLED(canvas);
+-	}
++	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
++	void renderKeyboardClipProgressRuler(deluge::hid::display::oled_canvas::Canvas& canvas, UI const& activeSurface);
++	void refreshKeyboardClipProgressRuler(UI const& activeSurface);
+ 
+ 	CopiedParamAutomation copiedParamAutomation{};
+ 	// Sometimes the user will want to hold an audition pad without actually sounding the note, by holding an encoder
+diff --git a/src/deluge/hid/display/oled.cpp b/src/deluge/hid/display/oled.cpp
+index cf8fe45d0539ddef4f3840b8609de9723d2e5b2c..493037e2e6dbb1c4b605a7ba4916a9c91b168414 100644
+--- a/src/deluge/hid/display/oled.cpp
++++ b/src/deluge/hid/display/oled.cpp
+@@ -59,6 +59,7 @@ oled_canvas::Canvas OLED::popup;
+ oled_canvas::Canvas OLED::console;
+ 
+ bool OLED::needsSending;
++uint32_t OLED::mainImageGeneration;
+ 
+ static int32_t working_animation_count;
+ static bool started_animation;
+@@ -80,6 +81,7 @@ void OLED::clearMainImage() {
+ 	stopBlink();
+ 	stopScrollingAnimation();
+ 	main.clear();
++	++mainImageGeneration;
+ 	markChanged();
+ 	drawnPermanentPopup = false;
+ }
+diff --git a/src/deluge/hid/display/oled.h b/src/deluge/hid/display/oled.h
+index 4daf354d985ff8a285f714a778121b6cbdc538b4..623763922b68c7f2662aa64234e0aece7820f8c2 100644
+--- a/src/deluge/hid/display/oled.h
++++ b/src/deluge/hid/display/oled.h
+@@ -55,6 +55,9 @@ public:
+ 	/// Marks the OLED as dirty, so you don't need to do that later yourself.
+ 	static void clearMainImage();
+ 
++	/// Observe replacement of the whole main canvas without coupling its consumers to individual render call sites.
++	[[nodiscard]] static uint32_t getMainImageGeneration() { return mainImageGeneration; }
++
+ 	static void setupBlink(int32_t minX, int32_t width, int32_t minY, int32_t maxY, bool shouldBlinkImmediately);
+ 	static void stopBlink();
+ 
+@@ -191,6 +194,7 @@ public:
+ 
+ private:
+ 	static bool needsSending;
++	static uint32_t mainImageGeneration;
+ };
+ 
+ } // namespace deluge::hid::display
+diff --git a/tests/spec/oled_clip_progress_ruler_spec.cpp b/tests/spec/oled_clip_progress_ruler_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..649a41bb9f58688f87dfc714fd499ea092a97820
+--- /dev/null
++++ b/tests/spec/oled_clip_progress_ruler_spec.cpp
+@@ -0,0 +1,395 @@
++#include "gui/views/clip_progress_ruler.h"
++
++#include "cppspec.hpp"
++
++#include <array>
++#include <cstdint>
++#include <limits>
++
++namespace ruler = deluge::gui::views::clip_progress_ruler;
++
++namespace {
++
++constexpr ruler::Viewport viewport(int32_t start, int32_t end) {
++	return {.start = start, .end = end};
++}
++
++class RecordingCanvas {
++public:
++	void drawPixel(int32_t x, int32_t y) { setPixel(x, y); }
++
++	void drawHorizontalLine(int32_t y, int32_t startX, int32_t endX) {
++		for (int32_t x = startX; x <= endX; x++) {
++			setPixel(x, y);
++		}
++	}
++
++	void drawVerticalLine(int32_t x, int32_t startY, int32_t endY) {
++		for (int32_t y = startY; y <= endY; y++) {
++			setPixel(x, y);
++		}
++	}
++
++	[[nodiscard]] bool lit(int32_t x, int32_t y) const { return pixels[y][x]; }
++
++	std::array<std::array<bool, OLED_MAIN_WIDTH_PIXELS>, OLED_MAIN_HEIGHT_PIXELS> pixels{};
++	bool outOfBounds{};
++
++private:
++	void setPixel(int32_t x, int32_t y) {
++		if (x < 0 || x >= OLED_MAIN_WIDTH_PIXELS || y < 0 || y >= OLED_MAIN_HEIGHT_PIXELS) {
++			outOfBounds = true;
++			return;
++		}
++		pixels[y][x] = true;
++	}
++};
++
++} // namespace
++
++static_assert(ruler::kStripHeight == 3);
++static_assert(ruler::kMaxMarkCount == 32);
++
++// clang-format off
++describe oled_clip_progress_ruler("OLED Clip progress ruler", $ {
++	it("maps one complete Clip loop across all 128 OLED columns", _ {
++		expect(ruler::loopPositionToX(0, 1024)).to_equal(0);
++		expect(ruler::loopPositionToX(511, 1024)).to_equal(63);
++		expect(ruler::loopPositionToX(512, 1024)).to_equal(64);
++		expect(ruler::loopPositionToX(1023, 1024)).to_equal(127);
++		expect(ruler::loopPositionToX(1024, 1024)).to_equal(-1);
++		expect(ruler::loopPositionToX(0, 0)).to_equal(-1);
++		expect(ruler::loopEndBoundaryToX(1, 1024)).to_equal(0);
++		expect(ruler::loopEndBoundaryToX(1024, 1024)).to_equal(127);
++	});
++
++	it("derives a finite growing-recording domain from the live extent", _ {
++		expect(ruler::growingLoopLength(0)).to_equal(uint32_t{1});
++		expect(ruler::growingLoopLength(767)).to_equal(uint32_t{768});
++		expect(ruler::growingLoopLength(std::numeric_limits<uint32_t>::max()))
++		    .to_equal(std::numeric_limits<uint32_t>::max());
++
++		const uint32_t effectiveLength = ruler::growingLoopLength(767);
++		const auto staticGeometry = ruler::calculateStaticGeometry(viewport(0, 256), effectiveLength, 128, 512);
++		const auto movingGeometry = ruler::calculateMovingGeometry(staticGeometry, effectiveLength, true, 767, true);
++		expect(staticGeometry.selectionEndX).to_equal(uint8_t{42});
++		expect(staticGeometry.markCount).to_equal(uint8_t{6});
++		expect(movingGeometry.playheadX).to_equal(uint8_t{127});
++	});
++
++	it("does not manufacture a static change between identical growing pixels", _ {
++		const auto before = ruler::calculateStaticGeometry(viewport(0, 256), 1000, 128, 512);
++		const auto after = ruler::calculateStaticGeometry(viewport(0, 256), 1001, 128, 512);
++		expect(before == after).to_be_true();
++	});
++
++	it("uses an indeterminate full-width state for a tempoless first loop", _ {
++		const auto staticGeometry = ruler::calculateStaticGeometry({}, 192, 0, 0);
++		const auto movingGeometry = ruler::calculateMovingGeometry(staticGeometry, 192, true, 0, true);
++		expect(staticGeometry.visible).to_be_true();
++		expect(staticGeometry.selectionVisible).to_be_false();
++		expect(staticGeometry.markCount).to_equal(uint8_t{0});
++		expect(movingGeometry.playheadX).to_equal(uint8_t{127});
++
++		RecordingCanvas canvas;
++		ruler::render(canvas, staticGeometry, movingGeometry);
++		expect(canvas.lit(64, OLED_MAIN_TOPMOST_PIXEL)).to_be_true();
++		expect(canvas.lit(64, OLED_MAIN_TOPMOST_PIXEL + 1)).to_be_false();
++		expect(canvas.lit(64, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_false();
++	});
++
++	it("moves only the viewport selection when the pad view scrolls", _ {
++		const auto atStart = ruler::calculateStaticGeometry(viewport(0, 256), 1024, 128, 512);
++		const auto scrolled = ruler::calculateStaticGeometry(viewport(256, 512), 1024, 128, 512);
++		expect(atStart.selectionStartX).to_equal(uint8_t{0});
++		expect(atStart.selectionEndX).to_equal(uint8_t{31});
++		expect(scrolled.selectionStartX).to_equal(uint8_t{32});
++		expect(scrolled.selectionEndX).to_equal(uint8_t{63});
++
++		const auto before = ruler::calculateMovingGeometry(atStart, 1024, true, 768);
++		const auto after = ruler::calculateMovingGeometry(scrolled, 1024, true, 768);
++		expect(before.playheadX).to_equal(uint8_t{96});
++		expect(after.playheadX).to_equal(uint8_t{96});
++		expect(atStart.markCount).to_equal(scrolled.markCount);
++		for (size_t mark = 0; mark < atStart.markCount; mark++) {
++			expect(atStart.marks[mark].x).to_equal(scrolled.marks[mark].x);
++		}
++	});
++
++	it("applies the no-viewport Keyboard policy without losing whole-Clip context", _ {
++		const auto timelineViewport = viewport(256, 512);
++		const auto keyboardViewport = ruler::viewportForPolicy(ruler::ViewportPolicy::NONE, timelineViewport);
++		const auto restoredViewport = ruler::viewportForPolicy(ruler::ViewportPolicy::TIMELINE, timelineViewport);
++		expect(keyboardViewport.valid()).to_be_false();
++		expect(restoredViewport == timelineViewport).to_be_true();
++
++		const auto timeline = ruler::calculateStaticGeometry(restoredViewport, 1024, 128, 512);
++		const auto keyboard = ruler::calculateStaticGeometry(keyboardViewport, 1024, 128, 512);
++		expect(timeline.selectionVisible).to_be_true();
++		expect(keyboard.visible).to_be_true();
++		expect(keyboard.selectionVisible).to_be_false();
++		expect(keyboard.markCount).to_equal(timeline.markCount);
++		for (size_t mark = 0; mark < keyboard.markCount; mark++) {
++			expect(keyboard.marks[mark] == timeline.marks[mark]).to_be_true();
++		}
++
++		const auto timelineMoving = ruler::calculateMovingGeometry(timeline, 1024, true, 768);
++		const auto keyboardMoving = ruler::calculateMovingGeometry(keyboard, 1024, true, 768);
++		expect(keyboardMoving == timelineMoving).to_be_true();
++
++		RecordingCanvas canvas;
++		ruler::render(canvas, keyboard, keyboardMoving);
++		expect(canvas.lit(0, OLED_MAIN_TOPMOST_PIXEL)).to_be_true();
++		expect(canvas.lit(127, OLED_MAIN_TOPMOST_PIXEL)).to_be_true();
++		expect(canvas.lit(16, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_true();
++		for (int32_t y = OLED_MAIN_TOPMOST_PIXEL; y < OLED_MAIN_TOPMOST_PIXEL + ruler::kStripHeight; y++) {
++			expect(canvas.lit(96, y)).to_be_true();
++		}
++	});
++
++	it("changes viewport width with zoom and spans the ruler for the whole Clip", _ {
++		const auto zoomedIn = ruler::calculateStaticGeometry(viewport(0, 128), 1024, 128, 512);
++		const auto zoomedOut = ruler::calculateStaticGeometry(viewport(0, 512), 1024, 128, 512);
++		const auto wholeClip = ruler::calculateStaticGeometry(viewport(0, 1024), 1024, 128, 512);
++		expect(zoomedIn.selectionEndX).to_equal(uint8_t{15});
++		expect(zoomedOut.selectionEndX).to_equal(uint8_t{63});
++		expect(wholeClip.selectionStartX).to_equal(uint8_t{0});
++		expect(wholeClip.selectionEndX).to_equal(uint8_t{127});
++	});
++
++	it("clips the viewport selection at both Clip edges", _ {
++		const auto left = ruler::calculateStaticGeometry(viewport(-128, 256), 1024, 128, 512);
++		const auto right = ruler::calculateStaticGeometry(viewport(768, 1280), 1024, 128, 512);
++		const auto beyond = ruler::calculateStaticGeometry(viewport(1024, 1280), 1024, 128, 512);
++		const auto reversed = ruler::calculateStaticGeometry(viewport(128, 64), 1024, 128, 512);
++		expect(left.selectionVisible).to_be_true();
++		expect(left.selectionStartX).to_equal(uint8_t{0});
++		expect(left.selectionEndX).to_equal(uint8_t{31});
++		expect(right.selectionVisible).to_be_true();
++		expect(right.selectionStartX).to_equal(uint8_t{96});
++		expect(right.selectionEndX).to_equal(uint8_t{127});
++		expect(beyond.selectionVisible).to_be_false();
++		expect(reversed.selectionVisible).to_be_false();
++		expect(beyond.visible).to_be_true();
++	});
++
++	it("keeps a non-empty subpixel viewport selection visible", _ {
++		const auto geometry = ruler::calculateStaticGeometry(viewport(1, 2), 1024, 128, 512);
++		expect(geometry.selectionVisible).to_be_true();
++		expect(geometry.selectionStartX).to_equal(uint8_t{0});
++		expect(geometry.selectionEndX).to_equal(uint8_t{0});
++	});
++
++	it("uses whole-Clip quarter marks and identifies bars", _ {
++		const auto geometry = ruler::calculateStaticGeometry(viewport(256, 512), 1024, 128, 512);
++		expect(geometry.markCount).to_equal(uint8_t{8});
++		for (size_t mark = 0; mark < geometry.markCount; mark++) {
++			expect(geometry.marks[mark].x).to_equal(static_cast<uint8_t>(mark * 16));
++			expect(geometry.marks[mark].isBar).to_equal(mark == 0 || mark == 4);
++		}
++	});
++
++	it("coarsens dense marks by doubling the bar stride", _ {
++		const auto geometry = ruler::calculateStaticGeometry(viewport(0, 128), 128, 1, 1);
++		expect(geometry.markCount).to_equal(uint8_t{32});
++		for (size_t mark = 0; mark < geometry.markCount; mark++) {
++			expect(geometry.marks[mark].x).to_equal(static_cast<uint8_t>(mark * 4));
++			expect(geometry.marks[mark].isBar).to_be_true();
++		}
++	});
++
++	it("keeps mark generation bounded at maximum sequence scale", _ {
++		const auto geometry = ruler::calculateStaticGeometry(viewport(0, 1600000000), 1600000000, 1, 96);
++		expect(geometry.visible).to_be_true();
++		expect(geometry.markCount <= ruler::kMaxMarkCount).to_be_true();
++		for (size_t mark = 1; mark < geometry.markCount; mark++) {
++			expect(geometry.marks[mark].x - geometry.marks[mark - 1].x >= ruler::kMinimumMarkSpacing).to_be_true();
++		}
++	});
++
++	it("shows precise whole-loop play, wrap, reverse motion, and stopped state", _ {
++		const auto staticGeometry = ruler::calculateStaticGeometry(viewport(0, 128), 1024, 128, 512);
++
++		const auto stopped = ruler::calculateMovingGeometry(staticGeometry, 1024, false, 512);
++		expect(stopped.visible).to_be_false();
++
++		const auto start = ruler::calculateMovingGeometry(staticGeometry, 1024, true, 0);
++		const auto middle = ruler::calculateMovingGeometry(staticGeometry, 1024, true, 512);
++		const auto last = ruler::calculateMovingGeometry(staticGeometry, 1024, true, 1023);
++		const auto wrapped = ruler::calculateMovingGeometry(staticGeometry, 1024, true, 1024);
++		expect(start.playheadX).to_equal(uint8_t{0});
++		expect(middle.playheadX).to_equal(uint8_t{64});
++		expect(last.playheadX).to_equal(uint8_t{127});
++		expect(wrapped.playheadX).to_equal(uint8_t{0});
++		expect(last.playheadX > middle.playheadX).to_be_true();
++		const auto reverseStart = ruler::calculateMovingGeometry(staticGeometry, 1024, true, 768);
++		const auto reverseNext = ruler::calculateMovingGeometry(staticGeometry, 1024, true, 512);
++		expect(reverseNext.playheadX < reverseStart.playheadX).to_be_true();
++	});
++
++	it("keeps the playhead visible beyond the pad view", _ {
++		const auto staticGeometry = ruler::calculateStaticGeometry(viewport(0, 128), 1024, 128, 512);
++		const auto beyondView = ruler::calculateMovingGeometry(staticGeometry, 1024, true, 900);
++		expect(beyondView.visible).to_be_true();
++		expect(beyondView.playheadX).to_equal(uint8_t{112});
++	});
++
++	it("maps cloned overdubs for forward, reverse, and Ping-Pong repeats", _ {
++		expect(ruler::mapRepeatedPosition(133, 64, ruler::RepeatedDirection::FORWARD)).to_equal(uint32_t{5});
++		expect(ruler::mapRepeatedPosition(133, 64, ruler::RepeatedDirection::REVERSE)).to_equal(uint32_t{59});
++		expect(ruler::mapRepeatedPosition(69, 64, ruler::RepeatedDirection::PINGPONG)).to_equal(uint32_t{59});
++		expect(ruler::mapRepeatedPosition(133, 64, ruler::RepeatedDirection::PINGPONG)).to_equal(uint32_t{5});
++		expect(ruler::mapRepeatedPosition(64, 64, ruler::RepeatedDirection::REVERSE)).to_equal(uint32_t{0});
++	});
++
++	it("renders progress, selection, marks, caps, and playhead only in the owned strip", _ {
++		const auto staticGeometry = ruler::calculateStaticGeometry(viewport(256, 512), 1024, 128, 512);
++		const auto movingGeometry = ruler::calculateMovingGeometry(staticGeometry, 1024, true, 768);
++		RecordingCanvas canvas;
++		ruler::render(canvas, staticGeometry, movingGeometry);
++
++		expect(canvas.outOfBounds).to_be_false();
++		for (int32_t y = 0; y < OLED_MAIN_HEIGHT_PIXELS; y++) {
++			for (int32_t x = 0; x < OLED_MAIN_WIDTH_PIXELS; x++) {
++				if (canvas.lit(x, y)) {
++					expect(y >= OLED_MAIN_TOPMOST_PIXEL && y <= OLED_MAIN_TOPMOST_PIXEL + 2).to_be_true();
++				}
++			}
++		}
++		expect(canvas.lit(96, OLED_MAIN_TOPMOST_PIXEL)).to_be_true();
++		expect(canvas.lit(40, OLED_MAIN_TOPMOST_PIXEL + 1)).to_be_true();
++		expect(canvas.lit(64, OLED_MAIN_TOPMOST_PIXEL + 1)).to_be_false();
++		expect(canvas.lit(16, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_true();
++		expect(canvas.lit(17, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_false();
++		expect(canvas.lit(64, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_true();
++		expect(canvas.lit(65, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_true();
++		for (int32_t y = OLED_MAIN_TOPMOST_PIXEL; y < OLED_MAIN_TOPMOST_PIXEL + ruler::kStripHeight; y++) {
++			expect(canvas.lit(96, y)).to_be_true();
++		}
++	});
++
++	it("shifts a right-edge bar inward to keep it two pixels wide", _ {
++		const auto staticGeometry = ruler::calculateStaticGeometry({}, 129, 128, 128);
++		expect(staticGeometry.markCount).to_equal(uint8_t{2});
++		expect(staticGeometry.marks[1].x).to_equal(uint8_t{127});
++		expect(staticGeometry.marks[1].isBar).to_be_true();
++
++		RecordingCanvas canvas;
++		ruler::render(canvas, staticGeometry, {});
++		expect(canvas.lit(125, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_false();
++		expect(canvas.lit(126, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_true();
++		expect(canvas.lit(127, OLED_MAIN_TOPMOST_PIXEL + 2)).to_be_true();
++	});
++
++	it("keeps the viewport selection while stopped and omits moving progress", _ {
++		const auto staticGeometry = ruler::calculateStaticGeometry(viewport(256, 512), 1024, 128, 512);
++		RecordingCanvas canvas;
++		ruler::render(canvas, staticGeometry, {});
++
++		expect(canvas.lit(0, OLED_MAIN_TOPMOST_PIXEL)).to_be_true();
++		expect(canvas.lit(127, OLED_MAIN_TOPMOST_PIXEL)).to_be_true();
++		expect(canvas.lit(40, OLED_MAIN_TOPMOST_PIXEL)).to_be_false();
++		expect(canvas.lit(40, OLED_MAIN_TOPMOST_PIXEL + 1)).to_be_true();
++	});
++
++	it("skips an unchanged cached frame even after its refresh interval", _ {
++		const ruler::RefreshState displayed{
++			.frame = {.movingGeometry = {.visible = true, .playheadX = 24}, .staticGeometryRevision = 3, .mainImageGeneration = 7},
++			.lastRefreshTime = 100,
++			.valid = true,
++		};
++		const auto decision = ruler::decideRefresh(displayed, displayed.frame, 2305, 2205, false, false);
++		expect(decision.draw).to_be_false();
++		expect(decision.markDirty).to_be_false();
++		expect(decision.checkpointCadence).to_be_true();
++
++		auto refreshed = displayed;
++		refreshed.lastRefreshTime = 2305;
++		auto moving = displayed.frame;
++		moving.movingGeometry.playheadX++;
++		const auto nextCallback = ruler::decideRefresh(refreshed, moving, 2966, 2205, false, false);
++		expect(nextCallback.draw).to_be_false();
++		expect(nextCallback.markDirty).to_be_false();
++		expect(nextCallback.checkpointCadence).to_be_false();
++	});
++
++	it("rate-limits a moving frame until exactly 2205 samples", _ {
++		const ruler::RefreshState displayed{
++			.frame = {.movingGeometry = {.visible = true, .playheadX = 24}, .staticGeometryRevision = 3, .mainImageGeneration = 7},
++			.lastRefreshTime = 100,
++			.valid = true,
++		};
++		auto current = displayed.frame;
++		current.movingGeometry.playheadX = 25;
++
++		const auto early = ruler::decideRefresh(displayed, current, 2304, 2205, false, false);
++		expect(early.draw).to_be_false();
++		expect(early.markDirty).to_be_false();
++		const auto due = ruler::decideRefresh(displayed, current, 2305, 2205, false, false);
++		expect(due.draw).to_be_true();
++		expect(due.markDirty).to_be_true();
++	});
++
++	it("reuses a cached frame for repeated full renders inside the cadence", _ {
++		const ruler::RefreshState displayed{
++			.frame = {.movingGeometry = {.visible = true, .playheadX = 24}, .staticGeometryRevision = 3, .mainImageGeneration = 7},
++			.lastRefreshTime = 100,
++			.valid = true,
++			.transportMoving = true,
++			.pinToRightEdge = true,
++		};
++		expect(ruler::fullRenderProjectionDue(displayed, 101, 2205, false)).to_be_false();
++		expect(ruler::fullRenderProjectionDue(displayed, 2304, 2205, false)).to_be_false();
++		expect(ruler::fullRenderProjectionDue(displayed, 2305, 2205, false)).to_be_true();
++		expect(ruler::fullRenderProjectionDue(displayed, 101, 2205, true)).to_be_true();
++		expect(ruler::fullRenderProjectionDue({}, 101, 2205, false)).to_be_true();
++	});
++
++	it("draws urgent static and main-canvas replacements immediately", _ {
++		const ruler::RefreshState displayed{
++			.frame = {.movingGeometry = {}, .staticGeometryRevision = 3, .mainImageGeneration = 7},
++			.lastRefreshTime = 100,
++			.valid = true,
++		};
++		auto staticChange = displayed.frame;
++		staticChange.staticGeometryRevision++;
++		const auto urgent = ruler::decideRefresh(displayed, staticChange, 101, 2205, true, false);
++		expect(urgent.draw).to_be_true();
++		expect(urgent.markDirty).to_be_true();
++
++		auto replacement = displayed.frame;
++		replacement.mainImageGeneration++;
++		const auto replaced = ruler::decideRefresh(displayed, replacement, 101, 2205, false, false);
++		expect(replaced.draw).to_be_true();
++		expect(replaced.markDirty).to_be_true();
++	});
++
++	it("keeps a notification underlay current without requesting a hidden send", _ {
++		const ruler::RefreshState displayed{
++			.frame = {.movingGeometry = {.visible = true, .playheadX = 24}, .staticGeometryRevision = 3, .mainImageGeneration = 7},
++			.lastRefreshTime = 100,
++			.valid = true,
++		};
++		auto current = displayed.frame;
++		current.movingGeometry.playheadX = 25;
++		const auto decision = ruler::decideRefresh(displayed, current, 2305, 2205, false, true);
++		expect(decision.draw).to_be_true();
++		expect(decision.markDirty).to_be_false();
++	});
++
++	it("keeps the draw decision correct across the uint32 sample-timer wrap", _ {
++		const ruler::RefreshState displayed{
++			.frame = {.movingGeometry = {.visible = true, .playheadX = 24}, .staticGeometryRevision = 3, .mainImageGeneration = 7},
++			.lastRefreshTime = std::numeric_limits<uint32_t>::max() - 2000,
++			.valid = true,
++		};
++		auto current = displayed.frame;
++		current.movingGeometry.playheadX = 25;
++		const auto decision = ruler::decideRefresh(displayed, current, 204, 2205, false, false);
++		expect(decision.draw).to_be_true();
++		expect(decision.markDirty).to_be_true();
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(oled_clip_progress_ruler)

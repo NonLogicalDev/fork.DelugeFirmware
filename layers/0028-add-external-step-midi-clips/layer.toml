@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add external step MIDI Clips\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

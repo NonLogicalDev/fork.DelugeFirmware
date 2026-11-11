@@ -1,0 +1,4277 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 950312abc5e3e9c10a92ab1840f4ff0e7ee1ac1a..dd56c32c269cdcbe0b6b892be67b34e7e27172cc 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -5,7 +5,7 @@ set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/CMakeToolchainD
+ 
+ project(Deluge
+     LANGUAGES CXX C ASM
+-    VERSION 1.3.0
++    VERSION 1.3.1
+ )
+ include(FetchContent)
+ include(ProcessorCount)
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 61dda6ad2c9a3cafa257f8a7aa246cda4822f13f..5fadde74337d476a4ba3b569e2722d5f1c16ab8e 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -4,7 +4,7 @@
+ 
+ This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
+ 
+-The local stack currently contains twenty-one deviations:
++The local stack currently contains twenty-three deviations:
+ 
+ 1. Normalize the Korg MIDI-definition directory casing.
+ 2. Provide a reproducible Apple Silicon Nix build environment.
+@@ -27,6 +27,8 @@ The local stack currently contains twenty-one deviations:
+ 19. Audition the exact Kit row being edited in Waveform Editor.
+ 20. Make Audio Clip Start editing reversible from Audio Clip View.
+ 21. Make Waveform Editor entry and bound selection explicit.
++22. Add selectable velocity profiles to Velocity Drums.
++23. Let Session MIDI-Out Clips advance from independent external steps.
+ 
+ No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
+ 
+@@ -697,6 +699,61 @@ Let a player keep large Velocity Drums hit areas while choosing how many distinc
+ - Format every affected source, compile the changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete a local Release firmware build.
+ - On a physical Deluge, check every profile and zoom, four-quadrant orientation, two-region orientation, fixed-value limits, accelerated turns, OLED and seven-segment feedback, held notes, retriggering, scroll, zoom, color editing, Load chords, layout changes while Scale is held, and save and reload. Physical verification remains human-controlled and does not authorize flashing.
+ 
++## 23. Externally stepped MIDI Clips
++
++### Intent
++
++Let the Deluge act as several independent MIDI step sequencers for modular software such as VCV Rack. Each eligible Clip follows its own learned external Step and Reset controls instead of deriving its position from the Song tempo.
++
++### Required behavior
++
++- Community Features contains an External Step MIDI Clips setting that defaults to Off.
++- A Session MIDI-Out Clip exposes a Clock setting with Song and External Step modes. External Step remains a clock mode of the existing MIDI Clip rather than another Output type.
++- Existing and newly created MIDI Clips remain in Song mode unless the player deliberately selects External Step while the Community Feature is On.
++- A persisted External Step Clip retains access to its Clock settings while the Community Feature is Off so the player can return it to Song mode. The Clip remains stopped until then and never falls back to Song timing.
++- External Step provides separate learned Step and Reset controls. Each control identifies one exact connected MIDI input, raw physical MIDI channel, message type, and number. Raw channel matching remains exact when the input port is configured for MPE; MPE zones do not widen or translate the binding. Supported message types are Note, Control Change, and Program Change.
++- A valid Step control is required before the Clip can advance. Reset is optional and evaluated independently of Step assignment, connection, conflict, and Clip timing eligibility. An unassigned, missing, invalid, or conflicting Reset disables only Reset and does not block an otherwise eligible Step. A valid nonduplicate Reset remains usable when Step is invalid.
++- For a Note control, one positive-velocity Note On creates an edge and later Note On messages do nothing until Note Off or a velocity-zero Note On rearms it. For a Control Change control, crossing from values 0 through 63 into 64 through 127 creates an edge and later high values do nothing until a value below 64 rearms it. Every matching Program Change creates one edge.
++- A Clip cannot assign the same exact control to both Step and Reset. The same Step or Reset control may be shared by several Clips. One shared Step edge advances each eligible matching Clip once, and one shared Reset edge resets each active matching External Step Clip with a valid Reset once, even when that Clip's Step is invalid.
++- When one message is Reset for some Clips and Step for others, every matching Reset occurs before any matching Step.
++- Active MIDI Learn always receives a prospective binding first and learning a control never invokes it. Existing global, section, Clip, Kit-row, and parameter mappings retain priority. A conflicting External Step control remains saved but inactive. A Step conflict makes Step unavailable; an optional Reset conflict disables and reports Conflict only for Reset while Step remains governed by its own status.
++- Whenever a higher-priority mapping changes a Step or Reset binding into or out of Conflict, that binding's held Note or Control Change state rearms. Program Change has no held state and remains one edge per matching message. A newly conflicting Step cuts the Clip's owned notes once while preserving phase; repeated conflict checks do not repeat the cut.
++- While the feature owns a valid active binding, its matching Note, Control Change, or Program Change messages do not audition a sound, record notes or automation, enter MIDI Follow, control an Output, or pass through MIDI Thru.
++- Global Play enables External Step advancement but the Song clock never moves an External Step Clip. Launching or relaunching the Clip places it before step zero and shows that it is waiting.
++- The first accepted Step edge after launch, Stop, or Reset emits the events at Clip position zero exactly once without first advancing. Each later accepted Step edge advances by exactly the selected step.
++- Reset works while transport is running or stopped and does not depend on Step validity. It cuts notes owned by the Clip, returns the Clip to the position immediately before step zero, clears cadence state, and emits no step-boundary note-on or automation. It does not rearm a held Note or Control Change; that control still needs its defined release or low value. The next accepted running Step emits position zero.
++- Clip stop, mute, replacement, MIDI-Out reassignment, and feature disable cut notes owned by the Clip, rearm its Note and Control Change controls, and return it to launch state. Global Stop and leaving Session apply that cleanup to every configured External Step Clip, active or inactive. Cleanup emits no step-boundary note-on or automation; a note-off needed to cut an owned note is the only permitted MIDI output.
++- Panic cuts owned notes and clock-loss state while preserving the current phase and held-edge state. The next Step after Panic continues from that frozen phase unless the Clip is also stopped or reset.
++- Supported step sizes are one quarter, one eighth, one sixteenth, and one thirty-second note. The saved size is independent of pad zoom and defaults to one sixteenth when absent or invalid.
++- The first version supports forward Session MIDI-Out Clips whose master loop length is evenly divisible by the selected step. Changing Clip direction to Reverse or Ping-Pong, or giving a NoteRow independent length or direction, immediately cuts owned notes, rearms Step and Reset Note or Control Change state, and returns the Clip to pre-step-zero. The Clip then remains visibly unsupported and inactive. Restoring supported timing also remains at pre-step-zero and cannot sound through ordinary Song resume behavior. This safety cleanup never moves, quantizes, or otherwise rewrites stored notes; only the player's requested timing edit keeps its established effect.
++- Notes and stepped MIDI Control Change automation execute only on pulse boundaries. An off-grid event waits until the first boundary at or after its stored position and remains unmodified in the project. A note shorter than one pulse lasts one pulse.
++- All due note-offs occur before any note-ons at a boundary. When several starts in one NoteRow collapse onto one boundary, only the latest stored start before that boundary emits; the earlier starts remain saved.
++- Probability and iterance retain their established decisions at the emitted boundary. Smooth automation, swing between pulses, arpeggiators, MPE timing, and other sub-pulse behavior are not part of this mode.
++- A stable-clock watchdog qualifies only after three consecutive intervals from 25 milliseconds through 4 seconds remain within 25 percent of their median. Four missed median intervals cut owned notes and show Waiting without changing phase. Slower or irregular controls continue stepping but do not establish automatic clock-loss timing.
++- The next Step after qualified clock loss continues from the frozen phase. A disconnected input clears held-edge state and cuts owned notes only when that exact input has no remaining connection.
++- Clip mode, step size, Step binding, and Reset binding survive save, load, and Clip duplication. Transient held-edge, phase, cadence, and pending note-off state never persist or copy.
++- Missing or invalid fields recover independently. Missing mode means Song, missing size means one sixteenth, invalid Step keeps External Step visibly inactive, and invalid or missing Reset remains unassigned.
++- Assigning or loading the Clip with an internal Synth, Kit, or CV output demotes its Clock mode to Song before normal playback. A valid MIDI-Out assignment retains External Step mode and its saved bindings. No non-MIDI Clip may retain a hidden active External Step mode.
++- A Song containing any External Step Clip records the exact local compatibility sentinel `nl-save-schema-1`, even while the feature is Off or its input is unavailable. Schema-1 firmware accepts local schema 0 and 1, rejects future, malformed, or empty local schema sentinels, and otherwise preserves ordinary official and Community version comparison. Older P45 files guarded with `c1.3.1` remain loadable and resave with schema 1. Unsupported firmware refuses the guarded Song instead of silently loading the Clip on the Song clock. The stronger requirement is removed only after every External Step Clip returns to Song mode.
++
++### Compatibility and boundaries
++
++- Preserve ordinary Song-clocked MIDI Clips, their editing, output channel, note and Control Change transmission, launch behavior, probability, iterance, automation, save data, and display behavior.
++- Preserve the established meanings and priority of MIDI Learn, global commands, section and Clip commands, Kit-row mute controls, parameter mappings, MIDI Follow, instrument input, recording, and MIDI Thru whenever no active valid External Step binding owns the message.
++- Do not apply External Step to Audio, internal Synth, Kit, CV, or Arrangement Clips. Do not add another standard MIDI Clock domain, Song Position Pointer, external Start or Stop ownership, MIDI clock output, linear recording, overdub recording, smooth automation, swing, arpeggiators, sample synchronization, or MPE timing.
++- Pulse handling, timeout service, Reset, Stop, and cleanup perform no heap allocation, storage access, sample access, or work in the shared Song next-event scheduler.
++- A disabled feature does not consume configured controls. Arrangement playback does not advance Session External Step Clips.
++- This deviation is local-only and does not authorize firmware flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- Focused checks cover exact device, raw physical channel including MPE-configured ports, type, and number matching; Note and Control Change edge rearming; Program Change edges; independent and shared Step and Reset controls; Reset independence from Step validity; Reset-before-Step ordering; stopped-transport Reset; first step at zero; later steps; loop wrap; off-grid starts; short notes; note-off ordering; collapsed starts; probability; iterance; stepped automation; qualified timeout; irregular clocks; disconnect; feature disable; Step and Reset conflicts; invalid data; and save and load defaults.
++- State-transition checks cover conflict entry and exit rearming, one cut on a newly conflicting Step, all configured Clips on Stop and Session exit, non-MIDI output demotion, and unsupported timing edits without an ordinary resume or any extra stored-note rewrite from the safety cleanup.
++- Review confirms that every Song tick, resync, launch, live-position, arpeggiator, and shared next-event path excludes External Step Clips; matching controls cannot leak into ordinary MIDI handling; no pulse path allocates or accesses storage; and Stop, Reset, timeout, feature disable, disconnect, conflict transitions, timing edits, and Panic cannot leave an owned note sounding.
++- Compatibility checks cover schema 0 and 1 acceptance, future and malformed schema refusal, unchanged ordinary-version comparison, and Songs saved with and without External Step Clips. Current firmware reloads both, an unsupported Community build refuses only the guarded Song, converting every affected Clip to Song removes the stronger compatibility requirement, and an older P45 `c1.3.1` file loads and resaves with schema 1.
++- Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
++- On a physical Deluge connected to VCV Rack, check Note, Control Change, and Program Change Step and Reset controls; independent and shared clocks; first step, wrap, Reset, Stop, Panic, clock loss, reconnect, Clip switching, UI feedback, save and reload, and ordinary Song Clips. Physical verification remains human-controlled and does not authorize flashing or installation.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
+index da1fdec8f4f63d59bd54ccff17063456efd28295..53040fdd10ccfe8737892014baca5f56a8b94b78 100644
+--- a/src/deluge/gui/l10n/english.json
++++ b/src/deluge/gui/l10n/english.json
+@@ -1001,6 +1001,18 @@
+     "STRING_FOR_FAVOURITES_EMPTY": "Empty",
+     "STRING_FOR_DEFAULT_HORIZONTAL_MENU": "Horizontal Menu",
+     "STRING_FOR_CHORD_KEYBOARD_MODE_ROW": "Chord Row Mode",
+-    "STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN": "Chord Column Mode"
++    "STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN": "Chord Column Mode",
++    "STRING_FOR_COMMUNITY_FEATURE_EXTERNAL_STEP_MIDI_CLIPS": "External Step MIDI Clips",
++    "STRING_FOR_EXTERNAL_STEP": "External Step",
++    "STRING_FOR_EXTERNAL_STEP_SIZE": "Step Size",
++    "STRING_FOR_EXTERNAL_STEP_INPUT": "Step Input",
++    "STRING_FOR_EXTERNAL_RESET_INPUT": "Reset Input",
++    "STRING_FOR_EXTERNAL_STEP_STATUS": "Status",
++    "STRING_FOR_EXTERNAL_STEP_WAITING": "Waiting",
++    "STRING_FOR_EXTERNAL_STEP_MISSING_INPUT": "Missing Input",
++    "STRING_FOR_EXTERNAL_STEP_CONFLICT": "Conflict",
++    "STRING_FOR_EXTERNAL_STEP_UNASSIGNED": "Unassigned",
++    "STRING_FOR_EXTERNAL_STEP_UNSUPPORTED": "Unsupported",
++    "STRING_FOR_EXTERNAL_STEP_READY": "Ready"
+   }
+ }
+diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
+index 6fb84d1111cdc6472b3f2d33da06e4031240b254..1924db299b7c55359c13c05947e0b9023fe52153 100644
+--- a/src/deluge/gui/l10n/g_english.cpp
++++ b/src/deluge/gui/l10n/g_english.cpp
+@@ -1015,6 +1015,18 @@ PLACE_SDRAM_DATA Language english{
+         {STRING_FOR_DEFAULT_HORIZONTAL_MENU, "Horizontal Menu"},
+         {STRING_FOR_CHORD_KEYBOARD_MODE_ROW, "Chord Row Mode"},
+         {STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN, "Chord Column Mode"},
++        {STRING_FOR_COMMUNITY_FEATURE_EXTERNAL_STEP_MIDI_CLIPS, "External Step MIDI Clips"},
++        {STRING_FOR_EXTERNAL_STEP, "External Step"},
++        {STRING_FOR_EXTERNAL_STEP_SIZE, "Step Size"},
++        {STRING_FOR_EXTERNAL_STEP_INPUT, "Step Input"},
++        {STRING_FOR_EXTERNAL_RESET_INPUT, "Reset Input"},
++        {STRING_FOR_EXTERNAL_STEP_STATUS, "Status"},
++        {STRING_FOR_EXTERNAL_STEP_WAITING, "Waiting"},
++        {STRING_FOR_EXTERNAL_STEP_MISSING_INPUT, "Missing Input"},
++        {STRING_FOR_EXTERNAL_STEP_CONFLICT, "Conflict"},
++        {STRING_FOR_EXTERNAL_STEP_UNASSIGNED, "Unassigned"},
++        {STRING_FOR_EXTERNAL_STEP_UNSUPPORTED, "Unsupported"},
++        {STRING_FOR_EXTERNAL_STEP_READY, "Ready"},
+     },
+ };
+ } // namespace deluge::l10n::built_in
+diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
+index 678e14a83da0ee717e858e4281529a06de609cf1..c3525ef84b81e50c245f2cb9eac464cbfd8b5be7 100644
+--- a/src/deluge/gui/l10n/g_seven_segment.cpp
++++ b/src/deluge/gui/l10n/g_seven_segment.cpp
+@@ -566,6 +566,18 @@ PLACE_SDRAM_DATA Language seven_segment{
+         {STRING_FOR_DEFAULT_USE_LAST_CLIP_TYPE, "LAST"},
+         {STRING_FOR_FAVOURITES_EMPTY, "NONE"},
+         {STRING_FOR_DEFAULT_HORIZONTAL_MENU, "HORZ"},
++        {STRING_FOR_COMMUNITY_FEATURE_EXTERNAL_STEP_MIDI_CLIPS, "XSTP"},
++        {STRING_FOR_EXTERNAL_STEP, "XSTP"},
++        {STRING_FOR_EXTERNAL_STEP_SIZE, "SIZE"},
++        {STRING_FOR_EXTERNAL_STEP_INPUT, "STEP"},
++        {STRING_FOR_EXTERNAL_RESET_INPUT, "RSET"},
++        {STRING_FOR_EXTERNAL_STEP_STATUS, "STAT"},
++        {STRING_FOR_EXTERNAL_STEP_WAITING, "WAIT"},
++        {STRING_FOR_EXTERNAL_STEP_MISSING_INPUT, "MISS"},
++        {STRING_FOR_EXTERNAL_STEP_CONFLICT, "CONF"},
++        {STRING_FOR_EXTERNAL_STEP_UNASSIGNED, "NONE"},
++        {STRING_FOR_EXTERNAL_STEP_UNSUPPORTED, "UNSP"},
++        {STRING_FOR_EXTERNAL_STEP_READY, "RDY"},
+     },
+     &built_in::english,
+ };
+diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
+index e861ec21057b7d9824f0238a9f5cc4e4534d9f01..1809ac6fe019d1832ba057f9a3e184166aadaee1 100644
+--- a/src/deluge/gui/l10n/seven_segment.json
++++ b/src/deluge/gui/l10n/seven_segment.json
+@@ -609,6 +609,19 @@
+ 
+         "STRING_FOR_FAVOURITES_EMPTY": "NONE",
+ 
+-        "STRING_FOR_DEFAULT_HORIZONTAL_MENU": "HORZ"
++        "STRING_FOR_DEFAULT_HORIZONTAL_MENU": "HORZ",
++
++        "STRING_FOR_COMMUNITY_FEATURE_EXTERNAL_STEP_MIDI_CLIPS": "XSTP",
++        "STRING_FOR_EXTERNAL_STEP": "XSTP",
++        "STRING_FOR_EXTERNAL_STEP_SIZE": "SIZE",
++        "STRING_FOR_EXTERNAL_STEP_INPUT": "STEP",
++        "STRING_FOR_EXTERNAL_RESET_INPUT": "RSET",
++        "STRING_FOR_EXTERNAL_STEP_STATUS": "STAT",
++        "STRING_FOR_EXTERNAL_STEP_WAITING": "WAIT",
++        "STRING_FOR_EXTERNAL_STEP_MISSING_INPUT": "MISS",
++        "STRING_FOR_EXTERNAL_STEP_CONFLICT": "CONF",
++        "STRING_FOR_EXTERNAL_STEP_UNASSIGNED": "NONE",
++        "STRING_FOR_EXTERNAL_STEP_UNSUPPORTED": "UNSP",
++        "STRING_FOR_EXTERNAL_STEP_READY": "RDY"
+     }
+ }
+diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
+index a781a7ab1eeccdf9d655c7174e34b8a663d250d7..63b080773de4ffea9d52a237cd13239c24551fd0 100644
+--- a/src/deluge/gui/l10n/strings.h
++++ b/src/deluge/gui/l10n/strings.h
+@@ -1147,6 +1147,20 @@ enum class String : size_t {
+ 	STRING_FOR_CHORD_KEYBOARD_MODE_ROW,
+ 	STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN,
+ 
++	// strings for externally stepped MIDI Clips
++	STRING_FOR_COMMUNITY_FEATURE_EXTERNAL_STEP_MIDI_CLIPS,
++	STRING_FOR_EXTERNAL_STEP,
++	STRING_FOR_EXTERNAL_STEP_SIZE,
++	STRING_FOR_EXTERNAL_STEP_INPUT,
++	STRING_FOR_EXTERNAL_RESET_INPUT,
++	STRING_FOR_EXTERNAL_STEP_STATUS,
++	STRING_FOR_EXTERNAL_STEP_WAITING,
++	STRING_FOR_EXTERNAL_STEP_MISSING_INPUT,
++	STRING_FOR_EXTERNAL_STEP_CONFLICT,
++	STRING_FOR_EXTERNAL_STEP_UNASSIGNED,
++	STRING_FOR_EXTERNAL_STEP_UNSUPPORTED,
++	STRING_FOR_EXTERNAL_STEP_READY,
++
+ 	STRING_LAST
+ };
+ 
+diff --git a/src/deluge/gui/menu_item/menu_item.h b/src/deluge/gui/menu_item/menu_item.h
+index e8aae7b2545039f053ce721f8024fc94788d225b..2bcc63459f6644d12b73c4102489a227d727bef8 100644
+--- a/src/deluge/gui/menu_item/menu_item.h
++++ b/src/deluge/gui/menu_item/menu_item.h
+@@ -181,6 +181,8 @@ public:
+ 
+ 	/// Used by SoundEditor to determine if the current menu item can accept MIDI learning.
+ 	virtual bool allowsLearnMode() { return false; }
++	/// Use the incoming physical MIDI channel instead of converting MPE member channels to their zone while learning.
++	virtual bool midiLearnUsesPhysicalChannel() { return false; }
+ 	/// @brief Attempt to bind this menu item to a note code.
+ 	///
+ 	/// @return True if the learn succeeded and the feature controlled by this menu item will now be bound to a MIDI
+diff --git a/src/deluge/gui/menu_item/midi/external_step.cpp b/src/deluge/gui/menu_item/midi/external_step.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..62a651387b7fc8d38c2eed97803cfb39b5c388a8
+--- /dev/null
++++ b/src/deluge/gui/menu_item/midi/external_step.cpp
+@@ -0,0 +1,359 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ */
++
++#include "gui/menu_item/midi/external_step.h"
++
++#include "gui/l10n/l10n.h"
++#include "gui/ui/sound_editor.h"
++#include "hid/display/display.h"
++#include "hid/display/oled.h"
++#include "io/midi/midi_device.h"
++#include "model/clip/instrument_clip.h"
++#include "model/model_stack.h"
++#include "model/output.h"
++#include "model/settings/runtime_feature_settings.h"
++#include "model/song/song.h"
++#include "playback/playback_handler.h"
++#include "util/cfunctions.h"
++
++namespace deluge::gui::menu_item::midi::external_step {
++namespace {
++
++[[nodiscard]] InstrumentClip* currentClip() {
++	return getCurrentInstrumentClip();
++}
++
++[[nodiscard]] bool isSessionMidiOut(const InstrumentClip* clip) {
++	return clip && clip->section != 255 && clip->output && clip->output->type == OutputType::MIDI_OUT;
++}
++
++[[nodiscard]] bool externalSettingsAreRelevant() {
++	InstrumentClip* clip = currentClip();
++	return isSessionMidiOut(clip) && clip->isExternalStepMode();
++}
++
++[[nodiscard]] deluge::midi::ExternalStepMIDIInput& inputForRole(InstrumentClip& clip, InputRole role) {
++	return role == InputRole::STEP ? clip.externalStepInput : clip.externalResetInput;
++}
++
++[[nodiscard]] const deluge::midi::ExternalStepMIDIInput& otherInputForRole(const InstrumentClip& clip, InputRole role) {
++	return role == InputRole::STEP ? clip.externalResetInput : clip.externalStepInput;
++}
++
++[[nodiscard]] ModelStackWithTimelineCounter* modelStackFor(InstrumentClip* clip, void* memory) {
++	return setupModelStackWithTimelineCounter(memory, currentSong, clip);
++}
++
++void displayAssignmentError(l10n::String error) {
++	display->displayPopup(l10n::get(error));
++}
++
++[[nodiscard]] l10n::String statusString(deluge::external_step::Status status) {
++	using enum StatusLabel;
++	using enum l10n::String;
++	switch (statusLabel(status)) {
++	case SONG:
++		return STRING_FOR_SONG;
++	case OFF:
++		return STRING_FOR_OFF;
++	case UNASSIGNED:
++		return STRING_FOR_EXTERNAL_STEP_UNASSIGNED;
++	case MISSING_INPUT:
++		return STRING_FOR_EXTERNAL_STEP_MISSING_INPUT;
++	case CONFLICT:
++		return STRING_FOR_EXTERNAL_STEP_CONFLICT;
++	case UNSUPPORTED:
++		return STRING_FOR_EXTERNAL_STEP_UNSUPPORTED;
++	case WAITING:
++		return STRING_FOR_EXTERNAL_STEP_WAITING;
++	case READY:
++		return STRING_FOR_EXTERNAL_STEP_READY;
++	}
++	return STRING_FOR_EXTERNAL_STEP_UNSUPPORTED;
++}
++
++} // namespace
++
++bool Clock::isRelevant(ModControllableAudio*, int32_t) const {
++	InstrumentClip* clip = currentClip();
++	return shouldShowClockMenu(isSessionMidiOut(clip),
++	                           runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips),
++	                           clip && clip->isExternalStepMode());
++}
++
++void Mode::readCurrentValue() {
++	InstrumentClip* clip = currentClip();
++	setValue(clip ? clip->externalStepClockMode : deluge::external_step::ClockMode::SONG);
++}
++
++void Mode::writeCurrentValue() {
++	InstrumentClip* clip = currentClip();
++	if (!isSessionMidiOut(clip)) {
++		return;
++	}
++
++	auto mode = getValue<deluge::external_step::ClockMode>();
++	if (mode == deluge::external_step::ClockMode::EXTERNAL_STEP
++	    && !runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)) {
++		setValue(deluge::external_step::ClockMode::SONG);
++		displayAssignmentError(l10n::String::STRING_FOR_OFF);
++		return;
++	}
++
++	char modelStackMemory[MODEL_STACK_MAX_SIZE];
++	clip->setExternalStepClockMode(mode, modelStackFor(clip, modelStackMemory));
++}
++
++deluge::vector<std::string_view> Mode::getOptions(OptType) {
++	return {
++	    l10n::getView(l10n::String::STRING_FOR_SONG),
++	    l10n::getView(l10n::String::STRING_FOR_EXTERNAL_STEP),
++	};
++}
++
++void Size::readCurrentValue() {
++	InstrumentClip* clip = currentClip();
++	setValue(clip ? clip->externalStepSize : deluge::external_step::StepSize::SIXTEENTH);
++}
++
++void Size::writeCurrentValue() {
++	InstrumentClip* clip = currentClip();
++	if (!externalSettingsAreRelevant()) {
++		return;
++	}
++
++	char modelStackMemory[MODEL_STACK_MAX_SIZE];
++	clip->setExternalStepSize(getValue<deluge::external_step::StepSize>(), modelStackFor(clip, modelStackMemory));
++}
++
++deluge::vector<std::string_view> Size::getOptions(OptType) {
++	return {"1/4", "1/8", "1/16", "1/32"};
++}
++
++bool Size::isRelevant(ModControllableAudio*, int32_t) const {
++	return externalSettingsAreRelevant();
++}
++
++void Input::beginSession(MenuItem*) {
++	if (display->have7SEG()) {
++		drawValue();
++	}
++}
++
++void Input::drawPixelsForOled() {
++	using enum deluge::midi::ExternalStepMIDIMessageType;
++	deluge::hid::display::oled_canvas::Canvas& image = deluge::hid::display::OLED::main;
++	InstrumentClip* clip = currentClip();
++	if (!clip) {
++		return;
++	}
++
++	playbackHandler.refreshExternalStepMIDIConflicts();
++	const auto& input = inputForRole(*clip, role_);
++	int32_t yPixel = 20;
++	if (!input.isAssigned()) {
++		image.drawString(l10n::get(l10n::String::STRING_FOR_EXTERNAL_STEP_UNASSIGNED), 0, yPixel, kTextSpacingX,
++		                 kTextSizeYUpdated);
++		return;
++	}
++
++	const char* deviceName = input.cable->getDisplayName();
++	image.drawString(deviceName, 0, yPixel, kTextSpacingX, kTextSizeYUpdated);
++	deluge::hid::display::OLED::setupSideScroller(0, deviceName, kTextSpacingX, OLED_MAIN_WIDTH_PIXELS, yPixel,
++	                                              yPixel + 8, kTextSpacingX, kTextSpacingY, false);
++
++	yPixel += kTextSpacingY;
++	image.drawString(l10n::get(l10n::String::STRING_FOR_CHANNEL), 0, yPixel, kTextSpacingX, kTextSizeYUpdated);
++	char channelBuffer[4];
++	intToString(input.channel + 1, channelBuffer, 1);
++	image.drawString(channelBuffer, kTextSpacingX * 8, yPixel, kTextSpacingX, kTextSizeYUpdated);
++
++	yPixel += kTextSpacingY;
++	const char* messageName = "";
++	switch (input.messageType) {
++	case NOTE:
++		messageName = "Note";
++		break;
++	case CC:
++		messageName = "CC";
++		break;
++	case PROGRAM_CHANGE:
++		messageName = "PC";
++		break;
++	case NONE:
++		break;
++	}
++	image.drawString(messageName, 0, yPixel, kTextSpacingX, kTextSizeYUpdated);
++	char numberBuffer[4];
++	intToString(input.number, numberBuffer, 1);
++	image.drawString(numberBuffer, kTextSpacingX * 6, yPixel, kTextSpacingX, kTextSizeYUpdated);
++
++	yPixel += kTextSpacingY;
++	if (input.conflict) {
++		image.drawString(l10n::get(l10n::String::STRING_FOR_EXTERNAL_STEP_CONFLICT), 0, yPixel, kTextSpacingX,
++		                 kTextSizeYUpdated);
++	}
++	else if (!input.cable->connectionFlags) {
++		image.drawString(l10n::get(l10n::String::STRING_FOR_EXTERNAL_STEP_MISSING_INPUT), 0, yPixel, kTextSpacingX,
++		                 kTextSizeYUpdated);
++	}
++}
++
++bool Input::isRelevant(ModControllableAudio*, int32_t) const {
++	return externalSettingsAreRelevant();
++}
++
++void Input::unlearnAction() {
++	InstrumentClip* clip = currentClip();
++	if (!externalSettingsAreRelevant()) {
++		return;
++	}
++
++	char modelStackMemory[MODEL_STACK_MAX_SIZE];
++	ModelStackWithTimelineCounter* modelStack = modelStackFor(clip, modelStackMemory);
++	clip->clearExternalStepForStop(modelStack);
++	inputForRole(*clip, role_).clear();
++	playbackHandler.refreshExternalStepMIDIConflicts();
++	clip->validateExternalStep(modelStack,
++	                           runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips));
++	refreshAfterAssignment();
++}
++
++bool Input::learnNoteOn(MIDICable& cable, int32_t channel, int32_t noteCode) {
++	learn(cable, channel, deluge::midi::ExternalStepMIDIMessageType::NOTE, noteCode);
++	return true;
++}
++
++void Input::learnProgramChange(MIDICable& cable, int32_t channel, int32_t programNumber) {
++	learn(cable, channel, deluge::midi::ExternalStepMIDIMessageType::PROGRAM_CHANGE, programNumber);
++}
++
++void Input::learnCC(MIDICable& cable, int32_t channel, int32_t ccNumber, int32_t value) {
++	if (value >= 64) {
++		learn(cable, channel, deluge::midi::ExternalStepMIDIMessageType::CC, ccNumber);
++	}
++}
++
++void Input::learn(MIDICable& cable, int32_t channel, deluge::midi::ExternalStepMIDIMessageType messageType,
++                  int32_t number) {
++	InstrumentClip* clip = currentClip();
++	if (!externalSettingsAreRelevant() || channel < 0 || channel >= deluge::midi::ExternalStepMIDIInput::kChannelCount
++	    || number < 0 || number > UINT8_MAX
++	    || !deluge::midi::ExternalStepMIDIInput::numberIsValid(messageType, static_cast<uint8_t>(number))) {
++		displayAssignmentError(l10n::String::STRING_FOR_EXTERNAL_STEP_UNSUPPORTED);
++		return;
++	}
++
++	deluge::midi::ExternalStepMIDIInput candidate;
++	candidate.cable = &cable;
++	candidate.channel = static_cast<uint8_t>(channel);
++	candidate.messageType = messageType;
++	candidate.number = static_cast<uint8_t>(number);
++	if (assignmentsAreIdentical(candidate, otherInputForRole(*clip, role_))) {
++		displayAssignmentError(l10n::String::STRING_FOR_EXTERNAL_STEP_CONFLICT);
++		return;
++	}
++
++	char modelStackMemory[MODEL_STACK_MAX_SIZE];
++	ModelStackWithTimelineCounter* modelStack = modelStackFor(clip, modelStackMemory);
++	clip->clearExternalStepForStop(modelStack);
++	auto& input = inputForRole(*clip, role_);
++	input = candidate;
++	if (shouldRememberHighStateAfterLearn(messageType)) {
++		(void)input.updateHighState(true);
++	}
++	playbackHandler.refreshExternalStepMIDIConflicts();
++	clip->validateExternalStep(modelStack,
++	                           runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips));
++	refreshAfterAssignment();
++}
++
++void Input::drawValue() {
++	using enum deluge::midi::ExternalStepMIDIMessageType;
++	InstrumentClip* clip = currentClip();
++	if (!clip) {
++		return;
++	}
++
++	const auto& input = inputForRole(*clip, role_);
++	if (!input.isAssigned()) {
++		display->setText(l10n::get(l10n::String::STRING_FOR_EXTERNAL_STEP_UNASSIGNED));
++		return;
++	}
++
++	char text[5];
++	switch (input.messageType) {
++	case NOTE:
++		text[0] = 'N';
++		break;
++	case CC:
++		text[0] = 'C';
++		break;
++	case PROGRAM_CHANGE:
++		text[0] = 'P';
++		break;
++	case NONE:
++		text[0] = '-';
++		break;
++	}
++	intToString(input.number, &text[1], 3);
++	display->setText(text);
++}
++
++void Input::refreshAfterAssignment() {
++	if (soundEditor.getCurrentMenuItem() == this) {
++		if (display->haveOLED()) {
++			renderUIsForOled();
++		}
++		else {
++			drawValue();
++		}
++	}
++	else {
++		display->displayPopup(l10n::get(l10n::String::STRING_FOR_LEARNED));
++	}
++}
++
++void Status::beginSession(MenuItem*) {
++	if (display->have7SEG()) {
++		drawValue();
++	}
++}
++
++void Status::drawPixelsForOled() {
++	InstrumentClip* clip = currentClip();
++	if (!clip) {
++		return;
++	}
++
++	playbackHandler.refreshExternalStepMIDIConflicts();
++	auto status = clip->getExternalStepStatus(
++	    runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips), currentSong);
++	deluge::hid::display::OLED::main.drawString(l10n::get(statusString(status)), 0, 20, kTextSpacingX,
++	                                            kTextSizeYUpdated);
++}
++
++bool Status::isRelevant(ModControllableAudio*, int32_t) const {
++	return externalSettingsAreRelevant();
++}
++
++void Status::drawValue() {
++	InstrumentClip* clip = currentClip();
++	if (!clip) {
++		return;
++	}
++
++	playbackHandler.refreshExternalStepMIDIConflicts();
++	auto status = clip->getExternalStepStatus(
++	    runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips), currentSong);
++	display->setText(l10n::get(statusString(status)));
++}
++
++} // namespace deluge::gui::menu_item::midi::external_step
+diff --git a/src/deluge/gui/menu_item/midi/external_step.h b/src/deluge/gui/menu_item/midi/external_step.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..573d29ad4f6707500e8882d63ab02726d435fddb
+--- /dev/null
++++ b/src/deluge/gui/menu_item/midi/external_step.h
+@@ -0,0 +1,77 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ */
++
++#pragma once
++
++#include "gui/menu_item/midi/external_step_policy.h"
++#include "gui/menu_item/selection.h"
++#include "gui/menu_item/submenu.h"
++
++namespace deluge::gui::menu_item::midi::external_step {
++
++class Clock final : public Submenu {
++public:
++	using Submenu::Submenu;
++	bool isRelevant(ModControllableAudio* modControllable, int32_t whichThing) const override;
++};
++
++class Mode final : public Selection {
++public:
++	using Selection::Selection;
++	void readCurrentValue() override;
++	void writeCurrentValue() override;
++	deluge::vector<std::string_view> getOptions(OptType optType = OptType::FULL) override;
++};
++
++class Size final : public Selection {
++public:
++	using Selection::Selection;
++	void readCurrentValue() override;
++	void writeCurrentValue() override;
++	deluge::vector<std::string_view> getOptions(OptType optType = OptType::FULL) override;
++	bool isRelevant(ModControllableAudio* modControllable, int32_t whichThing) const override;
++};
++
++class Input final : public MenuItem {
++public:
++	Input(l10n::String name, InputRole role) : MenuItem(name), role_(role) {}
++
++	void beginSession(MenuItem* navigatedBackwardFrom = nullptr) override;
++	void drawPixelsForOled() override;
++	bool isRelevant(ModControllableAudio* modControllable, int32_t whichThing) const override;
++	bool allowsLearnMode() override { return true; }
++	bool midiLearnUsesPhysicalChannel() override { return true; }
++	bool shouldBlinkLearnLed() override { return true; }
++	void unlearnAction() override;
++	bool learnNoteOn(MIDICable& cable, int32_t channel, int32_t noteCode) override;
++	void learnProgramChange(MIDICable& cable, int32_t channel, int32_t programNumber) override;
++	void learnCC(MIDICable& cable, int32_t channel, int32_t ccNumber, int32_t value) override;
++
++private:
++	void learn(MIDICable& cable, int32_t channel, deluge::midi::ExternalStepMIDIMessageType messageType,
++	           int32_t number);
++	void drawValue();
++	void refreshAfterAssignment();
++
++	InputRole role_;
++};
++
++class Status final : public MenuItem {
++public:
++	using MenuItem::MenuItem;
++	void beginSession(MenuItem* navigatedBackwardFrom = nullptr) override;
++	void drawPixelsForOled() override;
++	bool isRelevant(ModControllableAudio* modControllable, int32_t whichThing) const override;
++
++private:
++	void drawValue();
++};
++
++} // namespace deluge::gui::menu_item::midi::external_step
+diff --git a/src/deluge/gui/menu_item/midi/external_step_policy.h b/src/deluge/gui/menu_item/midi/external_step_policy.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..73021af2e9e37ac34afaeaa6ee09225becc25312
+--- /dev/null
++++ b/src/deluge/gui/menu_item/midi/external_step_policy.h
+@@ -0,0 +1,70 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ */
++
++#pragma once
++
++#include "io/midi/external_step_midi_input.h"
++#include "model/clip/external_step_runtime.h"
++
++namespace deluge::gui::menu_item::midi::external_step {
++
++enum class InputRole : uint8_t {
++	STEP,
++	RESET,
++};
++
++enum class StatusLabel : uint8_t {
++	SONG,
++	OFF,
++	UNASSIGNED,
++	MISSING_INPUT,
++	CONFLICT,
++	UNSUPPORTED,
++	WAITING,
++	READY,
++};
++
++[[nodiscard]] constexpr bool shouldShowClockMenu(bool sessionMidiOut, bool featureEnabled, bool alreadyExternal) {
++	return sessionMidiOut && (featureEnabled || alreadyExternal);
++}
++
++[[nodiscard]] constexpr bool shouldRememberHighStateAfterLearn(deluge::midi::ExternalStepMIDIMessageType messageType) {
++	return messageType == deluge::midi::ExternalStepMIDIMessageType::NOTE;
++}
++
++[[nodiscard]] inline bool assignmentsAreIdentical(const deluge::midi::ExternalStepMIDIInput& first,
++                                                  const deluge::midi::ExternalStepMIDIInput& second) {
++	return first.hasSameAssignmentAs(second);
++}
++
++[[nodiscard]] constexpr StatusLabel statusLabel(deluge::external_step::Status status) {
++	using enum deluge::external_step::Status;
++	switch (status) {
++	case SONG:
++		return StatusLabel::SONG;
++	case FEATURE_DISABLED:
++		return StatusLabel::OFF;
++	case UNASSIGNED:
++		return StatusLabel::UNASSIGNED;
++	case MISSING_INPUT:
++		return StatusLabel::MISSING_INPUT;
++	case CONFLICT:
++		return StatusLabel::CONFLICT;
++	case UNSUPPORTED:
++		return StatusLabel::UNSUPPORTED;
++	case WAIT:
++		return StatusLabel::WAITING;
++	case READY:
++		return StatusLabel::READY;
++	}
++	return StatusLabel::UNSUPPORTED;
++}
++
++} // namespace deluge::gui::menu_item::midi::external_step
+diff --git a/src/deluge/gui/menu_item/runtime_feature/settings.cpp b/src/deluge/gui/menu_item/runtime_feature/settings.cpp
+index ae10f4edc06ec9b3ff59ce6e89a447c5767989b1..d02211ace095e11c17665b2b3ea66a5eb0d258bf 100644
+--- a/src/deluge/gui/menu_item/runtime_feature/settings.cpp
++++ b/src/deluge/gui/menu_item/runtime_feature/settings.cpp
+@@ -20,8 +20,11 @@
+ #include "emulated_display.h"
+ #include "hid/display/display.h"
+ #include "hid/display/oled_canvas/canvas.h"
++#include "model/clip/instrument_clip.h"
+ #include "model/model_stack.h"
++#include "model/song/clip_iterators.h"
+ #include "model/song/song.h"
++#include "playback/playback_handler.h"
+ #include "processing/sound/sound_instrument.h"
+ #include "setting.h"
+ #include "shift_is_sticky.h"
+@@ -72,6 +75,29 @@ public:
+ 	}
+ };
+ 
++class ExternalStepMidiClipsSetting final : public SettingToggle {
++public:
++	using SettingToggle::SettingToggle;
++
++	void writeCurrentValue() override {
++		bool wasEnabled = runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips);
++		SettingToggle::writeCurrentValue();
++		bool isEnabled = runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips);
++		if (wasEnabled == isEnabled || !currentSong) {
++			return;
++		}
++
++		playbackHandler.refreshExternalStepMIDIConflicts();
++		char modelStackMemory[MODEL_STACK_MAX_SIZE];
++		ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
++		for (InstrumentClip* clip : InstrumentClips::everywhere(currentSong)) {
++			if (clip->isExternalStepMode()) {
++				clip->validateExternalStep(modelStack->addTimelineCounter(clip), isEnabled);
++			}
++		}
++	}
++};
++
+ // Generic menu item instances
+ SettingToggle menuDrumRandomizer(RuntimeFeatureSettingType::DrumRandomizer);
+ SettingToggle menuFineTempo(RuntimeFeatureSettingType::FineTempoKnob);
+@@ -99,6 +125,7 @@ SettingToggle menuShowBatteryLevel(RuntimeFeatureSettingType::ShowBatteryLevel);
+ RoundedCornersSettingToggle menuRoundedCorners(RuntimeFeatureSettingType::RoundedCorners);
+ SettingToggle menuShortcutOverlay(RuntimeFeatureSettingType::ShortcutOverlay);
+ MidiSustainPedalSetting menuMidiSustainPedal(RuntimeFeatureSettingType::MidiSustainPedal);
++ExternalStepMidiClipsSetting menuExternalStepMidiClips(RuntimeFeatureSettingType::ExternalStepMidiClips);
+ 
+ std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettings> subMenuEntries{
+     &menuDrumRandomizer,
+@@ -126,7 +153,8 @@ std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettin
+     &menuTrimFromStartOfAudioClip,
+     &menuShowBatteryLevel,
+     &menuShortcutOverlay,
+-    &menuMidiSustainPedal};
++    &menuMidiSustainPedal,
++    &menuExternalStepMidiClips};
+ 
+ Settings::Settings(l10n::String name, l10n::String title) : menu_item::Submenu(name, title, subMenuEntries) {
+ }
+diff --git a/src/deluge/gui/ui/menus.cpp b/src/deluge/gui/ui/menus.cpp
+index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae997401a407 100644
+--- a/src/deluge/gui/ui/menus.cpp
++++ b/src/deluge/gui/ui/menus.cpp
+@@ -103,6 +103,7 @@
+ #include "gui/menu_item/midi/device_send_clock.h"
+ #include "gui/menu_item/midi/device_send_thru.h"
+ #include "gui/menu_item/midi/devices.h"
++#include "gui/menu_item/midi/external_step.h"
+ #include "gui/menu_item/midi/follow/follow_channel.h"
+ #include "gui/menu_item/midi/follow/follow_feedback_automation.h"
+ #include "gui/menu_item/midi/follow/follow_feedback_channel_type.h"
+@@ -240,6 +241,7 @@ using namespace deluge;
+ using namespace gui::menu_item;
+ using namespace gui;
+ namespace params = deluge::modulation::params;
++namespace menu_midi = deluge::gui::menu_item::midi;
+ 
+ // Include the autogenerated menu structures
+ #include "gui/menu_item/audio_clip/specific_output_source_selector.h"
+@@ -649,21 +651,21 @@ PLACE_SDRAM_BSS HorizontalMenu soundDistortionMenu{
+ };
+ 
+ // Output MIDI for sound drums --------------------------------------------------------------
+-PLACE_SDRAM_BSS midi::sound::OutputMidiChannel outputMidiChannelMenu{STRING_FOR_CHANNEL, STRING_FOR_CHANNEL};
+-PLACE_SDRAM_BSS midi::sound::OutputMidiNoteForDrum outputMidiNoteForDrumMenu{STRING_FOR_NOTE, STRING_FOR_NOTE};
++PLACE_SDRAM_BSS menu_midi::sound::OutputMidiChannel outputMidiChannelMenu{STRING_FOR_CHANNEL, STRING_FOR_CHANNEL};
++PLACE_SDRAM_BSS menu_midi::sound::OutputMidiNoteForDrum outputMidiNoteForDrumMenu{STRING_FOR_NOTE, STRING_FOR_NOTE};
+ PLACE_SDRAM_BSS Submenu outputMidiSubmenu{STRING_FOR_MIDI, {&outputMidiChannelMenu, &outputMidiNoteForDrumMenu}};
+ 
+ // MIDIInstrument menu ----------------------------------------------------------------------
+-PLACE_SDRAM_BSS midi::device_definition::Linked midiDeviceLinkedMenu{
++PLACE_SDRAM_BSS menu_midi::device_definition::Linked midiDeviceLinkedMenu{
+     STRING_FOR_MIDI_DEVICE_DEFINITION_LINKED,
+     STRING_FOR_MIDI_DEVICE_DEFINITION_LINKED,
+ };
+-PLACE_SDRAM_BSS midi::device_definition::HideUnlabeled hideUnlabeledCCMenu{
++PLACE_SDRAM_BSS menu_midi::device_definition::HideUnlabeled hideUnlabeledCCMenu{
+     STRING_FOR_MIDI_DEVICE_DEFINITION_HIDE,
+     STRING_FOR_MIDI_DEVICE_DEFINITION_HIDE,
+ };
+ 
+-PLACE_SDRAM_BSS midi::device_definition::DeviceDefinitionSubmenu midiDeviceDefinitionMenu{
++PLACE_SDRAM_BSS menu_midi::device_definition::DeviceDefinitionSubmenu midiDeviceDefinitionMenu{
+     STRING_FOR_MIDI_DEVICE_DEFINITION,
+     {
+         &midiDeviceLinkedMenu,
+@@ -671,14 +673,15 @@ PLACE_SDRAM_BSS midi::device_definition::DeviceDefinitionSubmenu midiDeviceDefin
+     },
+ };
+ 
+-PLACE_SDRAM_BSS midi::Bank midiBankMenu{STRING_FOR_BANK, STRING_FOR_MIDI_BANK};
+-PLACE_SDRAM_BSS midi::Sub midiSubMenu{STRING_FOR_SUB_BANK_SHORT, STRING_FOR_MIDI_SUB_BANK};
+-PLACE_SDRAM_BSS midi::PGM midiPGMMenu{STRING_FOR_PGM, STRING_FOR_MIDI_PGM_NUMB_MENU_TITLE};
+-PLACE_SDRAM_BSS midi::MPEYToModWheel mpeyToModWheelMenu{STRING_FOR_Y_AXIS_CONVERSION, STRING_FOR_Y_AXIS_CONVERSION};
++PLACE_SDRAM_BSS menu_midi::Bank midiBankMenu{STRING_FOR_BANK, STRING_FOR_MIDI_BANK};
++PLACE_SDRAM_BSS menu_midi::Sub midiSubMenu{STRING_FOR_SUB_BANK_SHORT, STRING_FOR_MIDI_SUB_BANK};
++PLACE_SDRAM_BSS menu_midi::PGM midiPGMMenu{STRING_FOR_PGM, STRING_FOR_MIDI_PGM_NUMB_MENU_TITLE};
++PLACE_SDRAM_BSS menu_midi::MPEYToModWheel mpeyToModWheelMenu{STRING_FOR_Y_AXIS_CONVERSION,
++                                                             STRING_FOR_Y_AXIS_CONVERSION};
+ PLACE_SDRAM_BSS cv::DualCVSelection cv2SourceMenu{STRING_FOR_CV2_SOURCE};
+-PLACE_SDRAM_BSS midi::AftertouchToMono midiAftertouchCollapseMenu{STRING_FOR_PATCH_SOURCE_AFTERTOUCH,
+-                                                                  STRING_FOR_PATCH_SOURCE_AFTERTOUCH};
+-PLACE_SDRAM_BSS midi::MPEToMono midiMPECollapseMenu{STRING_FOR_MPE, STRING_FOR_MPE};
++PLACE_SDRAM_BSS menu_midi::AftertouchToMono midiAftertouchCollapseMenu{STRING_FOR_PATCH_SOURCE_AFTERTOUCH,
++                                                                       STRING_FOR_PATCH_SOURCE_AFTERTOUCH};
++PLACE_SDRAM_BSS menu_midi::MPEToMono midiMPECollapseMenu{STRING_FOR_MPE, STRING_FOR_MPE};
+ PLACE_SDRAM_BSS submenu::PolyMonoConversion midiMPEMenu{STRING_FOR_MPE_MONO,
+                                                         {&midiAftertouchCollapseMenu, &midiMPECollapseMenu}};
+ // Clip-level stuff --------------------------------------------------------------------------
+@@ -1062,52 +1065,53 @@ PLACE_SDRAM_BSS runtime_feature::Settings runtimeFeatureSettingsMenu{STRING_FOR_
+ PLACE_SDRAM_BSS ToggleBool midiThruMenu{STRING_FOR_MIDI_THRU, STRING_FOR_MIDI_THRU, midiEngine.midiThru};
+ 
+ // MIDI Takeover
+-PLACE_SDRAM_BSS midi::Takeover midiTakeoverMenu{STRING_FOR_TAKEOVER};
++PLACE_SDRAM_BSS menu_midi::Takeover midiTakeoverMenu{STRING_FOR_TAKEOVER};
+ 
+ // MIDI Follow
+-PLACE_SDRAM_BSS midi::FollowChannel midiFollowChannelAMenu{STRING_FOR_FOLLOW_CHANNEL_A, STRING_FOR_FOLLOW_CHANNEL_A,
+-                                                           MIDIFollowChannelType::A};
+-PLACE_SDRAM_BSS midi::FollowChannel midiFollowChannelBMenu{STRING_FOR_FOLLOW_CHANNEL_B, STRING_FOR_FOLLOW_CHANNEL_B,
+-                                                           MIDIFollowChannelType::B};
+-PLACE_SDRAM_BSS midi::FollowChannel midiFollowChannelCMenu{STRING_FOR_FOLLOW_CHANNEL_C, STRING_FOR_FOLLOW_CHANNEL_C,
+-                                                           MIDIFollowChannelType::C};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack1Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannel midiFollowChannelAMenu{STRING_FOR_FOLLOW_CHANNEL_A,
++                                                                STRING_FOR_FOLLOW_CHANNEL_A, MIDIFollowChannelType::A};
++PLACE_SDRAM_BSS menu_midi::FollowChannel midiFollowChannelBMenu{STRING_FOR_FOLLOW_CHANNEL_B,
++                                                                STRING_FOR_FOLLOW_CHANNEL_B, MIDIFollowChannelType::B};
++PLACE_SDRAM_BSS menu_midi::FollowChannel midiFollowChannelCMenu{STRING_FOR_FOLLOW_CHANNEL_C,
++                                                                STRING_FOR_FOLLOW_CHANNEL_C, MIDIFollowChannelType::C};
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack1Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track1, 1};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack2Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack2Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track2, 2};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack3Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack3Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track3, 3};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack4Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack4Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track4, 4};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack5Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack5Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track5, 5};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack6Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack6Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track6, 6};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack7Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack7Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track7, 7};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack8Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack8Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track8, 8};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack9Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack9Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track9, 9};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack10Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack10Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track10, 10};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack11Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack11Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track11, 11};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack12Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack12Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track12, 12};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack13Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack13Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track13, 13};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack14Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack14Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track14, 14};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack15Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack15Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track15, 15};
+-PLACE_SDRAM_BSS midi::FollowChannelTrack midiFollowChannelTrack16Menu{
++PLACE_SDRAM_BSS menu_midi::FollowChannelTrack midiFollowChannelTrack16Menu{
+     STRING_FOR_FOLLOW_CHANNEL_TRACK, STRING_FOR_FOLLOW_CHANNEL_TRACK, MIDIFollowChannelType::Track16, 16};
+-PLACE_SDRAM_BSS midi::FollowKitRootNote midiFollowKitRootNoteMenu{STRING_FOR_FOLLOW_KIT_ROOT_NOTE};
++PLACE_SDRAM_BSS menu_midi::FollowKitRootNote midiFollowKitRootNoteMenu{STRING_FOR_FOLLOW_KIT_ROOT_NOTE};
+ PLACE_SDRAM_BSS ToggleBool midiFollowDisplayParamMenu{STRING_FOR_FOLLOW_DISPLAY_PARAM, STRING_FOR_FOLLOW_DISPLAY_PARAM,
+                                                       midiEngine.midiFollowDisplayParam};
+-PLACE_SDRAM_BSS midi::FollowFeedbackChannelType midiFollowFeedbackChannelMenu{STRING_FOR_CHANNEL};
+-PLACE_SDRAM_BSS midi::FollowFeedbackAutomation midiFollowFeedbackAutomationMenu{STRING_FOR_FOLLOW_FEEDBACK_AUTOMATION};
++PLACE_SDRAM_BSS menu_midi::FollowFeedbackChannelType midiFollowFeedbackChannelMenu{STRING_FOR_CHANNEL};
++PLACE_SDRAM_BSS menu_midi::FollowFeedbackAutomation midiFollowFeedbackAutomationMenu{
++    STRING_FOR_FOLLOW_FEEDBACK_AUTOMATION};
+ PLACE_SDRAM_BSS ToggleBool midiFollowFeedbackFilterMenu{
+     STRING_FOR_FOLLOW_FEEDBACK_FILTER, STRING_FOR_FOLLOW_FEEDBACK_FILTER, midiEngine.midiFollowFeedbackFilter};
+ 
+@@ -1152,7 +1156,7 @@ PLACE_SDRAM_BSS ToggleBool midiSelectKitRowMenu{STRING_FOR_SELECT_KIT_ROW, STRIN
+ 
+ // MIDI transpose menu
+ 
+-PLACE_SDRAM_BSS midi::Transpose midiTransposeMenu{STRING_FOR_TRANSPOSE};
++PLACE_SDRAM_BSS menu_midi::Transpose midiTransposeMenu{STRING_FOR_TRANSPOSE};
+ 
+ PLACE_SDRAM_BSS Submenu midiTransposeSubmenu{
+     STRING_FOR_TRANSPOSE,
+@@ -1163,19 +1167,19 @@ PLACE_SDRAM_BSS Submenu midiTransposeSubmenu{
+ };
+ 
+ // MIDI commands submenu
+-PLACE_SDRAM_BSS midi::Command playbackRestartMidiCommand{STRING_FOR_RESTART, GlobalMIDICommand::PLAYBACK_RESTART};
+-PLACE_SDRAM_BSS midi::Command playMidiCommand{STRING_FOR_PLAY, GlobalMIDICommand::PLAY};
+-PLACE_SDRAM_BSS midi::Command recordMidiCommand{STRING_FOR_RECORD, GlobalMIDICommand::RECORD};
+-PLACE_SDRAM_BSS midi::Command tapMidiCommand{STRING_FOR_TAP_TEMPO, GlobalMIDICommand::TAP};
+-PLACE_SDRAM_BSS midi::Command undoMidiCommand{STRING_FOR_UNDO, GlobalMIDICommand::UNDO};
+-PLACE_SDRAM_BSS midi::Command redoMidiCommand{STRING_FOR_REDO, GlobalMIDICommand::REDO};
+-PLACE_SDRAM_BSS midi::Command loopMidiCommand{STRING_FOR_LOOP, GlobalMIDICommand::LOOP};
+-PLACE_SDRAM_BSS midi::Command loopContinuousLayeringMidiCommand{STRING_FOR_LAYERING_LOOP,
+-                                                                GlobalMIDICommand::LOOP_CONTINUOUS_LAYERING};
+-PLACE_SDRAM_BSS midi::Command fillMidiCommand{STRING_FOR_FILL, GlobalMIDICommand::FILL};
+-PLACE_SDRAM_BSS midi::Command transposeMidiCommand{STRING_FOR_TRANSPOSE, GlobalMIDICommand::TRANSPOSE};
+-PLACE_SDRAM_BSS midi::Command nextSongMidiCommand{STRING_FOR_SONG_LOAD_NEXT, GlobalMIDICommand::NEXT_SONG};
+-PLACE_SDRAM_BSS midi::Command shiftMidiCommand{STRING_FOR_SHIFT, GlobalMIDICommand::SHIFT};
++PLACE_SDRAM_BSS menu_midi::Command playbackRestartMidiCommand{STRING_FOR_RESTART, GlobalMIDICommand::PLAYBACK_RESTART};
++PLACE_SDRAM_BSS menu_midi::Command playMidiCommand{STRING_FOR_PLAY, GlobalMIDICommand::PLAY};
++PLACE_SDRAM_BSS menu_midi::Command recordMidiCommand{STRING_FOR_RECORD, GlobalMIDICommand::RECORD};
++PLACE_SDRAM_BSS menu_midi::Command tapMidiCommand{STRING_FOR_TAP_TEMPO, GlobalMIDICommand::TAP};
++PLACE_SDRAM_BSS menu_midi::Command undoMidiCommand{STRING_FOR_UNDO, GlobalMIDICommand::UNDO};
++PLACE_SDRAM_BSS menu_midi::Command redoMidiCommand{STRING_FOR_REDO, GlobalMIDICommand::REDO};
++PLACE_SDRAM_BSS menu_midi::Command loopMidiCommand{STRING_FOR_LOOP, GlobalMIDICommand::LOOP};
++PLACE_SDRAM_BSS menu_midi::Command loopContinuousLayeringMidiCommand{STRING_FOR_LAYERING_LOOP,
++                                                                     GlobalMIDICommand::LOOP_CONTINUOUS_LAYERING};
++PLACE_SDRAM_BSS menu_midi::Command fillMidiCommand{STRING_FOR_FILL, GlobalMIDICommand::FILL};
++PLACE_SDRAM_BSS menu_midi::Command transposeMidiCommand{STRING_FOR_TRANSPOSE, GlobalMIDICommand::TRANSPOSE};
++PLACE_SDRAM_BSS menu_midi::Command nextSongMidiCommand{STRING_FOR_SONG_LOAD_NEXT, GlobalMIDICommand::NEXT_SONG};
++PLACE_SDRAM_BSS menu_midi::Command shiftMidiCommand{STRING_FOR_SHIFT, GlobalMIDICommand::SHIFT};
+ 
+ PLACE_SDRAM_BSS Submenu midiCommandsMenu{
+     STRING_FOR_COMMANDS,
+@@ -1187,12 +1191,12 @@ PLACE_SDRAM_BSS Submenu midiCommandsMenu{
+ 
+ // MIDI device submenu - for after we've selected which device we want it for
+ 
+-PLACE_SDRAM_BSS midi::DefaultVelocityToLevel defaultVelocityToLevelMenu{STRING_FOR_VELOCITY};
+-PLACE_SDRAM_BSS midi::DeviceSendClock device_send_clock_menu{STRING_FOR_CLOCK_OUT};
+-PLACE_SDRAM_BSS midi::DeviceReceiveClock device_receive_clock_menu{STRING_FOR_CLOCK_IN};
+-PLACE_SDRAM_BSS midi::DeviceIsRelative device_is_relative_menu{STRING_FOR_IS_RELATIVE};
+-PLACE_SDRAM_BSS midi::DeviceSendThru device_send_thru_menu{STRING_FOR_MIDI_THRU};
+-PLACE_SDRAM_BSS midi::Device midiDeviceMenu{
++PLACE_SDRAM_BSS menu_midi::DefaultVelocityToLevel defaultVelocityToLevelMenu{STRING_FOR_VELOCITY};
++PLACE_SDRAM_BSS menu_midi::DeviceSendClock device_send_clock_menu{STRING_FOR_CLOCK_OUT};
++PLACE_SDRAM_BSS menu_midi::DeviceReceiveClock device_receive_clock_menu{STRING_FOR_CLOCK_IN};
++PLACE_SDRAM_BSS menu_midi::DeviceIsRelative device_is_relative_menu{STRING_FOR_IS_RELATIVE};
++PLACE_SDRAM_BSS menu_midi::DeviceSendThru device_send_thru_menu{STRING_FOR_MIDI_THRU};
++PLACE_SDRAM_BSS menu_midi::Device midiDeviceMenu{
+     EMPTY_STRING,
+     {
+         &mpe::directionSelectorMenu,
+@@ -1209,16 +1213,16 @@ PLACE_SDRAM_BSS ToggleBool midiInputDifferentiationMenu{
+     STRING_FOR_DIFFERENTIATE_INPUTS, STRING_FOR_DIFFERENTIATE_INPUTS, MIDIDeviceManager::differentiatingInputsByDevice};
+ 
+ // MIDI clock menu
+-PLACE_SDRAM_BSS midi::SendClock send_clock_menu{STRING_FOR_OUTPUT, STRING_FOR_MIDI_CLOCK_OUT,
+-                                                playbackHandler.midiOutClockEnabled};
+-PLACE_SDRAM_BSS midi::ReceiveClock receive_clock_menu{STRING_FOR_INPUT, STRING_FOR_MIDI_CLOCK_IN,
+-                                                      playbackHandler.midiInClockEnabled};
++PLACE_SDRAM_BSS menu_midi::SendClock send_clock_menu{STRING_FOR_OUTPUT, STRING_FOR_MIDI_CLOCK_OUT,
++                                                     playbackHandler.midiOutClockEnabled};
++PLACE_SDRAM_BSS menu_midi::ReceiveClock receive_clock_menu{STRING_FOR_INPUT, STRING_FOR_MIDI_CLOCK_IN,
++                                                           playbackHandler.midiInClockEnabled};
+ PLACE_SDRAM_BSS ToggleBool tempoMagnitudeMatchingMenu{STRING_FOR_TEMPO_MAGNITUDE_MATCHING,
+                                                       STRING_FOR_TEMPO_MAGNITUDE_MATCHING,
+                                                       playbackHandler.tempoMagnitudeMatchingEnabled};
+ 
+ // Midi devices menu
+-PLACE_SDRAM_BSS midi::Devices midi::devicesMenu{STRING_FOR_DEVICES, STRING_FOR_MIDI_DEVICES};
++PLACE_SDRAM_BSS menu_midi::Devices menu_midi::devicesMenu{STRING_FOR_DEVICES, STRING_FOR_MIDI_DEVICES};
+ PLACE_SDRAM_BSS mpe::DirectionSelector mpe::directionSelectorMenu{STRING_FOR_MPE};
+ 
+ // MIDI menu
+@@ -1242,7 +1246,7 @@ PLACE_SDRAM_BSS Submenu midiMenu{
+         &midiTakeoverMenu,
+         &midiCommandsMenu,
+         &midiInputDifferentiationMenu,
+-        &midi::devicesMenu,
++        &menu_midi::devicesMenu,
+     },
+ };
+ 
+@@ -1695,10 +1699,29 @@ PLACE_SDRAM_BSS Submenu soundEditorRootActionsMenuMIDIOrCV{
+     },
+ };
+ 
++PLACE_SDRAM_BSS menu_item::midi::external_step::Mode externalStepModeMenu{STRING_FOR_MODE};
++PLACE_SDRAM_BSS menu_item::midi::external_step::Size externalStepSizeMenu{STRING_FOR_EXTERNAL_STEP_SIZE};
++PLACE_SDRAM_BSS menu_item::midi::external_step::Input externalStepInputMenu{
++    STRING_FOR_EXTERNAL_STEP_INPUT, menu_item::midi::external_step::InputRole::STEP};
++PLACE_SDRAM_BSS menu_item::midi::external_step::Input externalResetInputMenu{
++    STRING_FOR_EXTERNAL_RESET_INPUT, menu_item::midi::external_step::InputRole::RESET};
++PLACE_SDRAM_BSS menu_item::midi::external_step::Status externalStepStatusMenu{STRING_FOR_EXTERNAL_STEP_STATUS};
++PLACE_SDRAM_BSS menu_item::midi::external_step::Clock externalStepClockMenu{
++    STRING_FOR_CLOCK,
++    {
++        &externalStepModeMenu,
++        &externalStepSizeMenu,
++        &externalStepInputMenu,
++        &externalResetInputMenu,
++        &externalStepStatusMenu,
++    },
++};
++
+ PLACE_SDRAM_BSS menu_item::Submenu soundEditorRootMenuMIDIOrCV{
+     STRING_FOR_MIDI_INST_MENU_TITLE,
+     {
+         &soundEditorRootActionsMenuMIDIOrCV,
++        &externalStepClockMenu,
+         &midiDeviceDefinitionMenu,
+         &midiProgramMenu,
+         &arpMenuMIDIOrCV,
+diff --git a/src/deluge/gui/ui/sound_editor.cpp b/src/deluge/gui/ui/sound_editor.cpp
+index a38eb2179644ee22026f6877848a67b4e1da96ae..fcc9c89f9f368b3b0a78be5bc8ac3e2c273a4e2c 100644
+--- a/src/deluge/gui/ui/sound_editor.cpp
++++ b/src/deluge/gui/ui/sound_editor.cpp
+@@ -1847,6 +1847,14 @@ bool SoundEditor::noteOnReceivedForMidiLearn(MIDICable& cable, int32_t channel,
+ 	return getCurrentMenuItem()->learnNoteOn(cable, channel, note);
+ }
+ 
++bool SoundEditor::midiLearnUsesPhysicalChannel() {
++	return currentUIMode == UI_MODE_MIDI_LEARN && getCurrentMenuItem()->midiLearnUsesPhysicalChannel();
++}
++
++bool SoundEditor::midiCCLearnConsumesBeforeRPN() {
++	return midiLearnUsesPhysicalChannel() && !Buttons::isShiftButtonPressed();
++}
++
+ // Returns true if some use was made of the message here
+ bool SoundEditor::midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value) {
+ 
+diff --git a/src/deluge/gui/ui/sound_editor.h b/src/deluge/gui/ui/sound_editor.h
+index 33e45e4bd81144c62719e277a935fe39e7269d7a..3d1e96ba2d937f49df2c425625ac1011a8b1c4fd 100644
+--- a/src/deluge/gui/ui/sound_editor.h
++++ b/src/deluge/gui/ui/sound_editor.h
+@@ -137,6 +137,8 @@ public:
+ 	ActionResult potentialShortcutPadAction(int32_t x, int32_t y, bool on);
+ 	bool editingReverbSidechain();
+ 	MenuItem* getCurrentMenuItem();
++	bool midiLearnUsesPhysicalChannel();
++	bool midiCCLearnConsumesBeforeRPN();
+ 	bool inSettingsMenu();
+ 	bool setupKitGlobalFXMenu;
+ 	ActionResult exitUI() override { return exitCompletely(); };
+diff --git a/src/deluge/io/midi/external_step_midi_input.h b/src/deluge/io/midi/external_step_midi_input.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..384049692a87111535425cec88e792dd8d6ab778
+--- /dev/null
++++ b/src/deluge/io/midi/external_step_midi_input.h
+@@ -0,0 +1,149 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
++ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with The Synthstrom Audible Deluge Firmware.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <cstdint>
++
++class MIDICable;
++
++namespace deluge::midi {
++
++enum class ExternalStepMIDIMessageType : uint8_t {
++	NONE,
++	NOTE,
++	CC,
++	PROGRAM_CHANGE,
++};
++
++/// Exact input identity and transient edge state for one External Step control.
++///
++/// Unlike LearnedMIDI, this binding never wildcards the cable and never converts a physical channel into an MPE
++/// zone. Runtime edge and conflict state are intentionally reset when the saved assignment is copied.
++class ExternalStepMIDIInput {
++public:
++	static constexpr uint8_t kUnassigned = 0xff;
++	static constexpr uint8_t kChannelCount = 16;
++	static constexpr uint8_t kNoteCount = 128;
++	static constexpr uint8_t kCCCount = 120; // 120 through 127 are Channel Mode messages in the input parser.
++	static constexpr uint8_t kProgramCount = 128;
++
++	ExternalStepMIDIInput() = default;
++	ExternalStepMIDIInput(const ExternalStepMIDIInput& other) { copyAssignmentFrom(other); }
++	ExternalStepMIDIInput& operator=(const ExternalStepMIDIInput& other) {
++		if (this != &other) {
++			copyAssignmentFrom(other);
++		}
++		return *this;
++	}
++
++	void clear() {
++		cable = nullptr;
++		channel = kUnassigned;
++		messageType = ExternalStepMIDIMessageType::NONE;
++		number = kUnassigned;
++		clearRuntimeState();
++	}
++
++	void clearRuntimeState() {
++		high = false;
++		conflict = false;
++	}
++
++	void clearHeldState() { high = false; }
++
++	/// Apply derived conflict state. A transition in either direction rearms a held control so messages swallowed by
++	/// the higher-priority owner cannot suppress the first edge after the binding becomes usable again.
++	[[nodiscard]] bool updateConflictState(bool newConflict) {
++		if (conflict == newConflict) {
++			return false;
++		}
++		conflict = newConflict;
++		clearHeldState();
++		return true;
++	}
++
++	[[nodiscard]] bool isAssigned() const {
++		return cable != nullptr && channel < kChannelCount && numberIsValid(messageType, number);
++	}
++
++	[[nodiscard]] bool matches(const MIDICable& incomingCable, uint8_t incomingChannel,
++	                           ExternalStepMIDIMessageType incomingType, uint8_t incomingNumber) const {
++		return isAssigned() && cable == &incomingCable && channel == incomingChannel && messageType == incomingType
++		       && number == incomingNumber;
++	}
++
++	[[nodiscard]] bool hasSameAssignmentAs(const ExternalStepMIDIInput& other) const {
++		return isAssigned() && other.isAssigned() && cable == other.cable && channel == other.channel
++		       && messageType == other.messageType && number == other.number;
++	}
++
++	/// Observe the asserted state for a Note or CC control and report only its rising edge.
++	[[nodiscard]] bool updateHighState(bool newHigh) {
++		const bool risingEdge = newHigh && !high;
++		high = newHigh;
++		return risingEdge;
++	}
++
++	/// Observe one already-matched control message.
++	///
++	/// Note and CC callers supply their current asserted state. Program Change has no release state, so each message is
++	/// an edge regardless of the argument.
++	[[nodiscard]] bool observeMessage(bool asserted) {
++		if (!isAssigned()) {
++			return false;
++		}
++		if (messageType == ExternalStepMIDIMessageType::PROGRAM_CHANGE) {
++			return true;
++		}
++		return updateHighState(asserted);
++	}
++
++	[[nodiscard]] static constexpr bool numberIsValid(ExternalStepMIDIMessageType type, uint8_t candidate) {
++		switch (type) {
++		case ExternalStepMIDIMessageType::NOTE:
++			return candidate < kNoteCount;
++		case ExternalStepMIDIMessageType::CC:
++			return candidate < kCCCount;
++		case ExternalStepMIDIMessageType::PROGRAM_CHANGE:
++			return candidate < kProgramCount;
++		case ExternalStepMIDIMessageType::NONE:
++			return false;
++		}
++		return false;
++	}
++
++	MIDICable* cable = nullptr;
++	uint8_t channel = kUnassigned;
++	ExternalStepMIDIMessageType messageType = ExternalStepMIDIMessageType::NONE;
++	uint8_t number = kUnassigned;
++
++	// Derived runtime state. Neither field is serialized or retained by assignment / Clip duplication.
++	bool high = false;
++	bool conflict = false;
++
++private:
++	void copyAssignmentFrom(const ExternalStepMIDIInput& other) {
++		cable = other.cable;
++		channel = other.channel;
++		messageType = other.messageType;
++		number = other.number;
++		clearRuntimeState();
++	}
++};
++
++} // namespace deluge::midi
+diff --git a/src/deluge/io/midi/midi_device_manager.cpp b/src/deluge/io/midi/midi_device_manager.cpp
+index d4faecec6ba8613457d09ad36d93ba3483a5bb5b..acae9865bf593ac9a3ed73cf15d1848bb4fd50be 100644
+--- a/src/deluge/io/midi/midi_device_manager.cpp
++++ b/src/deluge/io/midi/midi_device_manager.cpp
+@@ -28,6 +28,7 @@
+ #include "io/midi/midi_engine.h"
+ #include "mem_functions.h"
+ #include "memory/general_memory_allocator.h"
++#include "playback/playback_handler.h"
+ #include "storage/storage_manager.h"
+ #include "util/container/vector/named_thing_vector.h"
+ #include "util/misc.h"
+@@ -283,7 +284,11 @@ extern "C" void hostedDeviceDetached(int32_t ip, int32_t midiDeviceNum) {
+ 	for (int32_t i = 0; i <= ports; i++) {
+ 		MIDICableUSB* device = connectedDevice->cable[i];
+ 		if (device) { // Surely always has one?
++			const uint8_t previousConnectionFlags = device->connectionFlags;
+ 			device->connectionFlags &= ~(1 << midiDeviceNum);
++			if (previousConnectionFlags && !device->connectionFlags) {
++				playbackHandler.midiInputDisconnected(*device);
++			}
+ 		}
+ 		connectedDevice->cable[i] = nullptr;
+ 	}
+@@ -317,9 +322,18 @@ extern "C" void detachedAsPeripheral(int32_t ip) {
+ 	for (int32_t i = 0; i <= ports; i++) {
+ 		connectedUSBMIDIDevices[ip][0].cable[i] = nullptr;
+ 	}
+-	upstreamUSBMIDICable1.connectionFlags = 0;
+-	upstreamUSBMIDICable2.connectionFlags = 0;
+-	upstreamUSBMIDICable3.connectionFlags = 0;
++	MIDICableUSBUpstream* upstreamCables[] = {
++	    &upstreamUSBMIDICable1,
++	    &upstreamUSBMIDICable2,
++	    &upstreamUSBMIDICable3,
++	};
++	for (MIDICableUSBUpstream* cable : upstreamCables) {
++		const bool wasConnected = cable->connectionFlags != 0;
++		cable->connectionFlags = 0;
++		if (wasConnected) {
++			playbackHandler.midiInputDisconnected(*cable);
++		}
++	}
+ 	anyUSBSendingStillHappening[ip] = 0; // Reset this again. Been meaning to do this, and can no longer quite remember
+ 	                                     // reason or whether technically essential, but adds to safety at least.
+ 
+diff --git a/src/deluge/io/midi/midi_engine.cpp b/src/deluge/io/midi/midi_engine.cpp
+index 1fe35137853968e4c93beeec552c073b3fc6ad72..f1ab7b172e8c4e864905e62611fdeebb068d4f92 100644
+--- a/src/deluge/io/midi/midi_engine.cpp
++++ b/src/deluge/io/midi/midi_engine.cpp
+@@ -1019,34 +1019,37 @@ void MidiEngine::midiMessageReceived(MIDICable& cable, uint8_t statusType, uint8
+ 			case 0x0B: // CC or channel mode message
+ 				// CC
+ 				if (data1 < 120) {
++					const bool usedByExternalStep = playbackHandler.willConsumeExternalStepCC(cable, channel, data1);
+ 
+-					// Interpret RPN stuff, before we additionally try to process the CC within the song, in case it
+-					// means something different to the user.
+-					switch (data1) {
+-					case 100: // RPN LSB
+-						cable.inputChannels[channel].rpnLSB = data2;
+-						break;
++					// An External Step CC pulse, or a CC being captured by its Input menu, is not RPN data. All other
++					// CCs retain the existing RPN interpretation before normal song routing.
++					if (!usedByExternalStep) {
++						switch (data1) {
++						case 100: // RPN LSB
++							cable.inputChannels[channel].rpnLSB = data2;
++							break;
+ 
+-					case 101: // RPN MSB
+-						cable.inputChannels[channel].rpnMSB = data2;
+-						break;
++						case 101: // RPN MSB
++							cable.inputChannels[channel].rpnMSB = data2;
++							break;
+ 
+-					case 6: { // (RPN) data entry MSB
+-						char modelStackMemory[MODEL_STACK_MAX_SIZE];
+-						ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
+-						cable.dataEntryMessageReceived(modelStack, channel, data2);
+-						break;
+-					}
+-					default: { // not an rpn - let's reset the msb/lsb
+-						cable.inputChannels[channel].rpnLSB = 0x7F;
+-						cable.inputChannels[channel].rpnMSB = 0x7F;
+-					}
++						case 6: { // (RPN) data entry MSB
++							char modelStackMemory[MODEL_STACK_MAX_SIZE];
++							ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
++							cable.dataEntryMessageReceived(modelStack, channel, data2);
++							break;
++						}
++						default: { // not an rpn - let's reset the msb/lsb
++							cable.inputChannels[channel].rpnLSB = 0x7F;
++							cable.inputChannels[channel].rpnMSB = 0x7F;
++						}
++						}
+ 					}
+ 
+ 					playbackHandler.midiCCReceived(cable, channel, data1, data2, &shouldDoMidiThruNow);
+ 				}
+ 
+-				// Channel mode
++				// Channel Mode messages 120 through 127 are deliberately not learnable External Step CCs.
+ 				else {
+ 
+ 					// All notes off
+@@ -1060,7 +1063,7 @@ void MidiEngine::midiMessageReceived(MIDICable& cable, uint8_t statusType, uint8
+ 				break;
+ 
+ 			case 0x0C: // Program change message
+-				playbackHandler.programChangeReceived(cable, channel, data1);
++				playbackHandler.programChangeReceived(cable, channel, data1, &shouldDoMidiThruNow);
+ 				break;
+ 
+ 			case 0x0D: // Channel pressure
+diff --git a/src/deluge/model/clip/clip.cpp b/src/deluge/model/clip/clip.cpp
+index e1bc1eff79067af17981dcf694f1cf456750c677..adcb44526ae5635cc23d596767ded4a8b5a814ec 100644
+--- a/src/deluge/model/clip/clip.cpp
++++ b/src/deluge/model/clip/clip.cpp
+@@ -1052,6 +1052,8 @@ void Clip::setSequenceDirectionMode(ModelStackWithTimelineCounter* modelStack, S
+ 			}
+ 		}
+ 	}
++
++	sequenceDirectionModeChanged(modelStack);
+ }
+ 
+ int32_t Clip::getMaxLength() {
+diff --git a/src/deluge/model/clip/clip.h b/src/deluge/model/clip/clip.h
+index 17ad816a354203df69279bab6d5ed3c445f5f268..f371af45a8eb935fe75086055d2b28f323535413 100644
+--- a/src/deluge/model/clip/clip.h
++++ b/src/deluge/model/clip/clip.h
+@@ -226,5 +226,6 @@ protected:
+ 	cloneOutput(ModelStackWithTimelineCounter* modelStack) = 0; // Returns whether a new Output was in fact created
+ 	Error solicitParamManager(Song* song, ParamManager* newParamManager = nullptr,
+ 	                          Clip* favourClipForCloningParamManager = nullptr);
++	virtual void sequenceDirectionModeChanged(ModelStackWithTimelineCounter* modelStack) {}
+ 	virtual void pingpongOccurred(ModelStackWithTimelineCounter* modelStack) {}
+ };
+diff --git a/src/deluge/model/clip/external_step_runtime.h b/src/deluge/model/clip/external_step_runtime.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..6dc5e606340ee7992a9f12f47d0603dcaac22ead
+--- /dev/null
++++ b/src/deluge/model/clip/external_step_runtime.h
+@@ -0,0 +1,253 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++#include <array>
++#include <cstdint>
++
++namespace deluge::external_step {
++
++enum class ClockMode : uint8_t {
++	SONG,
++	EXTERNAL_STEP,
++};
++
++enum class StepSize : uint8_t {
++	QUARTER,
++	EIGHTH,
++	SIXTEENTH,
++	THIRTY_SECOND,
++};
++
++enum class State : uint8_t {
++	PRE_ZERO,
++	RUNNING,
++	WAIT_CONTINUE,
++};
++
++enum class Eligibility : uint8_t {
++	ELIGIBLE,
++	SONG_MODE,
++	FEATURE_DISABLED,
++	NOT_MIDI_OUT,
++	ARRANGEMENT_ONLY,
++	RECORDING,
++	ARPEGGIATOR,
++	UNSUPPORTED_DIRECTION,
++	INDIVISIBLE_LOOP,
++	INDEPENDENT_NOTE_ROW,
++	STEP_UNASSIGNED,
++	STEP_INPUT_MISSING,
++	CONFLICT,
++	DUPLICATE_BINDING,
++};
++
++enum class Status : uint8_t {
++	SONG,
++	FEATURE_DISABLED,
++	UNASSIGNED,
++	MISSING_INPUT,
++	CONFLICT,
++	UNSUPPORTED,
++	WAIT,
++	READY,
++};
++
++struct Advance {
++	bool emit = false;
++	bool wrapped = false;
++	uint32_t position = 0;
++};
++
++[[nodiscard]] constexpr StepSize stepSizeFromValue(int32_t value) {
++	switch (value) {
++	case 0:
++		return StepSize::QUARTER;
++	case 1:
++		return StepSize::EIGHTH;
++	case 3:
++		return StepSize::THIRTY_SECOND;
++	case 2:
++	default:
++		return StepSize::SIXTEENTH;
++	}
++}
++
++[[nodiscard]] constexpr uint32_t baseTicksForStepSize(StepSize size) {
++	switch (size) {
++	case StepSize::QUARTER:
++		return 24;
++	case StepSize::EIGHTH:
++		return 12;
++	case StepSize::THIRTY_SECOND:
++		return 3;
++	case StepSize::SIXTEENTH:
++	default:
++		return 6;
++	}
++}
++
++/// Quantize a stored note end without rewriting the note. The note start has already been delayed to the emitted
++/// boundary. A stored end that would fall at or before that boundary is extended to the next pulse.
++[[nodiscard]] constexpr uint32_t noteDurationInPulses(uint32_t notePosition, uint32_t noteLength,
++                                                      uint32_t boundaryPosition, uint32_t loopLength,
++                                                      uint32_t stepTicks, bool wrapped) {
++	if (stepTicks == 0 || loopLength == 0) {
++		return 1;
++	}
++
++	uint64_t boundary = boundaryPosition;
++	uint64_t noteStart = notePosition;
++	if (wrapped) {
++		boundary += loopLength;
++		if (notePosition <= boundaryPosition) {
++			noteStart += loopLength;
++		}
++	}
++
++	const uint64_t noteEnd = noteStart + noteLength;
++	const uint64_t quantizedEnd = ((noteEnd + stepTicks - 1) / stepTicks) * stepTicks;
++	if (quantizedEnd <= boundary) {
++		return 1;
++	}
++	const uint64_t pulses = (quantizedEnd - boundary) / stepTicks;
++	return pulses == 0 ? 1 : static_cast<uint32_t>(pulses);
++}
++
++/// Fixed-size local phase and watchdog state for one externally stepped Clip.
++///
++/// This object deliberately knows nothing about the Song scheduler or MIDI dispatch. Callers provide the current
++/// Clip position and apply the returned boundary synchronously at the accepted control edge.
++class Runtime {
++public:
++	static constexpr uint32_t kMinimumStableInterval = kSampleRate / 40; // 25 ms
++	static constexpr uint32_t kMaximumStableInterval = kSampleRate * 4;  // 4 seconds
++
++	[[nodiscard]] Advance advance(uint32_t currentPosition, uint32_t loopLength, uint32_t stepTicks,
++	                              uint32_t sampleTime) {
++		Advance result;
++		if (loopLength == 0 || stepTicks == 0 || loopLength % stepTicks != 0) {
++			return result;
++		}
++
++		result.emit = true;
++		if (state_ == State::PRE_ZERO) {
++			result.position = 0;
++		}
++		else {
++			const uint32_t next = currentPosition + stepTicks;
++			result.wrapped = next >= loopLength;
++			result.position = result.wrapped ? 0 : next;
++		}
++
++		state_ = State::RUNNING;
++		observePulse(sampleTime);
++		return result;
++	}
++
++	void resetToPreZero() {
++		state_ = State::PRE_ZERO;
++		clearCadence();
++	}
++
++	void waitPreservingPhase() {
++		if (state_ != State::PRE_ZERO) {
++			state_ = State::WAIT_CONTINUE;
++		}
++		clearCadence();
++	}
++
++	[[nodiscard]] bool timeoutDue(uint32_t sampleTime) const {
++		return timeoutArmed_ && static_cast<int32_t>(sampleTime - timeoutDeadline_) >= 0;
++	}
++
++	[[nodiscard]] bool hasTimeoutDeadline() const { return timeoutArmed_; }
++	[[nodiscard]] uint32_t timeoutDeadline() const { return timeoutDeadline_; }
++	[[nodiscard]] State state() const { return state_; }
++	[[nodiscard]] bool isWaiting() const { return state_ != State::RUNNING; }
++
++private:
++	static constexpr uint32_t median(std::array<uint32_t, 3> values) {
++		if (values[0] > values[1]) {
++			const uint32_t value = values[0];
++			values[0] = values[1];
++			values[1] = value;
++		}
++		if (values[1] > values[2]) {
++			const uint32_t value = values[1];
++			values[1] = values[2];
++			values[2] = value;
++		}
++		if (values[0] > values[1]) {
++			values[1] = values[0];
++		}
++		return values[1];
++	}
++
++	static constexpr bool cadenceIsStable(const std::array<uint32_t, 3>& intervals, uint32_t expected) {
++		if (expected < kMinimumStableInterval || expected > kMaximumStableInterval) {
++			return false;
++		}
++		for (uint32_t interval : intervals) {
++			const uint32_t difference = interval > expected ? interval - expected : expected - interval;
++			if (static_cast<uint64_t>(difference) * 4 > expected) {
++				return false;
++			}
++		}
++		return true;
++	}
++
++	void observePulse(uint32_t sampleTime) {
++		if (haveLastPulse_) {
++			intervals_[nextInterval_] = sampleTime - lastPulse_;
++			nextInterval_ = (nextInterval_ + 1) % intervals_.size();
++			if (intervalCount_ < intervals_.size()) {
++				intervalCount_++;
++			}
++
++			if (intervalCount_ == intervals_.size()) {
++				const uint32_t expected = median(intervals_);
++				if (cadenceIsStable(intervals_, expected)) {
++					timeoutDeadline_ = sampleTime + expected * 4;
++					timeoutArmed_ = true;
++				}
++				else {
++					timeoutArmed_ = false;
++				}
++			}
++		}
++
++		lastPulse_ = sampleTime;
++		haveLastPulse_ = true;
++	}
++
++	void clearCadence() {
++		intervals_ = {};
++		lastPulse_ = 0;
++		timeoutDeadline_ = 0;
++		nextInterval_ = 0;
++		intervalCount_ = 0;
++		haveLastPulse_ = false;
++		timeoutArmed_ = false;
++	}
++
++	std::array<uint32_t, 3> intervals_{};
++	uint32_t lastPulse_ = 0;
++	uint32_t timeoutDeadline_ = 0;
++	uint8_t nextInterval_ = 0;
++	uint8_t intervalCount_ = 0;
++	bool haveLastPulse_ = false;
++	bool timeoutArmed_ = false;
++	State state_ = State::PRE_ZERO;
++};
++
++} // namespace deluge::external_step
+diff --git a/src/deluge/model/clip/instrument_clip.cpp b/src/deluge/model/clip/instrument_clip.cpp
+index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024abce97f78f 100644
+--- a/src/deluge/model/clip/instrument_clip.cpp
++++ b/src/deluge/model/clip/instrument_clip.cpp
+@@ -26,6 +26,7 @@
+ #include "gui/views/view.h"
+ #include "hid/buttons.h"
+ #include "io/midi/midi_device.h"
++#include "io/midi/midi_device_manager.h"
+ #include "io/midi/midi_engine.h"
+ #include "memory/general_memory_allocator.h"
+ #include "model/action/action_logger.h"
+@@ -48,12 +49,14 @@
+ #include "modulation/midi/midi_param.h"
+ #include "modulation/midi/midi_param_collection.h"
+ #include "modulation/patch/patch_cable_set.h"
++#include "playback/mode/session.h"
+ #include "processing/engines/audio_engine.h"
+ #include "processing/engines/cv_engine.h"
+ #include "processing/sound/sound_instrument.h"
+ #include "storage/storage_manager.h"
+ #include "util/const_functions.h"
+ #include "util/firmware_version.h"
++#include "util/functions.h"
+ #include "util/try.h"
+ #include <array>
+ #include <cmath>
+@@ -64,6 +67,65 @@
+ 
+ namespace params = deluge::modulation::params;
+ 
++namespace {
++
++void writeExternalStepMIDIInput(Serializer& writer, char const* tagName,
++                                const deluge::midi::ExternalStepMIDIInput& input) {
++	if (!input.isAssigned()) {
++		return;
++	}
++	writer.writeOpeningTagBeginning(tagName);
++	writer.writeAttribute("channel", input.channel);
++	writer.writeAttribute("messageType", util::to_underlying(input.messageType));
++	writer.writeAttribute("number", input.number);
++	writer.writeOpeningTagEnd();
++	input.cable->writeReferenceToFile(writer);
++	writer.writeClosingTag(tagName);
++}
++
++void readExternalStepMIDIInput(Deserializer& reader, deluge::midi::ExternalStepMIDIInput& input) {
++	int32_t channel = deluge::midi::ExternalStepMIDIInput::kUnassigned;
++	int32_t messageType = util::to_underlying(deluge::midi::ExternalStepMIDIMessageType::NONE);
++	int32_t number = deluge::midi::ExternalStepMIDIInput::kUnassigned;
++	MIDICable* cable = nullptr;
++
++	char const* tagName;
++	while (*(tagName = reader.readNextTagOrAttributeName())) {
++		if (!strcmp(tagName, "channel")) {
++			channel = reader.readTagOrAttributeValueInt();
++		}
++		else if (!strcmp(tagName, "messageType")) {
++			messageType = reader.readTagOrAttributeValueInt();
++		}
++		else if (!strcmp(tagName, "number")) {
++			number = reader.readTagOrAttributeValueInt();
++		}
++		else if (!strcmp(tagName, "device")) {
++			cable = MIDIDeviceManager::readDeviceReferenceFromFile(reader);
++		}
++		reader.exitTag(tagName);
++	}
++
++	if (channel < 0 || channel >= deluge::midi::ExternalStepMIDIInput::kChannelCount || messageType < 0
++	    || messageType > util::to_underlying(deluge::midi::ExternalStepMIDIMessageType::PROGRAM_CHANGE) || number < 0
++	    || number > UINT8_MAX || cable == nullptr) {
++		input.clear();
++		return;
++	}
++	const auto type = static_cast<deluge::midi::ExternalStepMIDIMessageType>(messageType);
++	if (!deluge::midi::ExternalStepMIDIInput::numberIsValid(type, number)) {
++		input.clear();
++		return;
++	}
++	input.cable = cable;
++	input.channel = channel;
++	input.messageType = type;
++	input.number = number;
++	input.clearRuntimeState();
++}
++
++} // namespace
++
+ // Supplying song is optional, and basically only for the purpose of setting yScroll according to root note
+ InstrumentClip::InstrumentClip(Song* song) : Clip(ClipType::INSTRUMENT), noteRows() {
+ 	midiBank = 128; // Means none
+@@ -136,6 +198,11 @@ void InstrumentClip::copyBasicsFrom(Clip const* otherClip) {
+ 	yScroll = otherInstrumentClip->yScroll;
+ 	keyboardState = otherInstrumentClip->keyboardState;
+ 	sequenceDirectionMode = otherInstrumentClip->sequenceDirectionMode;
++	externalStepClockMode = otherInstrumentClip->externalStepClockMode;
++	externalStepSize = otherInstrumentClip->externalStepSize;
++	externalStepInput = otherInstrumentClip->externalStepInput;
++	externalResetInput = otherInstrumentClip->externalResetInput;
++	externalStepRuntime.resetToPreZero();
+ 
+ 	affectEntire = otherInstrumentClip->affectEntire;
+ 
+@@ -152,6 +219,205 @@ void InstrumentClip::copyBasicsFrom(Clip const* otherClip) {
+ 	arpSettings.cloneFrom(&otherInstrumentClip->arpSettings);
+ }
+ 
++uint32_t InstrumentClip::getLivePos() const {
++	return isExternalStepMode() ? lastProcessedPos : Clip::getLivePos();
++}
++
++uint32_t InstrumentClip::getExternalStepTicks(const Song* song) const {
++	if (song == nullptr) {
++		return 0;
++	}
++	return increaseMagnitude(deluge::external_step::baseTicksForStepSize(externalStepSize),
++	                         song->getInputTickMagnitude());
++}
++
++bool InstrumentClip::externalStepBindingsAreIdentical() const {
++	return externalStepInput.hasSameAssignmentAs(externalResetInput);
++}
++
++deluge::external_step::Eligibility InstrumentClip::getExternalStepEligibility(bool featureEnabled,
++                                                                              const Song* song) const {
++	using enum deluge::external_step::Eligibility;
++	using deluge::midi::ExternalStepMIDIInput;
++	if (!isExternalStepMode()) {
++		return SONG_MODE;
++	}
++	if (!featureEnabled) {
++		return FEATURE_DISABLED;
++	}
++	if (output == nullptr || output->type != OutputType::MIDI_OUT) {
++		return NOT_MIDI_OUT;
++	}
++	if (isArrangementOnlyClip()) {
++		return ARRANGEMENT_ONLY;
++	}
++	if (currentlyRecordingLinearly) {
++		return RECORDING;
++	}
++	if (arpSettings.mode != ArpMode::OFF) {
++		return ARPEGGIATOR;
++	}
++	if (sequenceDirectionMode != SequenceDirection::FORWARD) {
++		return UNSUPPORTED_DIRECTION;
++	}
++	const uint32_t stepTicks = getExternalStepTicks(song);
++	if (stepTicks == 0 || loopLength <= 0 || static_cast<uint32_t>(loopLength) % stepTicks != 0) {
++		return INDIVISIBLE_LOOP;
++	}
++	NoteRowVector& mutableNoteRows = const_cast<NoteRowVector&>(noteRows);
++	for (int32_t i = 0; i < mutableNoteRows.getNumElements(); i++) {
++		if (mutableNoteRows.getElement(i)->hasIndependentPlayPos()) {
++			return INDEPENDENT_NOTE_ROW;
++		}
++	}
++	const bool stepIdentityValid =
++	    externalStepInput.channel < ExternalStepMIDIInput::kChannelCount
++	    && ExternalStepMIDIInput::numberIsValid(externalStepInput.messageType, externalStepInput.number);
++	if (!stepIdentityValid) {
++		return STEP_UNASSIGNED;
++	}
++	if (externalStepInput.cable == nullptr || externalStepInput.cable->connectionFlags == 0) {
++		return STEP_INPUT_MISSING;
++	}
++	if (externalStepInput.conflict) {
++		return CONFLICT;
++	}
++	if (externalStepBindingsAreIdentical()) {
++		return DUPLICATE_BINDING;
++	}
++	return ELIGIBLE;
++}
++
++deluge::external_step::Status InstrumentClip::getExternalStepStatus(bool featureEnabled, const Song* song) const {
++	switch (getExternalStepEligibility(featureEnabled, song)) {
++	case deluge::external_step::Eligibility::SONG_MODE:
++		return deluge::external_step::Status::SONG;
++	case deluge::external_step::Eligibility::FEATURE_DISABLED:
++		return deluge::external_step::Status::FEATURE_DISABLED;
++	case deluge::external_step::Eligibility::STEP_UNASSIGNED:
++		return deluge::external_step::Status::UNASSIGNED;
++	case deluge::external_step::Eligibility::STEP_INPUT_MISSING:
++		return deluge::external_step::Status::MISSING_INPUT;
++	case deluge::external_step::Eligibility::CONFLICT:
++	case deluge::external_step::Eligibility::DUPLICATE_BINDING:
++		return deluge::external_step::Status::CONFLICT;
++	case deluge::external_step::Eligibility::ELIGIBLE:
++		return externalStepRuntime.isWaiting() ? deluge::external_step::Status::WAIT
++		                                       : deluge::external_step::Status::READY;
++	default:
++		return deluge::external_step::Status::UNSUPPORTED;
++	}
++}
++
++deluge::external_step::Eligibility InstrumentClip::validateExternalStep(ModelStackWithTimelineCounter* modelStack,
++                                                                        bool featureEnabled) {
++	const deluge::external_step::Eligibility eligibility = getExternalStepEligibility(featureEnabled, modelStack->song);
++	if (isExternalStepMode() && eligibility != deluge::external_step::Eligibility::ELIGIBLE) {
++		clearExternalStepForStop(modelStack);
++	}
++	return eligibility;
++}
++
++void InstrumentClip::clearExternalStepNoteRows(ModelStackWithTimelineCounter* modelStack, bool sendNoteOffs) {
++	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
++		NoteRow* noteRow = noteRows.getElement(i);
++		noteRow->clearExternalStepNoteState(modelStack->addNoteRow(getNoteRowId(noteRow, i), noteRow), sendNoteOffs);
++	}
++}
++
++void InstrumentClip::setExternalStepClockMode(deluge::external_step::ClockMode mode,
++                                              ModelStackWithTimelineCounter* modelStack) {
++	if (mode == externalStepClockMode) {
++		return;
++	}
++	clearExternalStepNoteRows(modelStack, true);
++	externalStepRuntime.resetToPreZero();
++	externalStepInput.clearRuntimeState();
++	externalResetInput.clearRuntimeState();
++	lastProcessedPos = 0;
++	repeatCount = 0;
++	externalStepClockMode = mode;
++	if (!isExternalStepMode()) {
++		if (currentPlaybackMode == &session && playbackHandler.isEitherClockActive()
++		    && modelStack->song->isClipActive(this)) {
++			session.reSyncClip(modelStack, true, true);
++		}
++		else {
++			expectEvent();
++		}
++	}
++}
++
++void InstrumentClip::setExternalStepSize(deluge::external_step::StepSize size,
++                                         ModelStackWithTimelineCounter* modelStack) {
++	if (size == externalStepSize) {
++		return;
++	}
++	clearExternalStepNoteRows(modelStack, true);
++	externalStepRuntime.resetToPreZero();
++	externalStepInput.clearHeldState();
++	externalResetInput.clearHeldState();
++	lastProcessedPos = 0;
++	repeatCount = 0;
++	externalStepSize = size;
++}
++
++void InstrumentClip::resetExternalStep(ModelStackWithTimelineCounter* modelStack) {
++	clearExternalStepNoteRows(modelStack, true);
++	externalStepRuntime.resetToPreZero();
++	lastProcessedPos = 0;
++	repeatCount = 0;
++}
++
++void InstrumentClip::clearExternalStepForStop(ModelStackWithTimelineCounter* modelStack, bool sendNoteOffs) {
++	clearExternalStepNoteRows(modelStack, sendNoteOffs);
++	externalStepRuntime.resetToPreZero();
++	lastProcessedPos = 0;
++	repeatCount = 0;
++	externalStepInput.clearHeldState();
++	externalResetInput.clearHeldState();
++}
++
++void InstrumentClip::sequenceDirectionModeChanged(ModelStackWithTimelineCounter* modelStack) {
++	if (isExternalStepMode()) {
++		clearExternalStepForStop(modelStack);
++	}
++}
++
++void InstrumentClip::demoteExternalStepForUnsupportedOutput(OutputType newOutputType, Song* song) {
++	if (!isExternalStepMode() || newOutputType == OutputType::MIDI_OUT) {
++		return;
++	}
++
++	if (output != nullptr) {
++		char modelStackMemory[MODEL_STACK_MAX_SIZE];
++		ModelStackWithTimelineCounter* modelStack = setupModelStackWithTimelineCounter(modelStackMemory, song, this);
++		clearExternalStepForStop(modelStack);
++	}
++	else {
++		externalStepRuntime.resetToPreZero();
++		externalStepInput.clearHeldState();
++		externalResetInput.clearHeldState();
++		lastProcessedPos = 0;
++		repeatCount = 0;
++	}
++
++	externalStepClockMode = deluge::external_step::ClockMode::SONG;
++}
++
++void InstrumentClip::cutExternalStepNotesPreservePhase(ModelStackWithTimelineCounter* modelStack) {
++	clearExternalStepNoteRows(modelStack, true);
++	externalStepRuntime.waitPreservingPhase();
++}
++
++bool InstrumentClip::serviceExternalStepTimeout(ModelStackWithTimelineCounter* modelStack, uint32_t sampleTime) {
++	if (!externalStepRuntime.timeoutDue(sampleTime)) {
++		return false;
++	}
++	cutExternalStepNotesPreservePhase(modelStack);
++	return true;
++}
++
+ // Will replace the Clip in the modelStack, if success.
+ Error InstrumentClip::clone(ModelStackWithTimelineCounter* modelStack, bool shouldFlattenReversing) const {
+ 
+@@ -304,6 +570,9 @@ void InstrumentClip::lengthChanged(ModelStackWithTimelineCounter* modelStack, in
+ 	}
+ 
+ 	Clip::lengthChanged(modelStack, oldLength, action);
++	if (isExternalStepMode()) {
++		clearExternalStepForStop(modelStack);
++	}
+ }
+ 
+ // Does this individually for each NoteRow, because they might be different lengths, and some might need repeating while
+@@ -379,6 +648,9 @@ void InstrumentClip::halveNoteRowsWithIndependentLength(ModelStackWithTimelineCo
+ // Accepts any pos >= -length
+ void InstrumentClip::setPos(ModelStackWithTimelineCounter* modelStack, int32_t newPos,
+                             bool useActualPosForParamManagers) {
++	if (isExternalStepMode()) {
++		return;
++	}
+ 	Clip::setPos(modelStack, newPos, useActualPosForParamManagers); // This will also call our own virtual expectEvent()
+ 
+ 	noteRowsNumTicksBehindClip = 0;
+@@ -669,6 +941,10 @@ void InstrumentClip::posReachedEnd(ModelStackWithTimelineCounter* thisModelStack
+ }
+ 
+ bool InstrumentClip::wantsToBeginLinearRecording(Song* song) {
++	if (isExternalStepMode()) {
++		return false;
++	}
++
+ 	if (!Clip::wantsToBeginLinearRecording(song)) {
+ 		return false;
+ 	}
+@@ -694,7 +970,54 @@ void InstrumentClip::pingpongOccurred(ModelStackWithTimelineCounter* modelStack)
+ 	}
+ }
+ 
++bool InstrumentClip::processExternalStep(ModelStackWithTimelineCounter* modelStack, uint32_t sampleTime,
++                                         bool featureEnabled) {
++	if (getExternalStepEligibility(featureEnabled, modelStack->song) != deluge::external_step::Eligibility::ELIGIBLE
++	    || currentPlaybackMode != &session || !playbackHandler.isEitherClockActive()
++	    || !modelStack->song->isClipActive(this) || !isActiveOnOutput()) {
++		return false;
++	}
++
++	const uint32_t previousPosition = lastProcessedPos;
++	const uint32_t stepTicks = getExternalStepTicks(modelStack->song);
++	const bool firstBoundary = externalStepRuntime.state() == deluge::external_step::State::PRE_ZERO;
++	const deluge::external_step::Advance advance =
++	    externalStepRuntime.advance(previousPosition, loopLength, stepTicks, sampleTime);
++	if (!advance.emit) {
++		return false;
++	}
++
++	lastProcessedPos = advance.position;
++	if (advance.wrapped) {
++		repeatCount++;
++	}
++
++	static PendingNoteOnList pendingNoteOnList;
++	pendingNoteOnList.count = 0;
++	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
++		NoteRow* noteRow = noteRows.getElement(i);
++		noteRow->processExternalStepBoundary(modelStack->addNoteRow(getNoteRowId(noteRow, i), noteRow),
++		                                     previousPosition, advance.position, loopLength, stepTicks, firstBoundary,
++		                                     advance.wrapped, &pendingNoteOnList);
++	}
++
++	ParamCollectionSummary* midiSummary = paramManager.getMIDIParamCollectionSummary();
++	if (midiSummary->paramCollection != nullptr && midiSummary->containsAutomation()) {
++		ModelStackWithThreeMainThings* threeThings =
++		    modelStack->addOtherTwoThingsButNoNoteRow(output->toModControllable(), &paramManager);
++		paramManager.getMIDIParamCollection()->grabValuesFromPos(advance.position,
++		                                                         threeThings->addParamCollectionSummary(midiSummary));
++	}
++
++	// Incoming pulses have no predictable final iteration; never borrow Song-clock ending state.
++	resolvePendingNoteOns(modelStack, &pendingNoteOnList, false);
++	return true;
++}
++
+ void InstrumentClip::processCurrentPos(ModelStackWithTimelineCounter* modelStack, uint32_t ticksSinceLast) {
++	if (isExternalStepMode()) {
++		return;
++	}
+ 
+ 	Clip::processCurrentPos(modelStack, ticksSinceLast);
+ 	if (modelStack->getTimelineCounter() != this) {
+@@ -737,175 +1060,7 @@ void InstrumentClip::processCurrentPos(ModelStackWithTimelineCounter* modelStack
+ 
+ 		noteRowsNumTicksBehindClip = 0;
+ 
+-		// Count up how many of each probability there are
+-		uint8_t probabilityCount[kNumProbabilityValues];
+-		memset(probabilityCount, 0, sizeof(probabilityCount));
+-
+-		// Check whether special case where all probability adds up to 100%
+-		int32_t probabilitySum = 0;
+-
+-		bool doingSumTo100 = false;
+-		int32_t winningI;
+-
+-		for (int32_t i = 0; i < pendingNoteOnList.count; i++) {
+-
+-			// If we found a 100%, we know we're not doing sum-to-100
+-			if (pendingNoteOnList.pendingNoteOns[i].probability == kNumProbabilityValues) {
+-				goto skipDoingSumTo100;
+-			}
+-
+-			// If any follow-previous-probability, skip this statistics-grabbing
+-			if (pendingNoteOnList.pendingNoteOns[i].probability & 128) {
+-				continue;
+-			}
+-
+-			// Add to probability total sum - only if we hadn't already found a pending note-on with this probability
+-			// value
+-			// if (probabilityCount[pendingNoteOnList.pendingNoteOns[i].probability - 1] == 0)
+-			probabilitySum += pendingNoteOnList.pendingNoteOns[i].probability;
+-
+-			probabilityCount[pendingNoteOnList.pendingNoteOns[i].probability - 1]++;
+-		}
+-
+-		doingSumTo100 = (probabilitySum == kNumProbabilityValues);
+-
+-		if (doingSumTo100) {
+-			int32_t probabilityValueForSummers = ((uint32_t)getRandom255() * kNumProbabilityValues) >> 8;
+-
+-			int32_t probabilitySumSecondPass = 0;
+-
+-			bool foundWinner = false;
+-
+-			for (int32_t i = 0; i < pendingNoteOnList.count; i++) {
+-
+-				// If any follow-previous-probability, skip this statistics-grabbing
+-				if (pendingNoteOnList.pendingNoteOns[i].probability & 128) {
+-					continue;
+-				}
+-
+-				int32_t probability = pendingNoteOnList.pendingNoteOns[i].probability;
+-
+-				probabilitySumSecondPass += probability;
+-
+-				lastProbabiltyPos[probability] = lastProcessedPos;
+-
+-				if (!foundWinner && probabilitySumSecondPass > probabilityValueForSummers) {
+-					winningI = i;
+-					lastProbabilities[probability] = true;
+-
+-					foundWinner = true;
+-				}
+-
+-				else {
+-					// Mark down this "loser"
+-					lastProbabilities[probability] = false;
+-				}
+-			}
+-		}
+-
+-skipDoingSumTo100:
+-
+-		// Go through each pending note-on
+-		for (int32_t i = 0; i < pendingNoteOnList.count; i++) {
+-
+-			bool conditionPassed;
+-
+-			// If it's a 100%, which usually will be the case...
+-			if (pendingNoteOnList.pendingNoteOns[i].probability == kNumProbabilityValues) {
+-				conditionPassed = true;
+-			}
+-
+-			// Otherwise...
+-			else [[unlikely]] {
+-				int32_t probability = pendingNoteOnList.pendingNoteOns[i].probability & 127;
+-
+-				// If based on a previous probability...
+-				if (pendingNoteOnList.pendingNoteOns[i].probability & 128) {
+-
+-					// Check that that previous probability value is still valid. It normally should be, unless the
+-					// user has changed the probability of that "previous" note
+-					if (lastProbabiltyPos[probability] == -1 || lastProbabiltyPos[probability] == lastProcessedPos) {
+-						goto doNewProbability;
+-					}
+-
+-					conditionPassed = lastProbabilities[probability];
+-				}
+-
+-				// Or if not based on a previous probability...
+-				else {
+-
+-					// If we're summing to 100...
+-					if (doingSumTo100) {
+-						conditionPassed = (i == winningI);
+-					}
+-
+-					// Or if not summing to 100...
+-					else {
+-doNewProbability:
+-						// If the outcome of this probability has already been decided (by another note with same
+-						// probability)
+-						if (probabilityCount[probability - 1] >= 254) {
+-							conditionPassed = probabilityCount[probability - 1] == 255;
+-						}
+-
+-						// Otherwise, decide it now
+-						else {
+-							int32_t probabilityValue = ((uint32_t)getRandom255() * kNumProbabilityValues) >> 8;
+-							conditionPassed = (probabilityValue < probability);
+-
+-							lastProbabilities[kNumProbabilityValues - probability] = !conditionPassed;
+-							lastProbabiltyPos[kNumProbabilityValues - probability] = lastProcessedPos;
+-
+-							lastProbabilities[probability] = conditionPassed;
+-							lastProbabiltyPos[probability] = lastProcessedPos;
+-
+-							// Store the outcome, for any neighbouring notes
+-							probabilityCount[probability - 1] = conditionPassed ? 255 : 254;
+-						}
+-					}
+-				}
+-			}
+-
+-			// if probably setting has resulted in a note on
+-			if (conditionPassed) [[likely]] {
+-				// now we check if we should skip note based on iteration condition
+-				Iterance iterance = pendingNoteOnList.pendingNoteOns[i].iterance;
+-
+-				// If it's an iteration dependence...
+-				if (iterance != kDefaultIteranceValue) [[unlikely]] {
+-					ModelStackWithNoteRow* modelStackWithNoteRow = modelStack->addNoteRow(
+-					    pendingNoteOnList.pendingNoteOns[i].noteRowId, pendingNoteOnList.pendingNoteOns[i].noteRow);
+-
+-					conditionPassed = iterance.passesCheck(modelStackWithNoteRow->getRepeatCount(), ending);
+-				}
+-
+-				// lastly, if after checking iteration we still have a note on
+-				// we'll check if that note should be sounded based on fill state
+-				if (conditionPassed) {
+-					// check if it's a FILL note and SYNC_SCALING is *not* pressed
+-					if (pendingNoteOnList.pendingNoteOns[i].fill == FillMode::FILL
+-					    && !currentSong->isFillModeActive()) {
+-						conditionPassed = false;
+-					}
+-					// check if it's a NOT FILL note and SYNC_SCALING is pressed
+-					else if (pendingNoteOnList.pendingNoteOns[i].fill == FillMode::NOT_FILL
+-					         && currentSong->isFillModeActive()) {
+-						conditionPassed = false;
+-					}
+-				}
+-
+-				// probability, iterance and fill conditions have passed
+-				if (conditionPassed) {
+-					sendPendingNoteOn(modelStack, &pendingNoteOnList.pendingNoteOns[i]);
+-				}
+-				else {
+-					pendingNoteOnList.pendingNoteOns[i].noteRow->sequenced = false;
+-				}
+-			}
+-			else {
+-				pendingNoteOnList.pendingNoteOns[i].noteRow->sequenced = false;
+-			}
+-		}
++		resolvePendingNoteOns(modelStack, &pendingNoteOnList, ending);
+ 	}
+ 
+ 	if (ticksTilNextNoteRowEvent < playbackHandler.swungTicksTilNextEvent) {
+@@ -913,6 +1068,177 @@ doNewProbability:
+ 	}
+ }
+ 
++void InstrumentClip::resolvePendingNoteOns(ModelStackWithTimelineCounter* modelStack,
++                                           PendingNoteOnList* pendingNoteOnList, bool ending) {
++	// Count up how many of each probability there are
++	uint8_t probabilityCount[kNumProbabilityValues];
++	memset(probabilityCount, 0, sizeof(probabilityCount));
++
++	// Check whether special case where all probability adds up to 100%
++	int32_t probabilitySum = 0;
++
++	bool doingSumTo100 = false;
++	int32_t winningI;
++
++	for (int32_t i = 0; i < pendingNoteOnList->count; i++) {
++
++		// If we found a 100%, we know we're not doing sum-to-100
++		if (pendingNoteOnList->pendingNoteOns[i].probability == kNumProbabilityValues) {
++			goto skipDoingSumTo100;
++		}
++
++		// If any follow-previous-probability, skip this statistics-grabbing
++		if (pendingNoteOnList->pendingNoteOns[i].probability & 128) {
++			continue;
++		}
++
++		// Add to probability total sum - only if we hadn't already found a pending note-on with this probability
++		// value
++		// if (probabilityCount[pendingNoteOnList->pendingNoteOns[i].probability - 1] == 0)
++		probabilitySum += pendingNoteOnList->pendingNoteOns[i].probability;
++
++		probabilityCount[pendingNoteOnList->pendingNoteOns[i].probability - 1]++;
++	}
++
++	doingSumTo100 = (probabilitySum == kNumProbabilityValues);
++
++	if (doingSumTo100) {
++		int32_t probabilityValueForSummers = ((uint32_t)getRandom255() * kNumProbabilityValues) >> 8;
++
++		int32_t probabilitySumSecondPass = 0;
++
++		bool foundWinner = false;
++
++		for (int32_t i = 0; i < pendingNoteOnList->count; i++) {
++
++			// If any follow-previous-probability, skip this statistics-grabbing
++			if (pendingNoteOnList->pendingNoteOns[i].probability & 128) {
++				continue;
++			}
++
++			int32_t probability = pendingNoteOnList->pendingNoteOns[i].probability;
++
++			probabilitySumSecondPass += probability;
++
++			lastProbabiltyPos[probability] = lastProcessedPos;
++
++			if (!foundWinner && probabilitySumSecondPass > probabilityValueForSummers) {
++				winningI = i;
++				lastProbabilities[probability] = true;
++
++				foundWinner = true;
++			}
++
++			else {
++				// Mark down this "loser"
++				lastProbabilities[probability] = false;
++			}
++		}
++	}
++
++skipDoingSumTo100:
++
++	// Go through each pending note-on
++	for (int32_t i = 0; i < pendingNoteOnList->count; i++) {
++
++		bool conditionPassed;
++
++		// If it's a 100%, which usually will be the case...
++		if (pendingNoteOnList->pendingNoteOns[i].probability == kNumProbabilityValues) {
++			conditionPassed = true;
++		}
++
++		// Otherwise...
++		else [[unlikely]] {
++			int32_t probability = pendingNoteOnList->pendingNoteOns[i].probability & 127;
++
++			// If based on a previous probability...
++			if (pendingNoteOnList->pendingNoteOns[i].probability & 128) {
++
++				// Check that that previous probability value is still valid. It normally should be, unless the
++				// user has changed the probability of that "previous" note
++				if (lastProbabiltyPos[probability] == -1 || lastProbabiltyPos[probability] == lastProcessedPos) {
++					goto doNewProbability;
++				}
++
++				conditionPassed = lastProbabilities[probability];
++			}
++
++			// Or if not based on a previous probability...
++			else {
++
++				// If we're summing to 100...
++				if (doingSumTo100) {
++					conditionPassed = (i == winningI);
++				}
++
++				// Or if not summing to 100...
++				else {
++doNewProbability:
++					// If the outcome of this probability has already been decided (by another note with same
++					// probability)
++					if (probabilityCount[probability - 1] >= 254) {
++						conditionPassed = probabilityCount[probability - 1] == 255;
++					}
++
++					// Otherwise, decide it now
++					else {
++						int32_t probabilityValue = ((uint32_t)getRandom255() * kNumProbabilityValues) >> 8;
++						conditionPassed = (probabilityValue < probability);
++
++						lastProbabilities[kNumProbabilityValues - probability] = !conditionPassed;
++						lastProbabiltyPos[kNumProbabilityValues - probability] = lastProcessedPos;
++
++						lastProbabilities[probability] = conditionPassed;
++						lastProbabiltyPos[probability] = lastProcessedPos;
++
++						// Store the outcome, for any neighbouring notes
++						probabilityCount[probability - 1] = conditionPassed ? 255 : 254;
++					}
++				}
++			}
++		}
++
++		// if probably setting has resulted in a note on
++		if (conditionPassed) [[likely]] {
++			// now we check if we should skip note based on iteration condition
++			Iterance iterance = pendingNoteOnList->pendingNoteOns[i].iterance;
++
++			// If it's an iteration dependence...
++			if (iterance != kDefaultIteranceValue) [[unlikely]] {
++				ModelStackWithNoteRow* modelStackWithNoteRow = modelStack->addNoteRow(
++				    pendingNoteOnList->pendingNoteOns[i].noteRowId, pendingNoteOnList->pendingNoteOns[i].noteRow);
++
++				conditionPassed = iterance.passesCheck(modelStackWithNoteRow->getRepeatCount(), ending);
++			}
++
++			// lastly, if after checking iteration we still have a note on
++			// we'll check if that note should be sounded based on fill state
++			if (conditionPassed) {
++				// check if it's a FILL note and SYNC_SCALING is *not* pressed
++				if (pendingNoteOnList->pendingNoteOns[i].fill == FillMode::FILL && !currentSong->isFillModeActive()) {
++					conditionPassed = false;
++				}
++				// check if it's a NOT FILL note and SYNC_SCALING is pressed
++				else if (pendingNoteOnList->pendingNoteOns[i].fill == FillMode::NOT_FILL
++				         && currentSong->isFillModeActive()) {
++					conditionPassed = false;
++				}
++			}
++
++			// probability, iterance and fill conditions have passed
++			if (conditionPassed) {
++				sendPendingNoteOn(modelStack, &pendingNoteOnList->pendingNoteOns[i]);
++			}
++			else {
++				pendingNoteOnList->pendingNoteOns[i].noteRow->sequenced = false;
++			}
++		}
++		else {
++			pendingNoteOnList->pendingNoteOns[i].noteRow->sequenced = false;
++		}
++	}
++}
+ void InstrumentClip::sendPendingNoteOn(ModelStackWithTimelineCounter* modelStack, PendingNoteOn* pendingNoteOn) {
+ 
+ 	ModelStackWithNoteRow* modelStackWithNoteRow =
+@@ -1133,6 +1459,9 @@ ModelStackWithNoteRow* InstrumentClip::getOrCreateNoteRowForYNote(int32_t yNote,
+ // I think you need to check (playbackHandler.isEitherClockActive() && song->isClipActive(thisClip)) before calling
+ // this.
+ void InstrumentClip::resumePlayback(ModelStackWithTimelineCounter* modelStack, bool mayMakeSound) {
++	if (isExternalStepMode()) {
++		return;
++	}
+ 	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
+ 		NoteRow* thisNoteRow = noteRows.getElement(i);
+ 		if (!thisNoteRow->muted) {
+@@ -1145,6 +1474,14 @@ void InstrumentClip::resumePlayback(ModelStackWithTimelineCounter* modelStack, b
+ }
+ 
+ void InstrumentClip::expectNoFurtherTicks(Song* song, bool actuallySoundChange) {
++	if (isExternalStepMode()) {
++		char externalStepModelStackMemory[MODEL_STACK_MAX_SIZE];
++		ModelStackWithTimelineCounter* externalStepModelStack =
++		    setupModelStackWithTimelineCounter(externalStepModelStackMemory, song, this);
++		clearExternalStepForStop(externalStepModelStack);
++		currentlyRecordingLinearly = false;
++		return;
++	}
+ 
+ 	// If it's actually another Clip, that we're recording into the arranger...
+ 	if (output->getActiveClip() && output->getActiveClip()->beingRecordedFromClip == this) {
+@@ -1196,6 +1533,10 @@ void InstrumentClip::expectNoFurtherTicks(Song* song, bool actuallySoundChange)
+ // Stops currently-playing notes by actually sending a note-off right now.
+ // Check that we're allowed to make sound before you call this (nowhere does, is that bad?)
+ void InstrumentClip::stopAllNotesPlaying(ModelStackWithTimelineCounter* modelStack, bool actuallySoundChange) {
++	if (isExternalStepMode() && actuallySoundChange) {
++		cutExternalStepNotesPreservePhase(modelStack);
++		return;
++	}
+ 	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
+ 		NoteRow* thisNoteRow = noteRows.getElement(i);
+ 		ModelStackWithNoteRow* modelStackWithNoteRow =
+@@ -1610,6 +1951,7 @@ int32_t InstrumentClip::getNumNoteRows() {
+ }
+ 
+ Error InstrumentClip::setNonAudioInstrument(Instrument* newInstrument, Song* song, ParamManager* newParamManager) {
++	demoteExternalStepForUnsupportedOutput(newInstrument->type, song);
+ 
+ 	// New addition - need expression params... hopefully fine?
+ 	// Maybe this function should have the ability to do something equivalent to solicitParamManager(), for the purpose
+@@ -2226,6 +2568,9 @@ void InstrumentClip::detachFromOutput(ModelStackWithTimelineCounter* modelStack,
+                                       bool shouldDeleteEmptyNoteRowsAtEitherEnd, bool shouldRetainLinksToOutput,
+                                       bool keepNoteRowsWithMIDIInput, bool shouldGrabMidiCommands,
+                                       bool shouldBackUpExpressionParamsToo) {
++	if (isExternalStepMode()) {
++		clearExternalStepForStop(modelStack);
++	}
+ 
+ 	if (isActiveOnOutput()) {
+ 		output->detachActiveClip(modelStack->song);
+@@ -2300,6 +2645,7 @@ Error InstrumentClip::undoDetachmentFromOutput(ModelStackWithTimelineCounter* mo
+ Error InstrumentClip::setAudioInstrument(Instrument* newInstrument, Song* song, bool shouldSetupPatching,
+                                          ParamManager* newParamManager,
+                                          InstrumentClip* favourClipForCloningParamManager) {
++	demoteExternalStepForUnsupportedOutput(newInstrument->type, song);
+ 
+ 	output = newInstrument;
+ 	affectEntire = (newInstrument->type != OutputType::KIT); // Moved here from changeInstrument, March 2021
+@@ -2353,6 +2699,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
+ 	if (output->type == OutputType::KIT) {
+ 		writer.writeAttribute("affectEntire", affectEntire);
+ 	}
++	writer.writeAttribute("externalStepClockMode", util::to_underlying(externalStepClockMode));
++	writer.writeAttribute("externalStepSize", util::to_underlying(externalStepSize));
+ 
+ 	Instrument* instrument = (Instrument*)output;
+ 
+@@ -2400,6 +2748,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
+ 	writer.writeOpeningTagEnd();
+ 
+ 	Clip::writeMidiCommandsToFile(writer, song);
++	writeExternalStepMIDIInput(writer, "externalStepInput", externalStepInput);
++	writeExternalStepMIDIInput(writer, "externalResetInput", externalResetInput);
+ 
+ 	if (output->type == OutputType::MIDI_OUT) {
+ 		paramManager.getMIDIParamCollection()->writeToFile(writer);
+@@ -2565,6 +2915,25 @@ someError:
+ 			midiPGM = reader.readTagOrAttributeValueInt();
+ 		}
+ 
++		else if (!strcmp(tagName, "externalStepClockMode")) {
++			const int32_t value = reader.readTagOrAttributeValueInt();
++			externalStepClockMode = value == util::to_underlying(deluge::external_step::ClockMode::EXTERNAL_STEP)
++			                            ? deluge::external_step::ClockMode::EXTERNAL_STEP
++			                            : deluge::external_step::ClockMode::SONG;
++		}
++
++		else if (!strcmp(tagName, "externalStepSize")) {
++			externalStepSize = deluge::external_step::stepSizeFromValue(reader.readTagOrAttributeValueInt());
++		}
++
++		else if (!strcmp(tagName, "externalStepInput")) {
++			readExternalStepMIDIInput(reader, externalStepInput);
++		}
++
++		else if (!strcmp(tagName, "externalResetInput")) {
++			readExternalStepMIDIInput(reader, externalResetInput);
++		}
++
+ 		else if (!strcmp(tagName, "yScroll")) {
+ 			yScroll = reader.readTagOrAttributeValueInt();
+ 		}
+@@ -3931,6 +4300,8 @@ Error InstrumentClip::claimOutput(ModelStackWithTimelineCounter* modelStack) {
+ 		}
+ 	}
+ 
++	demoteExternalStepForUnsupportedOutput(output->type, modelStack->song);
++
+ 	// If Instrument is a Kit, match each NoteRow to its Drum
+ 	if (output->type == OutputType::KIT) {
+ 		Kit* kit = (Kit*)output;
+@@ -4413,6 +4784,9 @@ returnNull:
+ }
+ 
+ void InstrumentClip::expectEvent() {
++	if (isExternalStepMode()) {
++		return;
++	}
+ 	ticksTilNextNoteRowEvent = 0;
+ 	Clip::expectEvent();
+ }
+@@ -4738,6 +5112,9 @@ bool InstrumentClip::hasAnyPitchExpressionAutomationOnNoteRows() {
+ }
+ 
+ void InstrumentClip::incrementPos(ModelStackWithTimelineCounter* modelStack, int32_t numTicks) {
++	if (isExternalStepMode()) {
++		return;
++	}
+ 	Clip::incrementPos(modelStack, numTicks);
+ 
+ 	ticksTilNextNoteRowEvent -= numTicks; // We're one tick closer to the next event...
+diff --git a/src/deluge/model/clip/instrument_clip.h b/src/deluge/model/clip/instrument_clip.h
+index b6e15e334b0dcdfff47cffd889eea88ca78b707b..9effa729727a7623f3d3e22678656d9023fedb0f 100644
+--- a/src/deluge/model/clip/instrument_clip.h
++++ b/src/deluge/model/clip/instrument_clip.h
+@@ -20,6 +20,8 @@
+ #include "definitions_cxx.hpp"
+ #include "gui/ui/keyboard/state_data.h"
+ #include "gui/views/instrument_clip_view.h"
++#include "io/midi/external_step_midi_input.h"
++#include "model/clip/external_step_runtime.h"
+ #include "model/note/note_row_vector.h"
+ #include "modulation/arpeggiator.h"
+ 
+@@ -42,6 +44,7 @@ class ModelStackWithModControllable;
+ class ModelStackWithNoteRow;
+ 
+ struct PendingNoteOn;
++struct PendingNoteOnList;
+ 
+ enum class VerticalNudgeType { ROW, OCTAVE };
+ 
+@@ -56,6 +59,26 @@ public:
+ 	void halveNoteRowsWithIndependentLength(ModelStackWithTimelineCounter* modelStack);
+ 	void repeatOrChopToExactLength(ModelStackWithTimelineCounter* modelStack, int32_t newLength);
+ 	void processCurrentPos(ModelStackWithTimelineCounter* modelStack, uint32_t posIncrement) override;
++	[[nodiscard]] uint32_t getLivePos() const override;
++
++	[[nodiscard]] bool isExternalStepMode() const {
++		return externalStepClockMode == deluge::external_step::ClockMode::EXTERNAL_STEP;
++	}
++	[[nodiscard]] uint32_t getExternalStepTicks(const Song* song) const;
++	[[nodiscard]] deluge::external_step::Eligibility getExternalStepEligibility(bool featureEnabled,
++	                                                                            const Song* song) const;
++	deluge::external_step::Eligibility validateExternalStep(ModelStackWithTimelineCounter* modelStack,
++	                                                        bool featureEnabled);
++	[[nodiscard]] deluge::external_step::Status getExternalStepStatus(bool featureEnabled, const Song* song) const;
++	void setExternalStepClockMode(deluge::external_step::ClockMode mode, ModelStackWithTimelineCounter* modelStack);
++	void setExternalStepSize(deluge::external_step::StepSize size, ModelStackWithTimelineCounter* modelStack);
++	bool processExternalStep(ModelStackWithTimelineCounter* modelStack, uint32_t sampleTime, bool featureEnabled);
++	void resetExternalStep(ModelStackWithTimelineCounter* modelStack);
++	void clearExternalStepForStop(ModelStackWithTimelineCounter* modelStack, bool sendNoteOffs = true);
++	void cutExternalStepNotesPreservePhase(ModelStackWithTimelineCounter* modelStack);
++	bool serviceExternalStepTimeout(ModelStackWithTimelineCounter* modelStack, uint32_t sampleTime);
++	[[nodiscard]] bool hasExternalStepTimeoutDeadline() const { return externalStepRuntime.hasTimeoutDeadline(); }
++	[[nodiscard]] uint32_t getExternalStepTimeoutDeadline() const { return externalStepRuntime.timeoutDeadline(); }
+ 	bool renderAsSingleRow(ModelStackWithTimelineCounter* modelStack, TimelineView* editorScreen, int32_t xScroll,
+ 	                       uint32_t xZoom, RGB* image, uint8_t occupancyMask[], bool addUndefinedArea,
+ 	                       int32_t noteRowIndexStart = 0, int32_t noteRowIndexEnd = 2147483647, int32_t xStart = 0,
+@@ -136,6 +159,12 @@ public:
+ 	uint8_t midiSub;  // 128 means none
+ 	uint8_t midiPGM;  // 128 means none
+ 
++	// Saved External Step configuration. Runtime phase, cadence, and held-edge state are deliberately reset on copy.
++	deluge::external_step::ClockMode externalStepClockMode = deluge::external_step::ClockMode::SONG;
++	deluge::external_step::StepSize externalStepSize = deluge::external_step::StepSize::SIXTEENTH;
++	deluge::midi::ExternalStepMIDIInput externalStepInput;
++	deluge::midi::ExternalStepMIDIInput externalResetInput;
++
+ 	OutputType outputTypeWhileLoading; // For use only while loading song
+ 
+ 	void lengthChanged(ModelStackWithTimelineCounter* modelStack, int32_t oldLength, Action* action = nullptr) override;
+@@ -240,6 +269,7 @@ protected:
+ 	void posReachedEnd(ModelStackWithTimelineCounter* modelStack) override;
+ 	bool wantsToBeginLinearRecording(Song* song) override;
+ 	bool cloneOutput(ModelStackWithTimelineCounter* modelStack) override;
++	void sequenceDirectionModeChanged(ModelStackWithTimelineCounter* modelStack) override;
+ 	void pingpongOccurred(ModelStackWithTimelineCounter* modelStack) override;
+ 
+ private:
+@@ -248,6 +278,10 @@ private:
+ 	void deleteEmptyNoteRowsAtEitherEnd(bool onlyIfNoDrum, ModelStackWithTimelineCounter* modelStack,
+ 	                                    bool mustKeepLastOne = true, bool keepOnesWithMIDIInput = true);
+ 	void sendPendingNoteOn(ModelStackWithTimelineCounter* modelStack, PendingNoteOn* pendingNoteOn);
++	void resolvePendingNoteOns(ModelStackWithTimelineCounter* modelStack, PendingNoteOnList* pendingNoteOnList, bool ending);
++	void clearExternalStepNoteRows(ModelStackWithTimelineCounter* modelStack, bool sendNoteOffs);
++	void demoteExternalStepForUnsupportedOutput(OutputType newOutputType, Song* song);
++	[[nodiscard]] bool externalStepBindingsAreIdentical() const;
+ 	Error undoUnassignmentOfAllNoteRowsFromDrums(ModelStackWithTimelineCounter* modelStack);
+ 	void deleteBackedUpParamManagerMIDI();
+ 	bool possiblyDeleteEmptyNoteRow(NoteRow* noteRow, bool onlyIfNoDrum, Song* song, bool onlyIfNonNumeric = false,
+@@ -259,4 +293,5 @@ private:
+ 	bool lastProbabilities[kNumProbabilityValues]{};
+ 	int32_t lastProbabiltyPos[kNumProbabilityValues]{};
+ 	bool currentlyRecordingLinearly;
++	deluge::external_step::Runtime externalStepRuntime;
+ };
+diff --git a/src/deluge/model/note/note_row.cpp b/src/deluge/model/note/note_row.cpp
+index 1a692acc70bbc07694553e45b5432bf02041de3c..2168ccd26a8687ec0f3628ec1b5a24a0124fa2a1 100644
+--- a/src/deluge/model/note/note_row.cpp
++++ b/src/deluge/model/note/note_row.cpp
+@@ -24,11 +24,12 @@
+ #include "io/midi/midi_device.h"
+ #include "memory/general_memory_allocator.h"
+ #include "model/action/action.h"
++#include "model/clip/external_step_runtime.h"
+ #include "model/clip/instrument_clip.h"
+ #include "model/consequence/consequence_note_existence.h"
+ #include "model/drum/drum_name.h"
+-#include "model/drum/generated_slice_name.h"
+ #include "model/drum/gate_drum.h"
++#include "model/drum/generated_slice_name.h"
+ #include "model/instrument/kit.h"
+ #include "model/note/copied_note_row.h"
+ #include "model/note/note.h"
+@@ -93,7 +94,8 @@ Error NoteRow::beenCloned(ModelStackWithNoteRow* modelStack, bool shouldFlattenR
+ 
+ 	firstOldDrumName = nullptr;
+ 	ignoreNoteOnsBefore_ = 0;
+-	// sequenced = false;
++	sequenced = false;
++	externalStepPulsesUntilNoteOff = 0;
+ 
+ 	int32_t effectiveLength = modelStack->getLoopLength();
+ 
+@@ -1878,6 +1880,72 @@ void NoteRow::stopCurrentlyPlayingNote(ModelStackWithNoteRow* modelStack, bool a
+ 	sequenced = false;
+ }
+ 
++void NoteRow::clearExternalStepNoteState(ModelStackWithNoteRow* modelStack, bool sendNoteOff) {
++	if (sequenced) {
++		stopCurrentlyPlayingNote(modelStack, sendNoteOff);
++	}
++	externalStepPulsesUntilNoteOff = 0;
++}
++
++void NoteRow::processExternalStepBoundary(ModelStackWithNoteRow* modelStack, uint32_t previousPosition,
++                                          uint32_t boundaryPosition, uint32_t loopLength, uint32_t stepTicks,
++                                          bool firstBoundary, bool wrapped, PendingNoteOnList* pendingNoteOnList) {
++	Note* noteToStart = nullptr;
++
++	if (!muted && !isAuditioning(modelStack) && notes.getNumElements()) {
++		int32_t noteIndex = -1;
++		if (firstBoundary) {
++			noteIndex = notes.search(1, LESS);
++			if (noteIndex >= 0 && notes.getElement(noteIndex)->pos != 0) {
++				noteIndex = -1;
++			}
++		}
++		else if (wrapped) {
++			// Position zero is chronologically latest at a wrap and wins over starts delayed from the previous tail.
++			noteIndex = notes.search(boundaryPosition + 1, LESS);
++			if (noteIndex < 0 || notes.getElement(noteIndex)->pos > static_cast<int32_t>(boundaryPosition)) {
++				noteIndex = notes.search(loopLength, LESS);
++				if (noteIndex >= 0 && notes.getElement(noteIndex)->pos <= static_cast<int32_t>(previousPosition)) {
++					noteIndex = -1;
++				}
++			}
++		}
++		else {
++			noteIndex = notes.search(boundaryPosition + 1, LESS);
++			if (noteIndex >= 0 && notes.getElement(noteIndex)->pos <= static_cast<int32_t>(previousPosition)) {
++				noteIndex = -1;
++			}
++		}
++
++		if (noteIndex >= 0) {
++			noteToStart = notes.getElement(noteIndex);
++		}
++	}
++
++	if (sequenced) {
++		if (externalStepPulsesUntilNoteOff <= 1 || noteToStart || muted || isAuditioning(modelStack)) {
++			stopCurrentlyPlayingNote(modelStack, true);
++			externalStepPulsesUntilNoteOff = 0;
++		}
++		else {
++			externalStepPulsesUntilNoteOff--;
++		}
++	}
++	else {
++		externalStepPulsesUntilNoteOff = 0;
++	}
++
++	if (!noteToStart || !pendingNoteOnList || pendingNoteOnList->count >= kMaxNumNoteOnsPending) {
++		return;
++	}
++
++	playNote(true, modelStack, noteToStart, 0, 0, false, pendingNoteOnList);
++	if (sequenced) {
++		externalStepPulsesUntilNoteOff = deluge::external_step::noteDurationInPulses(
++		    noteToStart->pos, noteToStart->length, boundaryPosition, loopLength, stepTicks, wrapped);
++	}
++}
++
+ // occupancyMask now optional!
+ void NoteRow::renderRow(TimelineView* editorScreen, RGB rowColour, RGB rowTailColour, RGB rowBlurColour, RGB* image,
+                         uint8_t occupancyMask[], bool overwriteExisting, uint32_t effectiveRowLength,
+@@ -2646,6 +2714,14 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
+                         int32_t oldPos, // Sometimes needs to be overridden
+                         bool hadIndependentPlayPosBefore) {
+ 	Clip* clip = (Clip*)modelStack->getTimelineCounter();
++	InstrumentClip* instrumentClip = static_cast<InstrumentClip*>(clip);
++	const bool resetExternalStep = instrumentClip->isExternalStepMode();
++	if (resetExternalStep) {
++		char externalStepModelStackMemory[MODEL_STACK_MAX_SIZE];
++		ModelStackWithTimelineCounter* externalStepModelStack =
++		    setupModelStackWithTimelineCounter(externalStepModelStackMemory, modelStack->song, instrumentClip);
++		instrumentClip->clearExternalStepForStop(externalStepModelStack);
++	}
+ 
+ 	bool playingReversedBefore = modelStack->isCurrentlyPlayingReversed();
+ 
+@@ -2665,7 +2741,7 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
+ 			repeatCountIfIndependent = clip->repeatCount;
+ 		}
+ 
+-		if (shouldResumePlaybackOnNoteRowLengthSet) {
++		if (shouldResumePlaybackOnNoteRowLengthSet && !resetExternalStep) {
+ 			resumePlayback(modelStack, true);
+ 		}
+ 	}
+@@ -4492,6 +4568,15 @@ bool NoteRow::recordPolyphonicExpressionEvent(ModelStackWithNoteRow* modelStack,
+ }
+ 
+ void NoteRow::setSequenceDirectionMode(ModelStackWithNoteRow* modelStack, SequenceDirection newMode) {
++	InstrumentClip* clip = static_cast<InstrumentClip*>(modelStack->getTimelineCounter());
++	const bool resetExternalStep = clip->isExternalStepMode();
++	if (resetExternalStep) {
++		char externalStepModelStackMemory[MODEL_STACK_MAX_SIZE];
++		ModelStackWithTimelineCounter* externalStepModelStack =
++		    setupModelStackWithTimelineCounter(externalStepModelStackMemory, modelStack->song, clip);
++		clip->clearExternalStepForStop(externalStepModelStack);
++	}
++
+ 	int32_t lastProcessedPosBefore = modelStack->getLastProcessedPos();
+ 
+ 	bool reversedBefore = modelStack->isCurrentlyPlayingReversed();
+@@ -4512,7 +4597,7 @@ void NoteRow::setSequenceDirectionMode(ModelStackWithNoteRow* modelStack, Sequen
+ 		if (reversedBefore != modelStack->isCurrentlyPlayingReversed()) {
+ 			lastProcessedPosIfIndependent =
+ 			    modelStack->getLoopLength() - lastProcessedPosIfIndependent; // Again, might have no effect.
+-			if (!muted && playbackHandler.isEitherClockActive()
++			if (!resetExternalStep && !muted && playbackHandler.isEitherClockActive()
+ 			    && modelStack->song->isClipActive((Clip*)modelStack->getTimelineCounter())) {
+ 				resumePlayback(modelStack, true);
+ 			}
+diff --git a/src/deluge/model/note/note_row.h b/src/deluge/model/note/note_row.h
+index ca04ec3f5d4b746b66f609f84dcb236ced1b354c..d4129377b9e9ebf984fdb339dbeb747ed64301da 100644
+--- a/src/deluge/model/note/note_row.h
++++ b/src/deluge/model/note/note_row.h
+@@ -106,6 +106,10 @@ public:
+ 	void deleteNoteByPos(ModelStackWithNoteRow* modelStack, int32_t pos, Action* action);
+ 	void stopCurrentlyPlayingNote(ModelStackWithNoteRow* modelStack, bool actuallySoundChange = true,
+ 	                              Note* note = nullptr);
++	void processExternalStepBoundary(ModelStackWithNoteRow* modelStack, uint32_t previousPosition,
++	                                 uint32_t boundaryPosition, uint32_t loopLength, uint32_t stepTicks,
++	                                 bool firstBoundary, bool wrapped, PendingNoteOnList* pendingNoteOnList);
++	void clearExternalStepNoteState(ModelStackWithNoteRow* modelStack, bool sendNoteOff);
+ 	bool generateRepeats(ModelStackWithNoteRow* modelStack, uint32_t oldLength, uint32_t newLength,
+ 	                     int32_t numRepeatsRounded, Action* action);
+ 	void toggleMute(ModelStackWithNoteRow* modelStack, bool clipIsActiveAndPlaybackIsOn);
+@@ -148,6 +152,7 @@ public:
+ 	uint8_t probabilityValue;
+ 	Iterance iteranceValue;
+ 	uint8_t fillValue;
++	uint32_t externalStepPulsesUntilNoteOff = 0;
+ 	// These are deprecated, and only used during loading for compatibility with old song files
+ 	LearnedMIDI muteMIDICommand;
+ 	LearnedMIDI midiInput;
+diff --git a/src/deluge/model/settings/runtime_feature_settings.cpp b/src/deluge/model/settings/runtime_feature_settings.cpp
+index 5e8dc4021529578e401d180783ac914ad8b7c0fd..f454f6047720960d57bd46d7e9089dd5e86bc166 100644
+--- a/src/deluge/model/settings/runtime_feature_settings.cpp
++++ b/src/deluge/model/settings/runtime_feature_settings.cpp
+@@ -213,6 +213,11 @@ void RuntimeFeatureSettings::init() {
+ 	SetupOnOffSetting(settings[RuntimeFeatureSettingType::MidiSustainPedal],
+ 	                  STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL, "midiSustainPedal",
+ 	                  RuntimeFeatureStateToggle::Off);
++
++	// Externally stepped MIDI Clips
++	SetupOnOffSetting(settings[RuntimeFeatureSettingType::ExternalStepMidiClips],
++	                  STRING_FOR_COMMUNITY_FEATURE_EXTERNAL_STEP_MIDI_CLIPS, "externalStepMidiClips",
++	                  RuntimeFeatureStateToggle::Off);
+ }
+ 
+ void RuntimeFeatureSettings::factoryReset(bool showPopup) {
+diff --git a/src/deluge/model/settings/runtime_feature_settings.h b/src/deluge/model/settings/runtime_feature_settings.h
+index ee5d2a794baa98c3677ed352026368391e810412..6cd32a86417e5b012ab86aa164fc6a4f427bb54b 100644
+--- a/src/deluge/model/settings/runtime_feature_settings.h
++++ b/src/deluge/model/settings/runtime_feature_settings.h
+@@ -69,6 +69,7 @@ enum RuntimeFeatureSettingType : uint32_t {
+ 	RoundedCorners,
+ 	ShortcutOverlay,
+ 	MidiSustainPedal,
++	ExternalStepMidiClips,
+ 	MaxElement // Keep as boundary
+ };
+ 
+diff --git a/src/deluge/model/song/project_compatibility.h b/src/deluge/model/song/project_compatibility.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..bb662d863d5c563f76b251c91ff9278bc05f8867
+--- /dev/null
++++ b/src/deluge/model/song/project_compatibility.h
+@@ -0,0 +1,47 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ */
++
++#pragma once
++
++#include "storage/firmware_compatibility.h"
++
++#include <cstdint>
++#include <string_view>
++
++namespace deluge::project_compatibility {
++
++inline constexpr std::string_view kLegacySongMinimumFirmware = "4.1.0-alpha";
++inline constexpr std::string_view kExternalStepMinimumFirmware = deluge::firmware_compatibility::kLocalSaveSchema1;
++
++enum class LocalSaveSchema : uint8_t {
++	NONE = 0,
++	EXTERNAL_STEP = 1,
++};
++
++[[nodiscard]] constexpr LocalSaveSchema maximumRequiredSchema(LocalSaveSchema first, LocalSaveSchema second) {
++	return first < second ? second : first;
++}
++
++[[nodiscard]] constexpr LocalSaveSchema requiredSchemaForExternalStep(bool containsExternalStepClip) {
++	return containsExternalStepClip ? LocalSaveSchema::EXTERNAL_STEP : LocalSaveSchema::NONE;
++}
++
++/// Older firmware ignores unknown InstrumentClip fields and would run an External Step Clip from Song time.
++[[nodiscard]] constexpr std::string_view earliestCompatibleFirmware(LocalSaveSchema requiredSchema) {
++	switch (requiredSchema) {
++	case LocalSaveSchema::NONE:
++		return kLegacySongMinimumFirmware;
++	case LocalSaveSchema::EXTERNAL_STEP:
++		return kExternalStepMinimumFirmware;
++	}
++	__builtin_unreachable();
++}
++
++} // namespace deluge::project_compatibility
+diff --git a/src/deluge/model/song/song.cpp b/src/deluge/model/song/song.cpp
+index 41155e0589b617f2a6e0c8c82dd8975570456e56..3f272a29d46503739f04991c3cf7e5ce586af88d 100644
+--- a/src/deluge/model/song/song.cpp
++++ b/src/deluge/model/song/song.cpp
+@@ -49,6 +49,7 @@
+ #include "model/scale/utils.h"
+ #include "model/settings/runtime_feature_settings.h"
+ #include "model/song/clip_iterators.h"
++#include "model/song/project_compatibility.h"
+ #include "model/voice/voice_sample.h"
+ #include "modulation/patch/patch_cable_set.h"
+ #include "playback/mode/arrangement.h"
+@@ -1152,7 +1153,14 @@ void Song::writeToFile() {
+ 	writer.writeOpeningTagBeginning("song", true, false);
+ 
+ 	writer.writeFirmwareVersion();
+-	writer.writeEarliestCompatibleFirmwareVersion("4.1.0-alpha");
++	auto requiredSaveSchema = deluge::project_compatibility::LocalSaveSchema::NONE;
++	for (InstrumentClip* clip : InstrumentClips::everywhere(this)) {
++		requiredSaveSchema = deluge::project_compatibility::maximumRequiredSchema(
++		    requiredSaveSchema,
++		    deluge::project_compatibility::requiredSchemaForExternalStep(clip->isExternalStepMode()));
++	}
++	writer.writeEarliestCompatibleFirmwareVersion(
++	    deluge::project_compatibility::earliestCompatibleFirmware(requiredSaveSchema).data());
+ 
+ 	writer.writeAttribute("previewNumPads", 144);
+ 	writer.insertCommaIfNeeded();
+diff --git a/src/deluge/playback/mode/session.cpp b/src/deluge/playback/mode/session.cpp
+index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa543732711 100644
+--- a/src/deluge/playback/mode/session.cpp
++++ b/src/deluge/playback/mode/session.cpp
+@@ -58,6 +58,18 @@ enum class LaunchStatus {
+ 	LAUNCH_ALONG_WITH_EXISTING_LAUNCHING,
+ };
+ 
++namespace {
++
++InstrumentClip* getExternalStepClip(Clip* clip) {
++	if (clip == nullptr || clip->type != ClipType::INSTRUMENT) {
++		return nullptr;
++	}
++	auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++	return instrumentClip->isExternalStepMode() ? instrumentClip : nullptr;
++}
++
++} // namespace
++
+ using namespace deluge::gui::colours;
+ const Colour defaultClipSectionColours[] = {RGB::fromHue(102), // bright light blue
+                                             RGB::fromHue(168), // bright dark pink
+@@ -610,7 +622,12 @@ doNormalLaunch:
+ 
+ 					ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
+ 
+-					clip->setPos(modelStackWithTimelineCounter, 0, false);
++					if (InstrumentClip* externalStepClip = getExternalStepClip(clip)) {
++						externalStepClip->resetExternalStep(modelStackWithTimelineCounter);
++					}
++					else {
++						clip->setPos(modelStackWithTimelineCounter, 0, false);
++					}
+ 
+ 					giveClipOpportunityToBeginLinearRecording(clip, c, 0);
+ 					output = clip->output; // A new Output may have been created as recording began
+@@ -822,6 +839,9 @@ void Session::launchSchedulingMightNeedCancelling() {
+ // under these conditions since the input clock started. Presumably we'd call this if the conditions have changed (e.g.
+ // sync-scaling changed) and we want to restore order
+ void Session::reSyncClipToSongTicks(Clip* clip) {
++	if (getExternalStepClip(clip)) {
++		return;
++	}
+ 
+ 	if (clip->armState != ArmState::OFF) {
+ 		clip->armState = ArmState::OFF;
+@@ -856,6 +876,9 @@ void Session::reSyncClipToSongTicks(Clip* clip) {
+ void Session::reSyncClip(ModelStackWithTimelineCounter* modelStack, bool mustSetPosToSomething, bool mayResumeClip) {
+ 
+ 	Clip* clip = (Clip*)modelStack->getTimelineCounter();
++	if (getExternalStepClip(clip)) {
++		return;
++	}
+ 
+ 	bool armingCancelled = clip->cancelAnyArming();
+ 	if (armingCancelled) {
+@@ -1873,6 +1896,10 @@ void Session::armClipToStartOrSoloUsingQuantization(Clip* thisClip, bool doLateS
+ 			currentSong->assertActiveness(modelStack, playbackHandler.getActualArrangementRecordPos() - pos);
+ 
+ setPosAndStuff:
++			if (InstrumentClip* externalStepClip = getExternalStepClip(thisClip)) {
++				externalStepClip->resetExternalStep(modelStack);
++				return;
++			}
+ 			// pos is a "live" pos, so we have to subtract swungTicksSkipped before setting the Clip's lastProcessedPos,
+ 			// because it's soon going to be jumped forward by that many ticks
+ 			int32_t modifiedStartPos = (int32_t)pos - playbackHandler.getNumSwungTicksInSinceLastActionedSwungTick();
+@@ -1904,6 +1931,9 @@ setPosAndStuff:
+  *
+  */
+ void Session::scheduleFillClip(Clip* clip) {
++	if (getExternalStepClip(clip)) {
++		return;
++	}
+ 
+ 	if (clip->launchStyle == LaunchStyle::FILL) {
+ 		if (launchEventAtSwungTickCount > 0) {
+@@ -2095,6 +2125,9 @@ void Session::reversionDone() {
+ 	}
+ 	for (Clip* clip : AllClips::everywhere(currentSong)) {
+ 		if (currentSong->isClipActive(clip)) {
++			if (getExternalStepClip(clip)) {
++				continue;
++			}
+ 			char modelStackMemory[MODEL_STACK_MAX_SIZE];
+ 			ModelStackWithTimelineCounter* modelStackWithTimelineCounter =
+ 			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, clip);
+@@ -2127,6 +2160,14 @@ bool Session::endPlayback() {
+ 		if (currentSong->isClipActive(clip)) {
+ 			clip->expectNoFurtherTicks(currentSong);
+ 		}
++		else if (InstrumentClip* externalStepClip = getExternalStepClip(clip)) {
++			// Active Clips emitted their required note-offs above. Inactive Clips must still discard observed input and
++			// return to pre-step-zero, but must not emit MIDI while being cleaned up.
++			char modelStackMemory[MODEL_STACK_MAX_SIZE];
++			ModelStackWithTimelineCounter* modelStack =
++			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, externalStepClip);
++			externalStepClip->clearExternalStepForStop(modelStack, false);
++		}
+ 	}
+ 
+ 	currentSong->deactivateAnyArrangementOnlyClips(); // In case any still playing after switch from arrangement
+@@ -2236,11 +2277,16 @@ void Session::resetPlayPos(int32_t newPos, bool doingComplete, int32_t buttonPre
+ yeahNahItsOn:
+ 			ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
+ 
+-			clip->setPos(modelStackWithTimelineCounter, newPos, true);
++			if (InstrumentClip* externalStepClip = getExternalStepClip(clip)) {
++				externalStepClip->resetExternalStep(modelStackWithTimelineCounter);
++			}
++			else {
++				clip->setPos(modelStackWithTimelineCounter, newPos, true);
++			}
+ 
+ 			if (doingComplete) {
+ 				// If starting after 0, must do the "resume" function, to get samples playing from right point, etc
+-				if (newPos) {
++				if (newPos && !getExternalStepClip(clip)) {
+ 					clip->resumePlayback(modelStackWithTimelineCounter);
+ 				}
+ 
+@@ -2314,7 +2360,9 @@ traverseClips:
+ 
+ 		ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
+ 
+-		clip->incrementPos(modelStackWithTimelineCounter, numTicksBeingIncremented);
++		if (!getExternalStepClip(clip)) {
++			clip->incrementPos(modelStackWithTimelineCounter, numTicksBeingIncremented);
++		}
+ 	}
+ 	if (clipArray != &currentSong->arrangementOnlyClips) {
+ 		clipArray = &currentSong->arrangementOnlyClips;
+@@ -2480,6 +2528,9 @@ void Session::doTickForward(int32_t posIncrement) {
+ 			if (!currentSong->isClipActive(clip)) {
+ 				continue;
+ 			}
++			if (getExternalStepClip(clip)) {
++				continue;
++			}
+ 
+ 			if (clip->output->getActiveClip() && clip->output->getActiveClip()->beingRecordedFromClip == clip) {
+ 				clip = clip->output->getActiveClip();
+@@ -2513,6 +2564,9 @@ void Session::doTickForward(int32_t posIncrement) {
+ 
+ 	// Do arps too (hmmm, could we want to do this in considerLaunchEvent() instead, just like the incrementing?)
+ 	for (Output* thisOutput = currentSong->firstOutput; thisOutput; thisOutput = thisOutput->next) {
++		if (getExternalStepClip(thisOutput->getActiveClip())) {
++			continue;
++		}
+ 
+ 		int32_t posForArp;
+ 		if (thisOutput->getActiveClip() && currentSong->isClipActive(thisOutput->getActiveClip())) {
+diff --git a/src/deluge/playback/playback_handler.cpp b/src/deluge/playback/playback_handler.cpp
+index 6245c1ce29c872d1f49160aa0291b5a3482aa3bb..8fc5e0fef9a4d3d836abb554a9c3999a1b77a133 100644
+--- a/src/deluge/playback/playback_handler.cpp
++++ b/src/deluge/playback/playback_handler.cpp
+@@ -38,6 +38,7 @@
+ #include "hid/led/pad_leds.h"
+ #include "hid/matrix/matrix_driver.h"
+ #include "io/debug/log.h"
++#include "io/midi/external_step_midi_input.h"
+ #include "io/midi/midi_device.h"
+ #include "io/midi/midi_engine.h"
+ #include "io/midi/midi_follow.h"
+@@ -85,6 +86,59 @@ extern "C" {
+ 
+ PlaybackHandler playbackHandler{};
+ 
++namespace {
++
++using deluge::midi::ExternalStepMIDIInput;
++using deluge::midi::ExternalStepMIDIMessageType;
++
++[[nodiscard]] int32_t learnedMIDIChannelForExternalStep(const ExternalStepMIDIInput& input) {
++	int32_t channel = input.channel;
++	if (input.messageType == ExternalStepMIDIMessageType::CC) {
++		channel += IS_A_CC;
++	}
++	else if (input.messageType == ExternalStepMIDIMessageType::PROGRAM_CHANGE) {
++		channel += IS_A_PC;
++	}
++	return channel;
++}
++
++[[nodiscard]] bool modControllableHasMappedCC(const ModControllableAudio& modControllable, MIDICable& cable,
++                                              uint8_t channel, uint8_t ccNumber) {
++	for (const MIDIKnob& knob : modControllable.midi_knobs) {
++		if (knob.midiInput.equalsNoteOrCC(&cable, channel, ccNumber)) {
++			return true;
++		}
++	}
++	return false;
++}
++
++[[nodiscard]] bool clipIsActiveExternalStepMIDIOut(InstrumentClip& clip) {
++	return currentSong && clip.isExternalStepMode() && clip.output && clip.output->type == OutputType::MIDI_OUT
++	       && !clip.isArrangementOnlyClip() && currentSong->isClipActive(&clip) && clip.isActiveOnOutput();
++}
++
++[[nodiscard]] bool clipCanReceiveExternalStepInput(InstrumentClip& clip) {
++	return clipIsActiveExternalStepMIDIOut(clip)
++	       && clip.getExternalStepEligibility(true, currentSong) == deluge::external_step::Eligibility::ELIGIBLE;
++}
++
++[[nodiscard]] bool clipCanReceiveExternalResetInput(InstrumentClip& clip) {
++	const ExternalStepMIDIInput& reset = clip.externalResetInput;
++	return clipIsActiveExternalStepMIDIOut(clip) && reset.isAssigned() && reset.cable->connectionFlags != 0
++	       && !reset.conflict && !reset.hasSameAssignmentAs(clip.externalStepInput);
++}
++
++void updateExternalStepConflict(InstrumentClip& clip, bool conflict) {
++	const bool newlyConflicting = clip.externalStepInput.updateConflictState(conflict) && conflict;
++	if (newlyConflicting && clipIsActiveExternalStepMIDIOut(clip)) {
++		char modelStackMemory[MODEL_STACK_MAX_SIZE];
++		ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
++		clip.cutExternalStepNotesPreservePhase(modelStack->addTimelineCounter(&clip));
++	}
++}
++
++} // namespace
++
+ extern void songLoaded(Song* song);
+ 
+ #define slowpassedTimePerInternalTickSlowness 8
+@@ -156,6 +210,8 @@ void PlaybackHandler::routine() {
+ 	    && (int32_t)(AudioEngine::audioSampleTimer - timeLastAnalogClockInputRisingEdge) > (kSampleRate >> 1)) {
+ 		endPlayback();
+ 	}
++
++	serviceExternalStepTimeouts(AudioEngine::audioSampleTimer);
+ }
+ 
+ void PlaybackHandler::slowRoutine() {
+@@ -2952,17 +3008,347 @@ bool PlaybackHandler::tryGlobalMIDICommandsOff(MIDICable& cable, int32_t channel
+ 	return foundAnything;
+ }
+ 
+-void PlaybackHandler::programChangeReceived(MIDICable& cable, int32_t channel, int32_t program) {
++bool PlaybackHandler::externalStepMIDIInputHasConflict(const ExternalStepMIDIInput& input) const {
++	if (!currentSong || !input.isAssigned()) {
++		return false;
++	}
++
++	MIDICable& cable = *input.cable;
++	const int32_t learnedChannel = learnedMIDIChannelForExternalStep(input);
++
++	for (int32_t c = 0; c < kNumGlobalMIDICommands; c++) {
++		const GlobalMIDICommand command = static_cast<GlobalMIDICommand>(c);
++		const LearnedMIDI& learned = midiEngine.globalMIDICommands[c];
++		if ((command == GlobalMIDICommand::TRANSPOSE && learned.equalsChannelOrZone(&cable, learnedChannel))
++		    || learned.equalsNoteOrCC(&cable, learnedChannel, input.number)) {
++			return true;
++		}
++	}
++
++	for (int32_t section = 0; section < kMaxNumSections; section++) {
++		if (currentSong->sections[section].launchMIDICommand.equalsNoteOrCC(&cable, learnedChannel, input.number)) {
++			return true;
++		}
++	}
++
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
++		if (currentSong->sessionClips.getClipAtIndex(c)->muteMIDICommand.equalsNoteOrCC(&cable, learnedChannel,
++		                                                                                input.number)) {
++			return true;
++		}
++	}
++
++	if (input.messageType == ExternalStepMIDIMessageType::CC) {
++		if (modControllableHasMappedCC(currentSong->globalEffectable, cable, input.channel, input.number)) {
++			return true;
++		}
++
++		for (Output* output = currentSong->firstOutput; output; output = output->next) {
++			switch (output->type) {
++			case OutputType::SYNTH:
++				if (modControllableHasMappedCC(*static_cast<SoundInstrument*>(output), cable, input.channel,
++				                               input.number)) {
++					return true;
++				}
++				break;
++
++			case OutputType::KIT: {
++				auto* kit = static_cast<Kit*>(output);
++				if (modControllableHasMappedCC(*kit, cable, input.channel, input.number)) {
++					return true;
++				}
++				for (Drum* drum = kit->firstDrum; drum; drum = drum->next) {
++					if (drum->type == DrumType::SOUND
++					    && modControllableHasMappedCC(*static_cast<SoundDrum*>(drum), cable, input.channel,
++					                                  input.number)) {
++						return true;
++					}
++				}
++				break;
++			}
++
++			case OutputType::AUDIO:
++				if (modControllableHasMappedCC(*static_cast<AudioOutput*>(output), cable, input.channel,
++				                               input.number)) {
++					return true;
++				}
++				break;
++
++			default:
++				break;
++			}
++		}
++	}
++	else if (input.messageType == ExternalStepMIDIMessageType::NOTE) {
++		// Kit-row mute commands are routed later than the other learned commands, but retain priority over External
++		// Step.
++		for (Output* output = currentSong->firstOutput; output; output = output->next) {
++			if (output->type != OutputType::KIT) {
++				continue;
++			}
++			for (Drum* drum = static_cast<Kit*>(output)->firstDrum; drum; drum = drum->next) {
++				if (drum->muteMIDICommand.equalsNoteOrCC(&cable, input.channel, input.number)) {
++					return true;
++				}
++			}
++		}
++	}
++
++	return false;
++}
++
++void PlaybackHandler::refreshExternalStepMIDIConflicts() {
++	if (!currentSong) {
++		return;
++	}
++
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
++		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
++		if (clip->type != ClipType::INSTRUMENT) {
++			continue;
++		}
++		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++		const bool externalStepMode = instrumentClip->isExternalStepMode();
++		const bool stepConflict =
++		    externalStepMode && externalStepMIDIInputHasConflict(instrumentClip->externalStepInput);
++		const bool resetConflict =
++		    externalStepMode && externalStepMIDIInputHasConflict(instrumentClip->externalResetInput);
++		updateExternalStepConflict(*instrumentClip, stepConflict);
++		(void)instrumentClip->externalResetInput.updateConflictState(resetConflict);
++	}
++}
++
++bool PlaybackHandler::refreshExternalStepMIDIConflictsForMessage(MIDICable& cable, uint8_t channel,
++                                                                 ExternalStepMIDIMessageType messageType,
++                                                                 uint8_t number) {
++	if (!currentSong) {
++		return false;
++	}
++
++	bool found = false;
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements() && !found; c++) {
++		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
++		if (clip->type != ClipType::INSTRUMENT) {
++			continue;
++		}
++		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++		if (!instrumentClip->isExternalStepMode()) {
++			continue;
++		}
++		found = instrumentClip->externalStepInput.matches(cable, channel, messageType, number)
++		        || instrumentClip->externalResetInput.matches(cable, channel, messageType, number);
++	}
++	if (!found) {
++		return false;
++	}
++
++	ExternalStepMIDIInput input;
++	input.cable = &cable;
++	input.channel = channel;
++	input.messageType = messageType;
++	input.number = number;
++	const bool conflict = externalStepMIDIInputHasConflict(input);
++
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
++		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
++		if (clip->type != ClipType::INSTRUMENT) {
++			continue;
++		}
++		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++		if (!instrumentClip->isExternalStepMode()) {
++			continue;
++		}
++		if (instrumentClip->externalStepInput.matches(cable, channel, messageType, number)) {
++			updateExternalStepConflict(*instrumentClip, conflict);
++		}
++		if (instrumentClip->externalResetInput.matches(cable, channel, messageType, number)) {
++			(void)instrumentClip->externalResetInput.updateConflictState(conflict);
++		}
++	}
++	return true;
++}
++
++bool PlaybackHandler::willConsumeExternalStepCC(MIDICable& cable, uint8_t channel, uint8_t ccNumber) {
++	if (!currentSong) {
++		return false;
++	}
++	if (currentUIMode == UI_MODE_MIDI_LEARN) {
++		return getCurrentUI() == &soundEditor && soundEditor.midiCCLearnConsumesBeforeRPN();
++	}
++	if (!runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
++	    || currentPlaybackMode != &session) {
++		return false;
++	}
++
++	if (!refreshExternalStepMIDIConflictsForMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber)) {
++		return false;
++	}
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
++		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
++		if (clip->type != ClipType::INSTRUMENT) {
++			continue;
++		}
++		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++		if ((instrumentClip->externalResetInput.matches(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber)
++		     && clipCanReceiveExternalResetInput(*instrumentClip))
++		    || (instrumentClip->externalStepInput.matches(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber)
++		        && clipCanReceiveExternalStepInput(*instrumentClip))) {
++			return true;
++		}
++	}
++	return false;
++}
++
++bool PlaybackHandler::processExternalStepMIDIMessage(MIDICable& cable, uint8_t channel,
++                                                     ExternalStepMIDIMessageType messageType, uint8_t number,
++                                                     bool asserted, bool* doingMidiThru) {
++	if (!currentSong || !runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
++	    || currentPlaybackMode != &session) {
++		return false;
++	}
++
++	bool consumed = false;
++	char modelStackMemory[MODEL_STACK_MAX_SIZE];
++	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
++
++	// Reset is a separate pass so a shared message always resets every matching Clip before any Clip steps.
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
++		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
++		if (clip->type != ClipType::INSTRUMENT) {
++			continue;
++		}
++		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++		if (!instrumentClip->isExternalStepMode()
++		    || !instrumentClip->externalResetInput.matches(cable, channel, messageType, number)) {
++			continue;
++		}
++
++		const bool edge = instrumentClip->externalResetInput.observeMessage(asserted);
++		if (!clipCanReceiveExternalResetInput(*instrumentClip)) {
++			continue;
++		}
++		consumed = true;
++		if (edge) {
++			instrumentClip->resetExternalStep(modelStack->addTimelineCounter(instrumentClip));
++		}
++	}
++
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
++		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
++		if (clip->type != ClipType::INSTRUMENT) {
++			continue;
++		}
++		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++		if (!instrumentClip->isExternalStepMode()
++		    || !instrumentClip->externalStepInput.matches(cable, channel, messageType, number)) {
++			continue;
++		}
++
++		const bool edge = instrumentClip->externalStepInput.observeMessage(asserted);
++		if (!clipCanReceiveExternalStepInput(*instrumentClip)) {
++			continue;
++		}
++		consumed = true;
++		if (edge && isEitherClockActive()) {
++			instrumentClip->processExternalStep(modelStack->addTimelineCounter(instrumentClip),
++			                                    AudioEngine::audioSampleTimer, true);
++			considerExternalStepTimeoutDeadline(*instrumentClip);
++		}
++	}
++
++	if (consumed && doingMidiThru) {
++		*doingMidiThru = false;
++	}
++	return consumed;
++}
++
++void PlaybackHandler::considerExternalStepTimeoutDeadline(const InstrumentClip& clip) {
++	if (!clip.hasExternalStepTimeoutDeadline()) {
++		return;
++	}
++	const uint32_t deadline = clip.getExternalStepTimeoutDeadline();
++	if (!externalStepTimeoutScheduled || static_cast<int32_t>(deadline - externalStepTimeoutDeadline) < 0) {
++		externalStepTimeoutDeadline = deadline;
++		externalStepTimeoutScheduled = true;
++	}
++}
++
++void PlaybackHandler::serviceExternalStepTimeouts(uint32_t sampleTime) {
++	if (!externalStepTimeoutScheduled || static_cast<int32_t>(sampleTime - externalStepTimeoutDeadline) < 0) {
++		return;
++	}
++
++	externalStepTimeoutScheduled = false;
++	if (!currentSong || !runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)) {
++		return;
++	}
++
++	char modelStackMemory[MODEL_STACK_MAX_SIZE];
++	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
++		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
++		if (clip->type != ClipType::INSTRUMENT) {
++			continue;
++		}
++		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++		if (instrumentClip->hasExternalStepTimeoutDeadline()) {
++			instrumentClip->serviceExternalStepTimeout(modelStack->addTimelineCounter(instrumentClip), sampleTime);
++			considerExternalStepTimeoutDeadline(*instrumentClip);
++		}
++	}
++}
++
++void PlaybackHandler::midiInputDisconnected(MIDICable& cable) {
++	if (!currentSong || cable.connectionFlags != 0) {
++		return;
++	}
++
++	char modelStackMemory[MODEL_STACK_MAX_SIZE];
++	ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
++	for (int32_t c = 0; c < currentSong->sessionClips.getNumElements(); c++) {
++		Clip* clip = currentSong->sessionClips.getClipAtIndex(c);
++		if (clip->type != ClipType::INSTRUMENT) {
++			continue;
++		}
++		auto* instrumentClip = static_cast<InstrumentClip*>(clip);
++		const bool stepDisconnected = instrumentClip->externalStepInput.cable == &cable;
++		const bool resetDisconnected = instrumentClip->externalResetInput.cable == &cable;
++		if (!stepDisconnected && !resetDisconnected) {
++			continue;
++		}
++		if (stepDisconnected) {
++			instrumentClip->externalStepInput.clearHeldState();
++		}
++		if (resetDisconnected) {
++			instrumentClip->externalResetInput.clearHeldState();
++		}
++		if (instrumentClip->isExternalStepMode()) {
++			instrumentClip->cutExternalStepNotesPreservePhase(modelStack->addTimelineCounter(instrumentClip));
++		}
++	}
++}
++
++void PlaybackHandler::programChangeReceived(MIDICable& cable, int32_t channel, int32_t program, bool* doingMidiThru) {
+ 	// If user assigning MIDI commands, do that
+ 	if (currentUIMode == UI_MODE_MIDI_LEARN) {
+ 		if (getCurrentUI()->pcReceivedForMidiLearn(cable, channel, program)) {}
+ 		else {
+ 			view.pcReceivedForMIDILearn(cable, channel, program);
+ 		}
++		refreshExternalStepMIDIConflicts();
+ 	}
+ 	else {
+ 		// we build ontop of the CC hack
+-		offerNoteToLearnedThings(cable, true, channel + IS_A_PC, program);
++		bool externalStepBindingMatches = false;
++		if (runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
++		    && currentPlaybackMode == &session) {
++			externalStepBindingMatches = refreshExternalStepMIDIConflictsForMessage(
++			    cable, channel, ExternalStepMIDIMessageType::PROGRAM_CHANGE, program);
++		}
++		if (!offerNoteToLearnedThings(cable, true, channel + IS_A_PC, program) && externalStepBindingMatches) {
++			processExternalStepMIDIMessage(cable, channel, ExternalStepMIDIMessageType::PROGRAM_CHANGE, program, true,
++			                               doingMidiThru);
++		}
+ 	}
+ }
+ bool PlaybackHandler::offerNoteToLearnedThings(MIDICable& cable, bool on, int32_t channel, int32_t note) {
+@@ -3023,20 +3409,36 @@ void PlaybackHandler::noteMessageReceived(MIDICable& cable, bool on, int32_t cha
+ 	if (currentUIMode == UI_MODE_MIDI_LEARN && on) {
+ 		// Checks velocity to let note-offs pass through,
+ 		// so no risk of stuck note if they pressed learn while holding a note
+-		int32_t channelOrZone = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].channelToZone(channel);
++		int32_t channelOrZone = channel;
++		if (getCurrentUI() != &soundEditor || !soundEditor.midiLearnUsesPhysicalChannel()) {
++			channelOrZone = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].channelToZone(channel);
++		}
+ 
+ 		if (getCurrentUI()->noteOnReceivedForMidiLearn(cable, channelOrZone, note, velocity)) {}
+ 		else {
+ 			view.noteOnReceivedForMidiLearn(cable, channelOrZone, note, velocity);
+ 		}
++		refreshExternalStepMIDIConflicts();
+ 		return;
+ 	}
+ 
+ 	// Otherwise, enact the relevant MIDI command, if it can be found
++	const bool isChannelNote = channel >= 0 && channel < ExternalStepMIDIInput::kChannelCount && note >= 0
++	                           && note < ExternalStepMIDIInput::kNoteCount;
++	bool externalStepBindingMatches = false;
++	if (isChannelNote && runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
++	    && currentPlaybackMode == &session) {
++		externalStepBindingMatches =
++		    refreshExternalStepMIDIConflictsForMessage(cable, channel, ExternalStepMIDIMessageType::NOTE, note);
++	}
+ 
+ 	if (offerNoteToLearnedThings(cable, on, channel, note)) {
+ 		return;
+ 	}
++	if (externalStepBindingMatches
++	    && processExternalStepMIDIMessage(cable, channel, ExternalStepMIDIMessageType::NOTE, note, on, doingMidiThru)) {
++		return;
++	}
+ 
+ 	bool shouldRecordNotesNowNow = shouldRecordNotesNow();
+ 
+@@ -3181,26 +3583,57 @@ void PlaybackHandler::pitchBendReceived(MIDICable& cable, uint8_t channel, uint8
+ 
+ void PlaybackHandler::midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value,
+                                      bool* doingMidiThru) {
++	// External Step controls remain tied to the physical channel even when the cable has an MPE zone.
++	if (getCurrentUI() == &soundEditor && soundEditor.midiLearnUsesPhysicalChannel()
++	    && soundEditor.midiCCReceived(cable, channel, ccNumber, value)) {
++		refreshExternalStepMIDIConflicts();
++		return;
++	}
++
+ 	// true only if it's an MPE member channel, and therefore only used for per note expression
+ 	bool isMPE = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].isChannelPartOfAnMPEZone(channel);
+ 
+ 	if (isMPE) {
++		bool externalStepBindingMatches = false;
++		if (runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
++		    && currentPlaybackMode == &session) {
++			externalStepBindingMatches =
++			    refreshExternalStepMIDIConflictsForMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber);
++		}
++		if (externalStepBindingMatches
++		    && processExternalStepMIDIMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber, value >= 64,
++		                                      doingMidiThru)) {
++			return;
++		}
+ 		cable.inputChannels[channel].defaultInputMPEValues[1] = (value - 64) << 9;
+ 	}
+ 	else {
+ 		int32_t channelOrZone = cable.ports[MIDI_DIRECTION_INPUT_TO_DELUGE].channelToZone(channel);
+ 		// If the SoundEditor is the active UI, give it first dibs on the message
+ 		if (getCurrentUI() == &soundEditor && soundEditor.midiCCReceived(cable, channelOrZone, ccNumber, value)) {
++			refreshExternalStepMIDIConflicts();
+ 			return;
+ 		}
+ 		// then midi learn is second priority
+ 		else if (currentUIMode == UI_MODE_MIDI_LEARN) {
+ 			view.ccReceivedForMIDILearn(cable, channelOrZone, ccNumber, value);
++			refreshExternalStepMIDIConflicts();
+ 			// we don't want this learn to immediately trigger the thing it was learnt to so just return
+ 			return;
+ 		}
++		bool externalStepBindingMatches = false;
++		if (runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::ExternalStepMidiClips)
++		    && currentPlaybackMode == &session) {
++			externalStepBindingMatches =
++			    refreshExternalStepMIDIConflictsForMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber);
++		}
+ 		// check if it was learned to on/off commands (loop, drums, section launch etc.)
+-		else if (offerNoteToLearnedThings(cable, value > 0, channelOrZone + IS_A_CC, ccNumber)) {
++		if (offerNoteToLearnedThings(cable, value > 0, channelOrZone + IS_A_CC, ccNumber)) {
++			return;
++		}
++		if (externalStepBindingMatches
++		    && processExternalStepMIDIMessage(cable, channel, ExternalStepMIDIMessageType::CC, ccNumber, value >= 64,
++		                                      doingMidiThru)) {
+ 			return;
+ 		}
+ 	}
+diff --git a/src/deluge/playback/playback_handler.h b/src/deluge/playback/playback_handler.h
+index a40a3d6da2a017745da83c74c0a1f84bb7f3b32d..4cd14d3fe67b13906787da3e37528fd4fc4791cb 100644
+--- a/src/deluge/playback/playback_handler.h
++++ b/src/deluge/playback/playback_handler.h
+@@ -43,6 +43,11 @@ class MIDICable;
+ class NoteRow;
+ class Song;
+ 
++namespace deluge::midi {
++class ExternalStepMIDIInput;
++enum class ExternalStepMIDIMessageType : uint8_t;
++} // namespace deluge::midi
++
+ constexpr uint16_t metronomeValuesBPM[16] = {
+     60, 63, 66, 69, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116,
+ };
+@@ -190,7 +195,10 @@ public:
+ 	void setMidiOutClockMode(bool newValue);
+ 	void pitchBendReceived(MIDICable& cable, uint8_t channel, uint8_t data1, uint8_t data2, bool* doingMidiThru);
+ 	void midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value, bool* doingMidiThru);
+-	void programChangeReceived(MIDICable& cable, int32_t channel, int32_t program);
++	void programChangeReceived(MIDICable& cable, int32_t channel, int32_t program, bool* doingMidiThru);
++	void refreshExternalStepMIDIConflicts();
++	bool willConsumeExternalStepCC(MIDICable& cable, uint8_t channel, uint8_t ccNumber);
++	void midiInputDisconnected(MIDICable& cable);
+ 	void aftertouchReceived(MIDICable& cable, int32_t channel, int32_t value, int32_t noteCode,
+ 	                        bool* doingMidiThru); // noteCode -1 means channel-wide
+ 	void loopCommand(OverDubType overdubNature);
+@@ -272,6 +280,15 @@ private:
+ 	bool offerNoteToLearnedThings(MIDICable& cable, bool on, int32_t channel, int32_t note);
+ 	bool tryGlobalMIDICommands(MIDICable& cable, int32_t channel, int32_t note);
+ 	bool tryGlobalMIDICommandsOff(MIDICable& cable, int32_t channel, int32_t note);
++	bool processExternalStepMIDIMessage(MIDICable& cable, uint8_t channel,
++	                                    deluge::midi::ExternalStepMIDIMessageType messageType, uint8_t number,
++	                                    bool asserted, bool* doingMidiThru);
++	bool externalStepMIDIInputHasConflict(const deluge::midi::ExternalStepMIDIInput& input) const;
++	bool refreshExternalStepMIDIConflictsForMessage(MIDICable& cable, uint8_t channel,
++	                                                deluge::midi::ExternalStepMIDIMessageType messageType,
++	                                                uint8_t number);
++	void considerExternalStepTimeoutDeadline(const InstrumentClip& clip);
++	void serviceExternalStepTimeouts(uint32_t sampleTime);
+ 	void decideOnCurrentPlaybackMode();
+ 	float getCurrentInternalTickFloatFollowingExternalClock();
+ 	void scheduleTriggerClockOutTickParamsKnown(uint32_t analogOutTicksPer, uint64_t fractionLastTimerTick,
+@@ -280,6 +297,9 @@ private:
+ 	void scheduleMIDIClockOutTickParamsKnown(uint32_t midiClockOutTicksPer, uint64_t fractionLastTimerTick,
+ 	                                         uint64_t fractionNextMIDIClockOutTick);
+ 	void scheduleMIDIClockOutTickFromExternalClock();
++
++	uint32_t externalStepTimeoutDeadline = 0;
++	bool externalStepTimeoutScheduled = false;
+ };
+ 
+ extern PlaybackHandler playbackHandler;
+diff --git a/src/deluge/storage/Deserializer.cpp b/src/deluge/storage/Deserializer.cpp
+index 02924309fb25ae889da9cfde1226a9003478123b..b1a7b50d4248792283e55b420cb4f5dcaf53d834 100644
+--- a/src/deluge/storage/Deserializer.cpp
++++ b/src/deluge/storage/Deserializer.cpp
+@@ -20,6 +20,7 @@
+ #include "model/song/song.h"
+ #include "processing/engines/audio_engine.h"
+ #include "storage/cluster/cluster.h"
++#include "storage/firmware_compatibility.h"
+ #include "storage/storage_manager.h"
+ #include "util/d_string.h"
+ #include "util/firmware_version.h"
+@@ -857,10 +858,8 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
+ 	// If this tag doesn't exist, it's from old firmware so is ok
+ 	else if (!strcmp(tagName, "earliestCompatibleFirmware")) {
+ 		char const* firmware_version_string = readTagOrAttributeValue();
+-		auto earliestFirmware = FirmwareVersion::parse(firmware_version_string);
+-		if (earliestFirmware > FirmwareVersion::current() && !ignoreIncorrectFirmware) {
+-			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
+-		}
++		return deluge::firmware_compatibility::evaluateEarliestCompatibleFirmware(
++		    firmware_version_string, FirmwareVersion::current(), ignoreIncorrectFirmware);
+ 	}
+ 
+ 	else {
+@@ -868,4 +867,4 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
+ 	}
+ 
+ 	return Error::NONE;
+-}
+\ No newline at end of file
++}
+diff --git a/src/deluge/storage/JsonDeserializer.cpp b/src/deluge/storage/JsonDeserializer.cpp
+index a0edd52e69dc7be3a8eb0250d7b81260b9cce384..826bb56d304f1ff85d525c00a2a5836cb0cb7187 100644
+--- a/src/deluge/storage/JsonDeserializer.cpp
++++ b/src/deluge/storage/JsonDeserializer.cpp
+@@ -19,6 +19,7 @@
+ #include "io/debug/log.h"
+ #include "processing/engines/audio_engine.h"
+ #include "storage/cluster/cluster.h"
++#include "storage/firmware_compatibility.h"
+ #include "storage/storage_manager.h"
+ #include "util/d_string.h"
+ #include "util/d_stringbuf.h"
+@@ -643,10 +644,8 @@ Error JsonDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool
+ 	// If this tag doesn't exist, it's from old firmware so is ok
+ 	else if (!strcmp(tagName, "earliestCompatibleFirmware")) {
+ 		char const* firmware_version_string = readTagOrAttributeValue();
+-		auto earliestFirmware = FirmwareVersion::parse(firmware_version_string);
+-		if (earliestFirmware > FirmwareVersion::current() && !ignoreIncorrectFirmware) {
+-			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
+-		}
++		return deluge::firmware_compatibility::evaluateEarliestCompatibleFirmware(
++		    firmware_version_string, FirmwareVersion::current(), ignoreIncorrectFirmware);
+ 	}
+ 
+ 	else {
+diff --git a/src/deluge/storage/firmware_compatibility.h b/src/deluge/storage/firmware_compatibility.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..3261011dc0bd280428d18cc5005031b181e35c36
+--- /dev/null
++++ b/src/deluge/storage/firmware_compatibility.h
+@@ -0,0 +1,59 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++#include "util/firmware_version.h"
++
++#include <charconv>
++#include <cstdint>
++#include <string_view>
++
++namespace deluge::firmware_compatibility {
++
++inline constexpr std::string_view kLocalCompatibilityNamespace = "nl-";
++inline constexpr std::string_view kLocalSaveSchemaPrefix = "nl-save-schema-";
++inline constexpr std::string_view kLocalSaveSchema1 = "nl-save-schema-1";
++inline constexpr uint32_t kSupportedLocalSaveSchema = 1;
++
++[[nodiscard]] inline Error evaluateEarliestCompatibleFirmware(std::string_view requirement,
++                                                              FirmwareVersion currentFirmware,
++                                                              bool ignoreIncorrectFirmware) {
++	if (requirement.empty()) {
++		return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
++	}
++
++	bool isLocalCompatibilityRequirement =
++	    requirement.starts_with(kLocalCompatibilityNamespace) || kLocalCompatibilityNamespace.starts_with(requirement);
++	if (isLocalCompatibilityRequirement) {
++		if (!requirement.starts_with(kLocalSaveSchemaPrefix)) {
++			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
++		}
++
++		std::string_view suffix = requirement.substr(kLocalSaveSchemaPrefix.size());
++		if (suffix.empty() || (suffix.size() > 1 && suffix.front() == '0')) {
++			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
++		}
++
++		uint32_t schema = 0;
++		auto [end, result] = std::from_chars(suffix.data(), suffix.data() + suffix.size(), schema);
++		if (result != std::errc{} || end != suffix.data() + suffix.size() || schema > kSupportedLocalSaveSchema) {
++			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
++		}
++		return Error::NONE;
++	}
++
++	FirmwareVersion earliestFirmware = FirmwareVersion::parse(requirement);
++	return earliestFirmware > currentFirmware && !ignoreIncorrectFirmware ? Error::FILE_FIRMWARE_VERSION_TOO_NEW
++	                                                                      : Error::NONE;
++}
++
++} // namespace deluge::firmware_compatibility
+diff --git a/tests/spec/external_step_menu_spec.cpp b/tests/spec/external_step_menu_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..245c9fee0490cceff64ff0e4291d59262bf4c7f0
+--- /dev/null
++++ b/tests/spec/external_step_menu_spec.cpp
+@@ -0,0 +1,90 @@
++#include "gui/menu_item/midi/external_step_policy.h"
++#include "model/song/project_compatibility.h"
++
++#include "cppspec.hpp"
++
++namespace external_step_policy = deluge::gui::menu_item::midi::external_step;
++using deluge::external_step::Status;
++using deluge::gui::menu_item::midi::external_step::StatusLabel;
++using deluge::midi::ExternalStepMIDIInput;
++using deluge::midi::ExternalStepMIDIMessageType;
++
++namespace {
++
++ExternalStepMIDIInput assignedInput(MIDICable* cable, uint8_t channel, ExternalStepMIDIMessageType type,
++                                    uint8_t number) {
++	ExternalStepMIDIInput input;
++	input.cable = cable;
++	input.channel = channel;
++	input.messageType = type;
++	input.number = number;
++	return input;
++}
++
++} // namespace
++
++// clang-format off
++describe external_step_menu("External Step menu and compatibility", $ {
++	it("shows Clock for enabled MIDI Clips and feature-Off recovery only", _ {
++		expect(external_step_policy::shouldShowClockMenu(true, true, false)).to_be_true();
++		expect(external_step_policy::shouldShowClockMenu(true, false, true)).to_be_true();
++		expect(external_step_policy::shouldShowClockMenu(true, false, false)).to_be_false();
++		expect(external_step_policy::shouldShowClockMenu(false, true, true)).to_be_false();
++	});
++
++	it("rejects only exact Step and Reset assignment duplication", _ {
++		uint8_t cableStorage[2];
++		auto* cableA = reinterpret_cast<MIDICable*>(&cableStorage[0]);
++		auto* cableB = reinterpret_cast<MIDICable*>(&cableStorage[1]);
++		auto first = assignedInput(cableA, 3, ExternalStepMIDIMessageType::NOTE, 60);
++		auto identical = assignedInput(cableA, 3, ExternalStepMIDIMessageType::NOTE, 60);
++		expect(external_step_policy::assignmentsAreIdentical(first, identical)).to_be_true();
++
++		for (auto distinct : {
++		         assignedInput(cableB, 3, ExternalStepMIDIMessageType::NOTE, 60),
++		         assignedInput(cableA, 4, ExternalStepMIDIMessageType::NOTE, 60),
++		         assignedInput(cableA, 3, ExternalStepMIDIMessageType::CC, 60),
++		         assignedInput(cableA, 3, ExternalStepMIDIMessageType::NOTE, 61),
++		     }) {
++			expect(external_step_policy::assignmentsAreIdentical(first, distinct)).to_be_false();
++		}
++
++		ExternalStepMIDIInput unassigned;
++		expect(external_step_policy::assignmentsAreIdentical(unassigned, unassigned)).to_be_false();
++	});
++
++	it("remembers a learned held Note but rearms learned CC and Program Change controls", _ {
++		expect(external_step_policy::shouldRememberHighStateAfterLearn(ExternalStepMIDIMessageType::NOTE)).to_be_true();
++		expect(external_step_policy::shouldRememberHighStateAfterLearn(ExternalStepMIDIMessageType::CC)).to_be_false();
++		expect(external_step_policy::shouldRememberHighStateAfterLearn(ExternalStepMIDIMessageType::PROGRAM_CHANGE))
++		    .to_be_false();
++		expect(external_step_policy::shouldRememberHighStateAfterLearn(ExternalStepMIDIMessageType::NONE)).to_be_false();
++	});
++
++	it("maps each runtime status to a distinct recovery label", _ {
++		expect(external_step_policy::statusLabel(Status::SONG)).to_equal(StatusLabel::SONG);
++		expect(external_step_policy::statusLabel(Status::FEATURE_DISABLED)).to_equal(StatusLabel::OFF);
++		expect(external_step_policy::statusLabel(Status::UNASSIGNED)).to_equal(StatusLabel::UNASSIGNED);
++		expect(external_step_policy::statusLabel(Status::MISSING_INPUT)).to_equal(StatusLabel::MISSING_INPUT);
++		expect(external_step_policy::statusLabel(Status::CONFLICT)).to_equal(StatusLabel::CONFLICT);
++		expect(external_step_policy::statusLabel(Status::UNSUPPORTED)).to_equal(StatusLabel::UNSUPPORTED);
++		expect(external_step_policy::statusLabel(Status::WAIT)).to_equal(StatusLabel::WAITING);
++		expect(external_step_policy::statusLabel(Status::READY)).to_equal(StatusLabel::READY);
++	});
++
++	it("guards only Songs that still contain External Step Clips", _ {
++		using namespace deluge::project_compatibility;
++		auto requiredSchema = LocalSaveSchema::NONE;
++		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(false));
++		expect(requiredSchema).to_equal(LocalSaveSchema::NONE);
++		expect(earliestCompatibleFirmware(requiredSchema)).to_equal(kLegacySongMinimumFirmware);
++
++		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(true));
++		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(false));
++		expect(requiredSchema).to_equal(LocalSaveSchema::EXTERNAL_STEP);
++		expect(earliestCompatibleFirmware(requiredSchema)).to_equal(kExternalStepMinimumFirmware);
++		expect(kExternalStepMinimumFirmware).to_equal(std::string_view{"nl-save-schema-1"});
++	});
++});
++
++CPPSPEC_SPEC(external_step_menu)
+diff --git a/tests/spec/external_step_midi_input_spec.cpp b/tests/spec/external_step_midi_input_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..79d198fda612466db27a1aff88e952dc99761d77
+--- /dev/null
++++ b/tests/spec/external_step_midi_input_spec.cpp
+@@ -0,0 +1,187 @@
++#include "io/midi/external_step_midi_input.h"
++
++#include "cppspec.hpp"
++
++#include <cstdint>
++
++class MIDICable {};
++
++using deluge::midi::ExternalStepMIDIInput;
++using deluge::midi::ExternalStepMIDIMessageType;
++
++namespace {
++
++ExternalStepMIDIInput assignedInput(MIDICable& cable, ExternalStepMIDIMessageType type, uint8_t number) {
++	ExternalStepMIDIInput input;
++	input.cable = &cable;
++	input.channel = 4;
++	input.messageType = type;
++	input.number = number;
++	return input;
++}
++
++} // namespace
++
++// clang-format off
++describe external_step_midi_input("External Step MIDI input", $ {
++	it("requires a complete exact assignment", _ {
++		MIDICable cableA;
++		MIDICable cableB;
++		auto input = assignedInput(cableA, ExternalStepMIDIMessageType::NOTE, 60);
++
++		expect(input.isAssigned()).to_be_true();
++		expect(input.matches(cableA, 4, ExternalStepMIDIMessageType::NOTE, 60)).to_be_true();
++		expect(input.matches(cableB, 4, ExternalStepMIDIMessageType::NOTE, 60)).to_be_false();
++		expect(input.matches(cableA, 5, ExternalStepMIDIMessageType::NOTE, 60)).to_be_false();
++		expect(input.matches(cableA, 4, ExternalStepMIDIMessageType::CC, 60)).to_be_false();
++		expect(input.matches(cableA, 4, ExternalStepMIDIMessageType::NOTE, 61)).to_be_false();
++
++		input.clear();
++		expect(input.isAssigned()).to_be_false();
++		expect(input.matches(cableA, 4, ExternalStepMIDIMessageType::NOTE, 60)).to_be_false();
++	});
++
++	it("identifies only the same complete assignment", _ {
++		MIDICable cableA;
++		MIDICable cableB;
++		auto input = assignedInput(cableA, ExternalStepMIDIMessageType::CC, 16);
++		auto identical = assignedInput(cableA, ExternalStepMIDIMessageType::CC, 16);
++		expect(input.hasSameAssignmentAs(identical)).to_be_true();
++
++		for (auto distinct : {
++		         assignedInput(cableB, ExternalStepMIDIMessageType::CC, 16),
++		         assignedInput(cableA, ExternalStepMIDIMessageType::NOTE, 16),
++		         assignedInput(cableA, ExternalStepMIDIMessageType::CC, 17),
++		     }) {
++			expect(input.hasSameAssignmentAs(distinct)).to_be_false();
++		}
++		identical.channel = 5;
++		expect(input.hasSameAssignmentAs(identical)).to_be_false();
++
++		ExternalStepMIDIInput unassigned;
++		expect(unassigned.hasSameAssignmentAs(unassigned)).to_be_false();
++	});
++
++	it("validates the physical channel and each message-number domain", _ {
++		MIDICable cable;
++		auto input = assignedInput(cable, ExternalStepMIDIMessageType::NOTE, 127);
++		expect(input.isAssigned()).to_be_true();
++
++		input.channel = 16;
++		expect(input.isAssigned()).to_be_false();
++		input.channel = 4;
++
++		input.messageType = ExternalStepMIDIMessageType::CC;
++		input.number = 119;
++		expect(input.isAssigned()).to_be_true();
++		input.number = 120;
++		expect(input.isAssigned()).to_be_false();
++
++		input.messageType = ExternalStepMIDIMessageType::PROGRAM_CHANGE;
++		input.number = 127;
++		expect(input.isAssigned()).to_be_true();
++		input.messageType = ExternalStepMIDIMessageType::NONE;
++		expect(input.isAssigned()).to_be_false();
++	});
++
++	it("reports one Note edge until release rearms it", _ {
++		MIDICable cable;
++		auto input = assignedInput(cable, ExternalStepMIDIMessageType::NOTE, 64);
++
++		expect(input.observeMessage(true)).to_be_true();
++		expect(input.observeMessage(true)).to_be_false();
++		expect(input.observeMessage(false)).to_be_false();
++		expect(input.observeMessage(true)).to_be_true();
++	});
++
++	it("reports one CC edge per low-to-high threshold crossing", _ {
++		MIDICable cable;
++		auto input = assignedInput(cable, ExternalStepMIDIMessageType::CC, 16);
++
++		expect(input.observeMessage(false)).to_be_false();
++		expect(input.observeMessage(true)).to_be_true();
++		expect(input.observeMessage(true)).to_be_false();
++		expect(input.observeMessage(false)).to_be_false();
++		expect(input.observeMessage(true)).to_be_true();
++	});
++
++	it("treats every matching Program Change as an edge", _ {
++		MIDICable cable;
++		auto input = assignedInput(cable, ExternalStepMIDIMessageType::PROGRAM_CHANGE, 12);
++
++		expect(input.observeMessage(true)).to_be_true();
++		expect(input.observeMessage(true)).to_be_true();
++		expect(input.observeMessage(false)).to_be_true();
++	});
++
++	it("does not copy transient held or conflict state", _ {
++		MIDICable cable;
++		auto source = assignedInput(cable, ExternalStepMIDIMessageType::NOTE, 60);
++		expect(source.observeMessage(true)).to_be_true();
++		source.conflict = true;
++
++		ExternalStepMIDIInput copy = source;
++		expect(copy.isAssigned()).to_be_true();
++		expect(copy.high).to_be_false();
++		expect(copy.conflict).to_be_false();
++		expect(copy.observeMessage(true)).to_be_true();
++
++		ExternalStepMIDIInput assigned;
++		assigned = source;
++		expect(assigned.high).to_be_false();
++		expect(assigned.conflict).to_be_false();
++	});
++
++	it("clears a held edge without erasing its assignment or conflict", _ {
++		MIDICable cable;
++		auto input = assignedInput(cable, ExternalStepMIDIMessageType::NOTE, 60);
++		expect(input.observeMessage(true)).to_be_true();
++		input.conflict = true;
++
++		input.clearHeldState();
++		expect(input.isAssigned()).to_be_true();
++		expect(input.high).to_be_false();
++		expect(input.conflict).to_be_true();
++		expect(input.observeMessage(true)).to_be_true();
++	});
++
++	it("rearms both configured controls for Stop without erasing their assignments", _ {
++		MIDICable cable;
++		auto step = assignedInput(cable, ExternalStepMIDIMessageType::NOTE, 60);
++		auto reset = assignedInput(cable, ExternalStepMIDIMessageType::CC, 16);
++		expect(step.observeMessage(true)).to_be_true();
++		expect(reset.observeMessage(true)).to_be_true();
++
++		step.clearHeldState();
++		reset.clearHeldState();
++		expect(step.isAssigned()).to_be_true();
++		expect(reset.isAssigned()).to_be_true();
++		expect(step.observeMessage(true)).to_be_true();
++		expect(reset.observeMessage(true)).to_be_true();
++	});
++
++	it("rearms held Note and CC controls only when conflict state changes", _ {
++		MIDICable cable;
++		for (auto type : {ExternalStepMIDIMessageType::NOTE, ExternalStepMIDIMessageType::CC}) {
++			auto input = assignedInput(cable, type, 16);
++			expect(input.observeMessage(true)).to_be_true();
++			expect(input.updateConflictState(true)).to_be_true();
++			expect(input.high).to_be_false();
++			expect(input.observeMessage(true)).to_be_true();
++			expect(input.updateConflictState(true)).to_be_false();
++			expect(input.high).to_be_true();
++			expect(input.updateConflictState(false)).to_be_true();
++			expect(input.high).to_be_false();
++			expect(input.observeMessage(true)).to_be_true();
++		}
++
++		auto program = assignedInput(cable, ExternalStepMIDIMessageType::PROGRAM_CHANGE, 12);
++		expect(program.updateConflictState(true)).to_be_true();
++		expect(program.observeMessage(true)).to_be_true();
++		expect(program.updateConflictState(false)).to_be_true();
++		expect(program.observeMessage(true)).to_be_true();
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(external_step_midi_input)
+diff --git a/tests/spec/external_step_runtime_spec.cpp b/tests/spec/external_step_runtime_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..70f7d33984756dc94a521a20a89b9f729ce05fa8
+--- /dev/null
++++ b/tests/spec/external_step_runtime_spec.cpp
+@@ -0,0 +1,101 @@
++#include "model/clip/external_step_runtime.h"
++
++#include "cppspec.hpp"
++
++using deluge::external_step::noteDurationInPulses;
++using deluge::external_step::Runtime;
++using deluge::external_step::State;
++
++// clang-format off
++describe external_step_runtime("External Step Clip runtime", $ {
++	it("emits zero first, advances one boundary, and wraps", _ {
++		Runtime runtime;
++		auto first = runtime.advance(42, 24, 6, 1000);
++		expect(first.emit).to_be_true();
++		expect(first.position).to_equal(uint32_t{0});
++		expect(first.wrapped).to_be_false();
++
++		auto second = runtime.advance(first.position, 24, 6, 3000);
++		expect(second.position).to_equal(uint32_t{6});
++		auto wrapped = runtime.advance(18, 24, 6, 5000);
++		expect(wrapped.position).to_equal(uint32_t{0});
++		expect(wrapped.wrapped).to_be_true();
++	});
++
++	it("makes Reset pre-zero and WAIT preserve the current phase", _ {
++		Runtime runtime;
++		static_cast<void>(runtime.advance(0, 24, 6, 1000));
++		static_cast<void>(runtime.advance(0, 24, 6, 3000));
++		runtime.waitPreservingPhase();
++		expect(runtime.state()).to_equal(State::WAIT_CONTINUE);
++		auto continued = runtime.advance(6, 24, 6, 5000);
++		expect(continued.position).to_equal(uint32_t{12});
++
++		runtime.resetToPreZero();
++		expect(runtime.state()).to_equal(State::PRE_ZERO);
++		auto resetFirst = runtime.advance(12, 24, 6, 7000);
++		expect(resetFirst.position).to_equal(uint32_t{0});
++	});
++
++	it("returns Stop cleanup to pre-zero and clears the watchdog", _ {
++		Runtime runtime;
++		static_cast<void>(runtime.advance(0, 24, 6, 0));
++		static_cast<void>(runtime.advance(0, 24, 6, 2000));
++		static_cast<void>(runtime.advance(6, 24, 6, 4000));
++		static_cast<void>(runtime.advance(12, 24, 6, 6000));
++		expect(runtime.hasTimeoutDeadline()).to_be_true();
++
++		runtime.resetToPreZero();
++		expect(runtime.state()).to_equal(State::PRE_ZERO);
++		expect(runtime.hasTimeoutDeadline()).to_be_false();
++		auto firstAfterStop = runtime.advance(18, 24, 6, 8000);
++		expect(firstAfterStop.position).to_equal(uint32_t{0});
++	});
++
++	it("rejects zero and indivisible timing without changing phase", _ {
++		Runtime runtime;
++		expect(runtime.advance(0, 25, 6, 1000).emit).to_be_false();
++		expect(runtime.advance(0, 24, 0, 1000).emit).to_be_false();
++		expect(runtime.state()).to_equal(State::PRE_ZERO);
++	});
++
++	it("arms after three stable intervals and expires after four missed intervals", _ {
++		Runtime runtime;
++		static_cast<void>(runtime.advance(0, 24, 6, 0));
++		static_cast<void>(runtime.advance(0, 24, 6, 2000));
++		static_cast<void>(runtime.advance(6, 24, 6, 4000));
++		expect(runtime.hasTimeoutDeadline()).to_be_false();
++		static_cast<void>(runtime.advance(12, 24, 6, 6000));
++		expect(runtime.hasTimeoutDeadline()).to_be_true();
++		expect(runtime.timeoutDeadline()).to_equal(uint32_t{14000});
++		expect(runtime.timeoutDue(13999)).to_be_false();
++		expect(runtime.timeoutDue(14000)).to_be_true();
++	});
++
++	it("does not arm for unstable or out-of-range cadence", _ {
++		Runtime unstable;
++		static_cast<void>(unstable.advance(0, 24, 6, 0));
++		static_cast<void>(unstable.advance(0, 24, 6, 2000));
++		static_cast<void>(unstable.advance(6, 24, 6, 4000));
++		static_cast<void>(unstable.advance(12, 24, 6, 8000));
++		expect(unstable.hasTimeoutDeadline()).to_be_false();
++
++		Runtime tooSlow;
++		static_cast<void>(tooSlow.advance(0, 24, 6, 0));
++		static_cast<void>(tooSlow.advance(0, 24, 6, 200000));
++		static_cast<void>(tooSlow.advance(6, 24, 6, 400000));
++		static_cast<void>(tooSlow.advance(12, 24, 6, 600000));
++		expect(tooSlow.hasTimeoutDeadline()).to_be_false();
++	});
++
++	it("quantizes note ends to emitted pulses with a one-pulse minimum", _ {
++		expect(noteDurationInPulses(0, 1, 0, 96, 6, false)).to_equal(uint32_t{1});
++		expect(noteDurationInPulses(1, 1, 6, 96, 6, false)).to_equal(uint32_t{1});
++		expect(noteDurationInPulses(1, 12, 6, 96, 6, false)).to_equal(uint32_t{2});
++		expect(noteDurationInPulses(90, 12, 0, 96, 6, true)).to_equal(uint32_t{1});
++		expect(noteDurationInPulses(95, 10, 0, 96, 6, true)).to_equal(uint32_t{2});
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(external_step_runtime)
+diff --git a/tests/spec/firmware_compatibility_spec.cpp b/tests/spec/firmware_compatibility_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f3bab7a4d927f4978fae7b7fc432a9c20b132518
+--- /dev/null
++++ b/tests/spec/firmware_compatibility_spec.cpp
+@@ -0,0 +1,64 @@
++#include "storage/firmware_compatibility.h"
++
++#include "cppspec.hpp"
++
++namespace compatibility = deluge::firmware_compatibility;
++
++// clang-format off
++describe firmware_compatibility("Firmware compatibility", $ {
++	it("accepts the supported local save schemas", _ {
++		auto current = FirmwareVersion::community({1, 3, 1});
++		for (bool ignoreIncorrectFirmware : {false, true}) {
++			expect(compatibility::evaluateEarliestCompatibleFirmware("nl-save-schema-0", current,
++			                                                           ignoreIncorrectFirmware))
++			    .to_equal(Error::NONE);
++			expect(compatibility::evaluateEarliestCompatibleFirmware("nl-save-schema-1", current,
++			                                                           ignoreIncorrectFirmware))
++			    .to_equal(Error::NONE);
++		}
++	});
++
++	it("rejects empty and malformed local compatibility requirements", _ {
++		auto current = FirmwareVersion::community({1, 3, 1});
++		for (bool ignoreIncorrectFirmware : {false, true}) {
++			for (std::string_view requirement : {
++			         "",
++			         "n",
++			         "nl",
++			         "nl-",
++			         "nl-save",
++			         "nl-save-schem",
++			         "nl-save-schema",
++			         "nl-save-schema1",
++			         "nl-save-schemax-1",
++			         "nl-other-1",
++			         "nl-save-schema-2",
++			         "nl-save-schema-",
++			         "nl-save-schema-01",
++			         "nl-save-schema-one",
++			         "nl-save-schema-1-extra",
++			         "nl-save-schema-999999999999999999999999",
++			     }) {
++				expect(compatibility::evaluateEarliestCompatibleFirmware(requirement, current,
++				                                                           ignoreIncorrectFirmware))
++				    .to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++			}
++		}
++	});
++
++	it("preserves ordinary official and Community version comparison", _ {
++		auto current = FirmwareVersion::community({1, 3, 1});
++		expect(compatibility::evaluateEarliestCompatibleFirmware("4.1.0-alpha", current, false))
++		    .to_equal(Error::NONE);
++		expect(compatibility::evaluateEarliestCompatibleFirmware("c1.3.1", current, false))
++		    .to_equal(Error::NONE);
++		expect(compatibility::evaluateEarliestCompatibleFirmware("c1.3.2", current, false))
++		    .to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++		expect(compatibility::evaluateEarliestCompatibleFirmware("c1.3.2", current, true))
++		    .to_equal(Error::NONE);
++	});
++
++});
++// clang-format on
++
++CPPSPEC_SPEC(firmware_compatibility)
+diff --git a/tests/spec/song_load_preflight_spec.cpp b/tests/spec/song_load_preflight_spec.cpp
+index 1313943b429122e2818fdeeeb44f99ec463f8c75..86d9c7efaff7931f47f521ded6252ea73dc90eaa 100644
+--- a/tests/spec/song_load_preflight_spec.cpp
++++ b/tests/spec/song_load_preflight_spec.cpp
+@@ -101,7 +101,7 @@ describe song_load_preflight("Song load compatibility preflight", $ {
+ 	});
+ 
+ 	it("reads a compatible JSON Song root with the production in-memory deserializer", _ {
+-		char json[] = R"({"firmwareVersion":"0.0.0","earliestCompatibleFirmware":"0.0.0","previewNumPads":144})";
++		char json[] = R"({"firmwareVersion":"c1.3.1","earliestCompatibleFirmware":"nl-save-schema-1","previewNumPads":144})";
+ 		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
+ 
+ 		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
+@@ -110,7 +110,7 @@ describe song_load_preflight("Song load compatibility preflight", $ {
+ 	});
+ 
+ 	it("rejects a too-new JSON Song root with the production in-memory deserializer", _ {
+-		char json[] = R"({"firmwareVersion":"c999.0.0","earliestCompatibleFirmware":"c999.0.0","previewNumPads":144})";
++		char json[] = R"({"firmwareVersion":"c1.3.1","earliestCompatibleFirmware":"nl-save-schema-2","previewNumPads":144})";
+ 		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
+ 
+ 		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);

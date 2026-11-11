@@ -1,0 +1,515 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 7c016f408caa0319a6db711b71542a68e5f04232..416389e9e14e4d5db904f25c0247ac240df03ca4 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -4,7 +4,7 @@
+ 
+ This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
+ 
+-The local stack currently contains ten deviations:
++The local stack currently contains eleven deviations:
+ 
+ 1. Normalize the Korg MIDI-definition directory casing.
+ 2. Provide a reproducible Apple Silicon Nix build environment.
+@@ -16,6 +16,7 @@ The local stack currently contains ten deviations:
+ 8. Organize local revisions by coherent firmware area or core capability.
+ 9. Provide a global Panic action for immediate silence.
+ 10. Copy, paste, and reorder a Kit Sound Drum row.
++11. Add optional incoming MIDI sustain-pedal support for internal Synth tracks.
+ 
+ No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
+ 
+@@ -297,6 +298,34 @@ Let a player duplicate a Kit Sound Drum, its sound settings, and its musical row
+ - The host unit-test suite and a local Release build pass.
+ - A physical Deluge check confirms a full copy to an empty target and an existing Sound Drum target, exact sample-marker and loop transfer, independent later edits, full note transfer, sound-only note preservation, MIDI/Gate rejection, ordinary Horizontal Encoder behavior, local display feedback, and save/reload behavior. It also confirms Kit-row reorder, Undo, Redo, and an earlier unrelated Undo action remain correct. No flashing or installation is authorized by this contract.
+ 
++## 11. Optional incoming MIDI sustain pedal
++
++### Intent
++
++Let a standard sustain pedal control the live release of notes played from an external MIDI controller into an internal Deluge Synth, including a DX7 sound, without changing existing MIDI behavior until the player chooses it.
++
++### Required behavior
++
++- Community Features contains a persisted `MIDI Sustain Pedal` setting that defaults to Off.
++- With the setting Off, incoming CC64 and incoming note-offs retain their established behavior.
++- With the setting On, an incoming CC64 value from 64 through 127 holds the live release of notes that the player releases from a matched external MIDI input on an internal Synth track. A value from 0 through 63 releases only those previously released notes.
++- A note that remains physically held when the pedal is released continues sounding normally. If the player replays a pitch before releasing the pedal, a later pedal release must not stop the new held note.
++- The feature applies through the ordinary internal Synth input path, so DX7 sounds gain the same pedal behavior without a DX7-only setting, sound-file field, or preset conversion.
++- MIDI Learn receives CC64 before this behavior. A player can still learn or unlearn CC64 normally, and a normal learned CC64 mapping may continue to receive its value.
++- Turning the setting Off releases any notes already held by the pedal. Stopping or replacing the receiving Synth, and Panic, also clear the pedal-held state so it cannot leave a later note sounding.
++- Clip recording retains the physical note-off timing. This deviation does not record pedal events or change saved song, synth, or automation data.
++
++### Compatibility and boundaries
++
++- Do not add half-pedal response, sostenuto, pedal recording, a new MIDI mapping format, or a global MIDI filter.
++- Do not apply this behavior to Kit, Audio, CV, or external MIDI-output tracks. Sequenced notes, grid-pad audition, external MIDI output, existing sound envelopes, DX7 synthesis, and Community Feature settings other than this opt-in toggle retain their established behavior.
++- No local behavior authorizes flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- A local Release build and the configured host test suite pass.
++- A physical Deluge check with a CC64 controller verifies the setting defaults Off; pedal-down and pedal-up behavior for a single note, chord, repeated pitch, and a still-held pitch; DX7 behavior; normal MIDI Learn and unlearn; a learned CC64 mapping; target change; Stop; Panic; and save/reload. No flashing is implied by this check.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
+index c66112cbdb770cad8fe16073e47e5d33463cf6e0..da1fdec8f4f63d59bd54ccff17063456efd28295 100644
+--- a/src/deluge/gui/l10n/english.json
++++ b/src/deluge/gui/l10n/english.json
+@@ -528,6 +528,7 @@
+     "STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT": "Light Shift",
+     "STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY": "Emulated Display",
+     "STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE": "DX7 Engine",
++    "STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL": "MIDI Sustain Pedal",
+     "STRING_FOR_COMMUNITY_FEATURE_KEYBOARD_VIEW_SIDEBAR_MENU_EXIT": "KB View Sidebar Menu Exit",
+     "STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD": "Launch Event Playhead",
+     "STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD": "Chord Keyboards",
+diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
+index b981d3c92d5e11a915685e5c633708bbbb56a401..6fb84d1111cdc6472b3f2d33da06e4031240b254 100644
+--- a/src/deluge/gui/l10n/g_english.cpp
++++ b/src/deluge/gui/l10n/g_english.cpp
+@@ -541,6 +541,7 @@ PLACE_SDRAM_DATA Language english{
+         {STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT, "Light Shift"},
+         {STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY, "Emulated Display"},
+         {STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE, "DX7 Engine"},
++        {STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL, "MIDI Sustain Pedal"},
+         {STRING_FOR_COMMUNITY_FEATURE_KEYBOARD_VIEW_SIDEBAR_MENU_EXIT, "KB View Sidebar Menu Exit"},
+         {STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD, "Launch Event Playhead"},
+         {STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD, "Chord Keyboards"},
+diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
+index 79c1fead1446383d8bf6630d89a8c12e29dfc647..678e14a83da0ee717e858e4281529a06de609cf1 100644
+--- a/src/deluge/gui/l10n/g_seven_segment.cpp
++++ b/src/deluge/gui/l10n/g_seven_segment.cpp
+@@ -437,6 +437,7 @@ PLACE_SDRAM_DATA Language seven_segment{
+         {STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT, "LGSH"},
+         {STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY, "EMUL"},
+         {STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE, "DX7"},
++        {STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL, "SUST"},
+         {STRING_FOR_COMMUNITY_FEATURE_KEYBOARD_VIEW_SIDEBAR_MENU_EXIT, "EXIT"},
+         {STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD, "PLAY"},
+         {STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD, "CHRD"},
+diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
+index 550d63d70361e58cc9c9b43e9a83d0adaa5d2811..e861ec21057b7d9824f0238a9f5cc4e4534d9f01 100644
+--- a/src/deluge/gui/l10n/seven_segment.json
++++ b/src/deluge/gui/l10n/seven_segment.json
+@@ -452,6 +452,7 @@
+         "STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT": "LGSH",
+         "STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY": "EMUL",
+         "STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE": "DX7",
++        "STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL": "SUST",
+         "STRING_FOR_COMMUNITY_FEATURE_KEYBOARD_VIEW_SIDEBAR_MENU_EXIT": "EXIT",
+         "STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD": "PLAY",
+         "STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD": "CHRD",
+diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
+index b1ac759265eeb920cd6853c0f5f1498a5f62f958..a781a7ab1eeccdf9d655c7174e34b8a663d250d7 100644
+--- a/src/deluge/gui/l10n/strings.h
++++ b/src/deluge/gui/l10n/strings.h
+@@ -571,6 +571,7 @@ enum class String : size_t {
+ 	STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT,
+ 	STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY,
+ 	STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE,
++	STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL,
+ 	STRING_FOR_COMMUNITY_FEATURE_KEYBOARD_VIEW_SIDEBAR_MENU_EXIT,
+ 	STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD,
+ 	STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD,
+diff --git a/src/deluge/gui/menu_item/runtime_feature/settings.cpp b/src/deluge/gui/menu_item/runtime_feature/settings.cpp
+index ab3a3d3776c52c2e6c151b9e398ac5a4c3674b4a..ae10f4edc06ec9b3ff59ce6e89a447c5767989b1 100644
+--- a/src/deluge/gui/menu_item/runtime_feature/settings.cpp
++++ b/src/deluge/gui/menu_item/runtime_feature/settings.cpp
+@@ -20,6 +20,9 @@
+ #include "emulated_display.h"
+ #include "hid/display/display.h"
+ #include "hid/display/oled_canvas/canvas.h"
++#include "model/model_stack.h"
++#include "model/song/song.h"
++#include "processing/sound/sound_instrument.h"
+ #include "setting.h"
+ #include "shift_is_sticky.h"
+ #include <array>
+@@ -48,6 +51,27 @@ public:
+ 	}
+ };
+ 
++class MidiSustainPedalSetting final : public SettingToggle {
++public:
++	using SettingToggle::SettingToggle;
++
++	void writeCurrentValue() override {
++		bool wasEnabled = runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::MidiSustainPedal);
++		SettingToggle::writeCurrentValue();
++		if (!wasEnabled || runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::MidiSustainPedal) || !currentSong) {
++			return;
++		}
++
++		char modelStackMemory[MODEL_STACK_MAX_SIZE];
++		ModelStack* modelStack = setupModelStackWithSong(modelStackMemory, currentSong);
++		for (Output* output = currentSong->firstOutput; output; output = output->next) {
++			if (output->type == OutputType::SYNTH) {
++				static_cast<SoundInstrument*>(output)->releaseDeferredMIDISustainNotes(modelStack);
++			}
++		}
++	}
++};
++
+ // Generic menu item instances
+ SettingToggle menuDrumRandomizer(RuntimeFeatureSettingType::DrumRandomizer);
+ SettingToggle menuFineTempo(RuntimeFeatureSettingType::FineTempoKnob);
+@@ -74,6 +98,7 @@ SettingToggle menuTrimFromStartOfAudioClip(RuntimeFeatureSettingType::TrimFromSt
+ SettingToggle menuShowBatteryLevel(RuntimeFeatureSettingType::ShowBatteryLevel);
+ RoundedCornersSettingToggle menuRoundedCorners(RuntimeFeatureSettingType::RoundedCorners);
+ SettingToggle menuShortcutOverlay(RuntimeFeatureSettingType::ShortcutOverlay);
++MidiSustainPedalSetting menuMidiSustainPedal(RuntimeFeatureSettingType::MidiSustainPedal);
+ 
+ std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettings> subMenuEntries{
+     &menuDrumRandomizer,
+@@ -100,7 +125,8 @@ std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettin
+     &menuRoundedCorners,
+     &menuTrimFromStartOfAudioClip,
+     &menuShowBatteryLevel,
+-    &menuShortcutOverlay};
++    &menuShortcutOverlay,
++    &menuMidiSustainPedal};
+ 
+ Settings::Settings(l10n::String name, l10n::String title) : menu_item::Submenu(name, title, subMenuEntries) {
+ }
+diff --git a/src/deluge/model/instrument/melodic_instrument.cpp b/src/deluge/model/instrument/melodic_instrument.cpp
+index 1d2ba3e961aec7b19376c550ccc8961c23ceec77..6a20fd902026215fab625a02485cb9f830e9ee1c 100644
+--- a/src/deluge/model/instrument/melodic_instrument.cpp
++++ b/src/deluge/model/instrument/melodic_instrument.cpp
+@@ -34,6 +34,15 @@
+ #include <cstring>
+ #include <ranges>
+ 
++namespace {
++constexpr uint8_t kMIDISustainPedalController = 64;
++constexpr uint8_t kMIDISustainPedalOnThreshold = 64;
++} // namespace
++
++bool MelodicInstrument::isMIDISustainPedalEnabled() const {
++	return type == OutputType::SYNTH && runtimeFeatureSettings.isOn(RuntimeFeatureSettingType::MidiSustainPedal);
++}
++
+ bool MelodicInstrument::writeMelodicInstrumentAttributesToFile(Serializer& writer, Clip* clipForSavingOutputOnly,
+                                                                Song* song) {
+ 	Instrument::writeDataToFile(writer, clipForSavingOutputOnly, song);
+@@ -116,6 +125,8 @@ void MelodicInstrument::receivedNote(ModelStackWithTimelineCounter* modelStack,
+ 
+ 		// Note-on
+ 		if (on) {
++			midiSustainDeferredNotes.erase(note);
++
+ 			if (runtimeFeatureSettings.get(RuntimeFeatureSettingType::HighlightIncomingNotes)
+ 			        == RuntimeFeatureStateToggle::On
+ 			    && instrumentClip == getCurrentInstrumentClip()) {
+@@ -269,11 +280,18 @@ justAuditionNote:
+ 				}
+ 			}
+ 
+-			// We want to make sure we sent the note-off even if it didn't think auditioning was happening. This is to
+-			// stop a stuck note if MIDI thru was on and they're releasing the note while still holding learn to learn
+-			// that input to a MIDIInstrument (with external synth attached)
+-			endAuditioningForNote(modelStack->toWithSong(), // Safe, cos we won't reference this again
+-			                      note, velocity);
++			// Keep the physical note-off, but delay only the internal Synth release while the pedal is down. The fixed
++			// MIDI note table cannot allocate; an invalid pitch or a note with no matching audition is released
++			// immediately so MIDI-thru's existing stuck-note safeguard remains intact.
++			const bool deferred = isMIDISustainPedalEnabled() && midiSustainPedalDown && notesAuditioned.contains(note)
++			                      && midiSustainDeferredNotes.defer(note, static_cast<uint8_t>(velocity));
++			if (!deferred) {
++				// We want to make sure we sent the note-off even if it didn't think auditioning was happening. This is
++				// to stop a stuck note if MIDI thru was on and they're releasing the note while still holding learn to
++				// learn that input to a MIDIInstrument (with external synth attached)
++				endAuditioningForNote(modelStack->toWithSong(), // Safe, cos we won't reference this again
++				                      note, velocity);
++			}
+ 		}
+ 	} // end match switch
+ 
+@@ -394,6 +412,15 @@ void MelodicInstrument::receivedCC(ModelStackWithTimelineCounter* modelStackWith
+ 			return;
+ 		}
+ 
++		if (ccNumber == kMIDISustainPedalController && isMIDISustainPedalEnabled()) {
++			if (value >= kMIDISustainPedalOnThreshold) {
++				midiSustainPedalDown = true;
++			}
++			else {
++				releaseDeferredMIDISustainNotes(modelStackWithTimelineCounter->toWithSong());
++			}
++		}
++
+ 		// Still send the cc even if the Output is muted. MidiInstruments will check for and block this
+ 		// themselves
+ 		ccReceivedFromInputMIDIChannel(ccNumber, value, modelStackWithTimelineCounter);
+@@ -516,6 +543,8 @@ void MelodicInstrument::stopAnyAuditioning(ModelStack* modelStack) {
+ 	notesAuditioned.clear();
+ 	earlyNotes.clear(); // This is fine, though in a perfect world we'd prefer to just mark the notes as no
+ 	                    // longer active
++	midiSustainDeferredNotes.clear();
++	midiSustainPedalDown = false;
+ 	if (activeClip) {
+ 		activeClip->expectEvent(); // Because the absence of auditioning here means sequenced notes may play
+ 	}
+@@ -592,6 +621,12 @@ void MelodicInstrument::endAuditioningForNote(ModelStack* modelStack, int32_t no
+ 	sendNote(modelStackWithThreeMainThings, false, note, nullptr, MIDI_CHANNEL_NONE, velocity);
+ }
+ 
++void MelodicInstrument::releaseDeferredMIDISustainNotes(ModelStack* modelStack) {
++	midiSustainPedalDown = false;
++	midiSustainDeferredNotes.releaseAll(
++	    [this, modelStack](int32_t note, uint8_t velocity) { endAuditioningForNote(modelStack, note, velocity); });
++}
++
+ bool MelodicInstrument::isAnyAuditioningHappening() {
+ 	return !notesAuditioned.empty();
+ }
+diff --git a/src/deluge/model/instrument/melodic_instrument.h b/src/deluge/model/instrument/melodic_instrument.h
+index 9589c4dc928500ae9183c45d57c6c1601ea62f38..0b6b8734cdf3232a62e7ad657a1da6daed03e865 100644
+--- a/src/deluge/model/instrument/melodic_instrument.h
++++ b/src/deluge/model/instrument/melodic_instrument.h
+@@ -19,6 +19,7 @@
+ 
+ #include "io/midi/learned_midi.h"
+ #include "model/instrument/instrument.h"
++#include "model/instrument/midi_sustain_deferred_notes.h"
+ #include "modulation/arpeggiator.h"
+ #include "util/containers.h"
+ 
+@@ -68,6 +69,7 @@ public:
+ 	void beginAuditioningForNote(ModelStack* modelStack, int32_t note, int32_t velocity, int16_t const* mpeValues,
+ 	                             int32_t fromMIDIChannel = MIDI_CHANNEL_NONE, uint32_t sampleSyncLength = 0);
+ 	void endAuditioningForNote(ModelStack* modelStack, int32_t note, int32_t velocity = kDefaultLiftValue);
++	void releaseDeferredMIDISustainNotes(ModelStack* modelStack);
+ 	virtual ModelStackWithAutoParam* getParamToControlFromInputMIDIChannel(int32_t cc,
+ 	                                                                       ModelStackWithThreeMainThings* modelStack);
+ 	void processParamFromInputMIDIChannel(int32_t cc, int32_t newValue,
+@@ -94,11 +96,14 @@ public:
+ 
+ 	deluge::fast_map<int16_t, EarlyNoteInfo> earlyNotes; // note value, velocity, still_active
+ 	deluge::fast_map<int16_t, EarlyNoteInfo> notesAuditioned;
++	deluge::midi_support::SustainDeferredNotes midiSustainDeferredNotes;
++	bool midiSustainPedalDown = false;
+ 
+ 	ModelStackWithAutoParam* getModelStackWithParam(ModelStackWithTimelineCounter* modelStack, Clip* clip,
+ 	                                                int32_t paramID, deluge::modulation::params::Kind paramKind,
+ 	                                                bool affectEntire, bool useMenuStack) override;
+ 
+ private:
++	bool isMIDISustainPedalEnabled() const;
+ 	void possiblyRefreshAutomationEditorGrid(int32_t ccNumber);
+ };
+diff --git a/src/deluge/model/instrument/midi_sustain_deferred_notes.h b/src/deluge/model/instrument/midi_sustain_deferred_notes.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..33355b8f1121ddc1aea89e4a9a8737b1c6479e5c
+--- /dev/null
++++ b/src/deluge/model/instrument/midi_sustain_deferred_notes.h
+@@ -0,0 +1,87 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
++ * implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with The Synthstrom Audible Deluge Firmware.
++ * If not, see <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <array>
++#include <cstddef>
++#include <cstdint>
++#include <type_traits>
++
++namespace deluge::midi_support {
++
++/// Fixed deferred note-off state for the complete MIDI pitch domain.
++///
++/// Each slot stores release velocity plus one, leaving zero as the unoccupied value. This keeps live MIDI note-off,
++/// retrigger, pedal-release, and cleanup paths independent of the firmware allocator.
++class SustainDeferredNotes {
++public:
++	static constexpr int32_t kNoteCount = 128;
++
++	[[nodiscard]] bool defer(int32_t note, uint8_t releaseVelocity) {
++		if (!isValidNote(note)) {
++			return false;
++		}
++		encodedVelocities_[static_cast<std::size_t>(note)] = static_cast<uint8_t>(releaseVelocity + 1);
++		return true;
++	}
++
++	void erase(int32_t note) {
++		if (isValidNote(note)) {
++			encodedVelocities_[static_cast<std::size_t>(note)] = 0;
++		}
++	}
++
++	[[nodiscard]] bool contains(int32_t note) const {
++		return isValidNote(note) && encodedVelocities_[static_cast<std::size_t>(note)] != 0;
++	}
++
++	[[nodiscard]] bool empty() const {
++		for (uint8_t encodedVelocity : encodedVelocities_) {
++			if (encodedVelocity != 0) {
++				return false;
++			}
++		}
++		return true;
++	}
++
++	void clear() { encodedVelocities_.fill(0); }
++
++	template <typename ReleaseNote>
++	void releaseAll(ReleaseNote&& releaseNote) {
++		for (int32_t note = 0; note < kNoteCount; ++note) {
++			uint8_t& encodedVelocity = encodedVelocities_[static_cast<std::size_t>(note)];
++			if (encodedVelocity == 0) {
++				continue;
++			}
++
++			const uint8_t releaseVelocity = encodedVelocity - 1;
++			encodedVelocity = 0;
++			releaseNote(note, releaseVelocity);
++		}
++	}
++
++private:
++	[[nodiscard]] static constexpr bool isValidNote(int32_t note) { return note >= 0 && note < kNoteCount; }
++
++	std::array<uint8_t, kNoteCount> encodedVelocities_{};
++};
++
++static_assert(sizeof(SustainDeferredNotes) == SustainDeferredNotes::kNoteCount);
++static_assert(std::is_trivially_copyable_v<SustainDeferredNotes>);
++
++} // namespace deluge::midi_support
+diff --git a/src/deluge/model/settings/runtime_feature_settings.cpp b/src/deluge/model/settings/runtime_feature_settings.cpp
+index c127568bc113712125e15b2b0e99db9af04a64b8..5e8dc4021529578e401d180783ac914ad8b7c0fd 100644
+--- a/src/deluge/model/settings/runtime_feature_settings.cpp
++++ b/src/deluge/model/settings/runtime_feature_settings.cpp
+@@ -208,6 +208,11 @@ void RuntimeFeatureSettings::init() {
+ 	// Shortcut Overlay
+ 	SetupOnOffSetting(settings[RuntimeFeatureSettingType::ShortcutOverlay],
+ 	                  STRING_FOR_COMMUNITY_FEATURE_SHORTCUT_OVERLAY, "shortcutOverlay", RuntimeFeatureStateToggle::On);
++
++	// MIDI Sustain Pedal
++	SetupOnOffSetting(settings[RuntimeFeatureSettingType::MidiSustainPedal],
++	                  STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL, "midiSustainPedal",
++	                  RuntimeFeatureStateToggle::Off);
+ }
+ 
+ void RuntimeFeatureSettings::factoryReset(bool showPopup) {
+diff --git a/src/deluge/model/settings/runtime_feature_settings.h b/src/deluge/model/settings/runtime_feature_settings.h
+index 55e809efa6bc7fcf53c4b7c490ca9b471bab0493..ee5d2a794baa98c3677ed352026368391e810412 100644
+--- a/src/deluge/model/settings/runtime_feature_settings.h
++++ b/src/deluge/model/settings/runtime_feature_settings.h
+@@ -68,6 +68,7 @@ enum RuntimeFeatureSettingType : uint32_t {
+ 	ShowBatteryLevel,
+ 	RoundedCorners,
+ 	ShortcutOverlay,
++	MidiSustainPedal,
+ 	MaxElement // Keep as boundary
+ };
+ 
+diff --git a/tests/spec/midi_sustain_deferred_notes_spec.cpp b/tests/spec/midi_sustain_deferred_notes_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..7e7c09b06a6080ffb713abf9b49fdb0c1ca7e1c1
+--- /dev/null
++++ b/tests/spec/midi_sustain_deferred_notes_spec.cpp
+@@ -0,0 +1,86 @@
++#include "model/instrument/midi_sustain_deferred_notes.h"
++
++#include "cppspec.hpp"
++
++#include <array>
++#include <cstdint>
++#include <type_traits>
++
++using deluge::midi_support::SustainDeferredNotes;
++
++static_assert(sizeof(SustainDeferredNotes) == 128);
++static_assert(std::is_trivially_copyable_v<SustainDeferredNotes>);
++
++// clang-format off
++describe midi_sustain_deferred_notes("MIDI sustain deferred note state", $ {
++	it("defers and releases every MIDI pitch with its exact release velocity", _ {
++		SustainDeferredNotes notes;
++		std::array<bool, SustainDeferredNotes::kNoteCount> released{};
++		int32_t releaseCount = 0;
++
++		for (int32_t note = 0; note < SustainDeferredNotes::kNoteCount; ++note) {
++			expect(notes.defer(note, static_cast<uint8_t>(127 - note))).to_be_true();
++			expect(notes.contains(note)).to_be_true();
++		}
++		expect(notes.empty()).to_be_false();
++
++		notes.releaseAll([&](int32_t note, uint8_t velocity) {
++			expect(released[note]).to_be_false();
++			expect(velocity).to_equal(static_cast<uint8_t>(127 - note));
++			released[note] = true;
++			releaseCount++;
++		});
++
++		expect(releaseCount).to_equal(SustainDeferredNotes::kNoteCount);
++		expect(notes.empty()).to_be_true();
++		for (bool wasReleased : released) {
++			expect(wasReleased).to_be_true();
++		}
++	});
++
++	it("replaces velocity for repeated note-offs and cancels release on retrigger", _ {
++		SustainDeferredNotes notes;
++		expect(notes.defer(64, 0)).to_be_true();
++		expect(notes.defer(64, 127)).to_be_true();
++
++		int32_t releaseCount = 0;
++		notes.releaseAll([&](int32_t note, uint8_t velocity) {
++			expect(note).to_equal(64);
++			expect(velocity).to_equal(uint8_t{127});
++			releaseCount++;
++		});
++		expect(releaseCount).to_equal(1);
++
++		expect(notes.defer(64, 45)).to_be_true();
++		notes.erase(64);
++		notes.releaseAll([&](int32_t, uint8_t) { releaseCount++; });
++		expect(releaseCount).to_equal(1);
++		expect(notes.empty()).to_be_true();
++	});
++
++	it("clears all deferred notes without releasing them", _ {
++		SustainDeferredNotes notes;
++		expect(notes.defer(0, 1)).to_be_true();
++		expect(notes.defer(127, 2)).to_be_true();
++		notes.clear();
++
++		int32_t releaseCount = 0;
++		notes.releaseAll([&](int32_t, uint8_t) { releaseCount++; });
++		expect(releaseCount).to_equal(0);
++		expect(notes.empty()).to_be_true();
++	});
++
++	it("rejects pitches outside the fixed MIDI domain", _ {
++		SustainDeferredNotes notes;
++		expect(notes.defer(-1, 64)).to_be_false();
++		expect(notes.defer(SustainDeferredNotes::kNoteCount, 64)).to_be_false();
++		expect(notes.contains(-1)).to_be_false();
++		expect(notes.contains(SustainDeferredNotes::kNoteCount)).to_be_false();
++		notes.erase(-1);
++		notes.erase(SustainDeferredNotes::kNoteCount);
++		expect(notes.empty()).to_be_true();
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(midi_sustain_deferred_notes)

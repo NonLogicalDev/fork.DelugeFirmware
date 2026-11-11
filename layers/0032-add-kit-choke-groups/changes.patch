@@ -1,0 +1,1077 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 2be58fc789d51a3b99412d55846af27e9ed061a3..49cf19b202c51670ea8cb60ba96539142f5a97f3 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -4,7 +4,7 @@
+ 
+ This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
+ 
+-The local stack currently contains twenty-five deviations:
++The local stack currently contains twenty-seven deviations:
+ 
+ 1. Normalize the Korg MIDI-definition directory casing.
+ 2. Provide a reproducible Apple Silicon Nix build environment.
+@@ -31,6 +31,8 @@ The local stack currently contains twenty-five deviations:
+ 23. Let Session MIDI-Out Clips advance from independent external steps.
+ 24. Make held-Horizontal preview-only note input release-order safe across Clip and Keyboard views.
+ 25. Keep playheads legible on full-screen waveform displays.
++26. Refuse incompatible Songs before changing playback or project state.
++27. Add independent persistent choke groups to Kit Sound Drum rows.
+ 
+ No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
+ 
+@@ -824,6 +826,73 @@ Make the current playback position immediately readable on every full-screen sin
+ - Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
+ - On a physical OLED Deluge, check each included surface with sparse and dense waveforms, forward and reverse playback, loop wrap, start and end edits, Slicer Region and Manual audition, browser preview, markers, popups, scrolling, zooming, stop, source replacement, and exit. Confirm that the waveform is still readable, the playhead is more obvious, no stale cursor remains, and audio, storage streaming, recording, and display response do not regress. Physical verification remains human-controlled and does not authorize flashing.
+ 
++## 26. Non-destructive Song compatibility preflight
++
++### Intent
++
++Refuse a Song that requires unsupported firmware or a newer local save schema before loading can stop playback, change the interface, clear Undo history, replace the current Song, or otherwise mutate live project state.
++
++### Required behavior
++
++- Every XML and JSON Song load performs an initial compatibility-only read before any destructive load action. The file is closed after that read and reopened from the beginning only when it is compatible.
++- The compatibility read recognizes the established official and Community firmware fields and the exact local save-schema sentinel stored in the existing compatibility field. Local schema 0, 1, and 2 are supported. A future schema, malformed local sentinel, or empty local sentinel is rejected.
++- Compatibility fields may appear anywhere in the Song root. Unknown fields before them, including nested arrays or objects and strings containing braces, brackets, escaped quotes, or escaped backslashes, cannot hide a later incompatibility marker or corrupt the second read.
++- Canonical Songs with leading compatibility fields stop the initial read as soon as the complete compatibility requirement is known. Legacy Songs without a compatibility field remain loadable after the root has been checked.
++- An empty ordinary firmware-version value is treated as the established unknown version instead of causing an invalid memory access. Other invalid ordinary version strings retain their established unknown-version meaning.
++- An incompatible Song preserves the exact incompatibility error and leaves playback, the current Song, the active interface, Undo and Redo history, and all loaded project state unchanged.
++- A read, close, reopen, malformed-file, or storage-removal failure preserves its own error. Each successful file open has one matching close, and a failed reopen cannot reuse stale parser state or an earlier file handle.
++- The normal load performs its established defensive compatibility checks again. A compatibility error found there is propagated rather than discarded.
++
++### Compatibility and boundaries
++
++- Preserve compatible XML and JSON Song loading, legacy Song loading, ordinary official and Community version comparison, browser behavior, file selection, error reporting, and the complete normal deserialization path after reopen.
++- Kit presets and saved-row presets continue using their established compatibility reads and error propagation. This deviation does not add a second preflight to those non-Song files.
++- Do not rewrite, repair, migrate, resave, or otherwise modify a refused file. Do not change Song contents, project formats, playback semantics, Undo semantics, or storage ownership beyond the compatibility-only first read and required reopen.
++- No local behavior authorizes flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- Production XML and JSON reader checks cover canonical and reordered compatible headers, too-new ordinary versions, local schemas 0 through 2, future schemas, malformed and empty sentinels, legacy files without markers, empty and invalid ordinary versions, malformed input, nested unknown payloads with structural characters inside escaped strings, and storage failure between the two opens.
++- State-order checks prove that refusal occurs before playback, interface, Undo, Redo, and current-Song mutation; compatible files close and reopen exactly once; and the normal reader still propagates a defensive incompatibility result.
++- Format every affected source, compile the changed storage and Song-loading units with the target ARM Release toolchain, run the complete configured host suite, and complete a local Release firmware build.
++- A physical Deluge check loads representative compatible, legacy, unsupported, malformed, and storage-interrupted Songs and confirms that every refusal leaves the playing project and Undo history intact. Physical verification remains human-controlled and does not authorize flashing or installation.
++
++## 27. Kit Sound Drum choke groups
++
++### Intent
++
++Let one Kit contain several independent sets of mutually exclusive samples while keeping the existing Polyphony control as the one clear switch for whether a row participates in choking.
++
++### Required behavior
++
++- Every audio Sound Drum owns one choke-group value from 1 through 16. Missing, zero, or otherwise invalid saved values normalize to group 1. New Sound Drums and newly sliced rows begin with group 1 and their established non-CHOKE Polyphony default.
++- Polyphony `CHOKE` is the only participation switch. A Sound Drum retains its saved group while Polyphony is another mode, but it neither chokes nor is choked until Polyphony returns to `CHOKE`.
++- Starting an ordinary audio Sound Drum releases every currently sounding `CHOKE` Sound Drum in the same Kit and same group before the replacement starts. This includes the triggering row's previous voice, so self-retriggers remain click-safe.
++- Ordinary sequencer notes, held row audition, incoming Kit MIDI notes, and Cut, Once, Loop, and Stretch playback all use the same group behavior. Different groups, non-CHOKE Sound Drums, MIDI rows, and Gate rows never release one another.
++- A normal trigger applies the group release only when it resolves to an immediate Sound Drum start. Direct starts, Kit-arpeggiator bypass, one-shot fallback, and an immediate Kit-arpeggiator output release the group exactly once immediately before starting. Duplicate, deferred, probability-suppressed, or otherwise no-output Kit-arpeggiator inputs do not release the group. Later starts generated internally by that arpeggiator do not rescan or mutate Kit rows.
++- Releasing a matching row stops only MIDI notes currently tracked as belonging to that row, resets that row's arpeggiator and inversion state so it cannot retrigger later, fast-releases its active audio, and updates its render eligibility before the replacement begins. It never sends channel-wide All Notes Off. Delay and reverb tails continue through the established fast-release behavior.
++- The dedicated held-Select Kit Waveform Editor preview from deviation 19 does not trigger group release and is protected from unrelated group release while that dedicated preview owns the row. Normal held row audition remains a participating ordinary trigger.
++- Group identity follows the Sound Drum through Song save and load, Kit presets, saved-row presets, full Sound Drum copy and paste, row reorder, and deletion. Notes-only operations do not invent or change group identity. Deleting a row destroys its group with that Sound Drum; reordering requires no group-specific remapping.
++- Replacing an existing Slicer anchor Sound Drum preserves that Sound Drum's group and Polyphony according to the established in-place replacement behavior. Newly appended Slicer rows use group 1 and the ordinary non-CHOKE default.
++- A stored group 2 through 16 requires local save schema 2 even when that Sound Drum is not currently `CHOKE`. Group 1 alone adds no new requirement. External Step alone requires schema 1; a file containing both records the maximum requirement, schema 2.
++- Songs, Kit presets, and saved-row presets write a non-default group value and the appropriate compatibility marker. Schema-2 firmware accepts schemas 0, 1, and 2 and rejects future, malformed, or empty local schema sentinels. An unsupported build must refuse protected data rather than silently collapsing every row into group 1.
++- With a selected Kit Sound Drum set to Polyphony `CHOKE`, pressing Select on that value opens a group selector from 1 through 16. OLED shows `Choke group` and values `1` through `16`; seven-segment displays show `CHGP` and `G01` through `G16`. Other Polyphony values, Synths, MIDI rows, Gate rows, and non-Kit contexts do not expose the selector.
++
++### Compatibility and boundaries
++
++- Preserve the established Polyphony meanings, ordinary Kit triggering, row and Kit arpeggiators, sample playback modes, MIDI and Gate behavior, effects tails, audition selection, Sound Drum clipboard behavior, row reorder and deletion, Slicer placement, and project data unrelated to the new group field.
++- Do not add a pad shortcut, another Polyphony value, a second enable switch, a bulk group editor, a horizontal menu slot, group lighting, MIDI or Gate groups, channel-wide All Notes Off, global effects cancellation, or render-time Kit-list traversal.
++- Keep group scanning at the ordinary resolved Sound Drum start boundary. It must not allocate memory, access storage, change Kit row membership, or run from an audio render or arpeggiator tick callback.
++- No local behavior authorizes flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- Focused checks cover group normalization, group membership, self-retrigger, independent groups, inactive saved groups, exact tracked MIDI note-off cleanup, row-arpeggiator reset, ordinary-start versus internal-arpeggiator ownership, copy and clone behavior, persistence defaults, schema aggregation, menu visibility, and OLED and seven-segment formatting.
++- Persistence checks cover Songs, Kit presets, saved-row presets, missing and invalid group values, group 1 without a stronger marker, groups 2 through 16 with schema 2 even while non-CHOKE, External Step alone with schema 1, combined features with schema 2, and refusal of unsupported or malformed schemas.
++- Source review confirms that reorder and deletion rely on existing Sound Drum identity, Slicer anchors preserve existing state, new Slicer rows use defaults, direct Waveform Editor preview remains protected, no channel-wide MIDI message is sent, and no cross-row scan occurs from render or tick callbacks.
++- Format every affected source and localization input, regenerate localization through the established generator, compile the changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
++- On a physical OLED and seven-segment Deluge, check groups 1 and 2 in one Kit, self-retrigger, held audition, sequencer and incoming MIDI triggers, Cut, Once, Loop, Stretch, row and Kit arpeggiators, external MIDI echo shared with unrelated rows, delay and reverb tails, the dedicated Waveform Editor preview, copy and paste, reorder, deletion, Slicer anchor replacement, new slices, menu navigation, save and reload, schema refusal on older firmware, and malformed-file refusal. Physical verification remains human-controlled and does not authorize flashing or installation.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
+index 53040fdd10ccfe8737892014baca5f56a8b94b78..7b04aca3e0c5df4bf314d0f9b69d6c794947f571 100644
+--- a/src/deluge/gui/l10n/english.json
++++ b/src/deluge/gui/l10n/english.json
+@@ -828,6 +828,8 @@
+     "STRING_FOR_MONOPHONIC": "Monophonic",
+     "STRING_FOR_LEGATO": "Legato",
+     "STRING_FOR_CHOKE": "Choke",
++    "STRING_FOR_CHOKE_GROUP": "Choke group",
++    "STRING_FOR_CHOKE_GROUP_SHORT": "CHGP",
+     "STRING_FOR_MODULATE_WITH": "Modulate with",
+     "STRING_FOR_MODULATE_DEPTH": "Modulate depth",
+     "STRING_FOR_FORWARD": "Forward",
+diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
+index 1924db299b7c55359c13c05947e0b9023fe52153..dbb68ebe71d8c5135b4a5b077c75f53c94c89cf6 100644
+--- a/src/deluge/gui/l10n/g_english.cpp
++++ b/src/deluge/gui/l10n/g_english.cpp
+@@ -841,6 +841,8 @@ PLACE_SDRAM_DATA Language english{
+         {STRING_FOR_MONOPHONIC, "Monophonic"},
+         {STRING_FOR_LEGATO, "Legato"},
+         {STRING_FOR_CHOKE, "Choke"},
++        {STRING_FOR_CHOKE_GROUP, "Choke group"},
++        {STRING_FOR_CHOKE_GROUP_SHORT, "CHGP"},
+         {STRING_FOR_MODULATE_WITH, "Modulate with"},
+         {STRING_FOR_MODULATE_DEPTH, "Modulate depth"},
+         {STRING_FOR_FORWARD, "Forward"},
+diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
+index 63b080773de4ffea9d52a237cd13239c24551fd0..29378af3387e734b8c7ab435b0d6c7740335f327 100644
+--- a/src/deluge/gui/l10n/strings.h
++++ b/src/deluge/gui/l10n/strings.h
+@@ -904,6 +904,8 @@ enum class String : size_t {
+ 	STRING_FOR_MONOPHONIC,
+ 	STRING_FOR_LEGATO,
+ 	STRING_FOR_CHOKE,
++	STRING_FOR_CHOKE_GROUP,
++	STRING_FOR_CHOKE_GROUP_SHORT,
+ 	STRING_FOR_MODULATE_WITH,
+ 	STRING_FOR_MODULATE_DEPTH,
+ 	STRING_FOR_FORWARD,
+diff --git a/src/deluge/gui/menu_item/voice/polyphony.h b/src/deluge/gui/menu_item/voice/polyphony.h
+index ad8072c37653ed97e1ff4d85284e03a1356f2175..d0cfc663fc46289f16df1be217e9f270c70a5cab 100644
+--- a/src/deluge/gui/menu_item/voice/polyphony.h
++++ b/src/deluge/gui/menu_item/voice/polyphony.h
+@@ -17,7 +17,9 @@
+ #pragma once
+ 
+ #include "definitions_cxx.hpp"
++#include "gui/menu_item/integer.h"
+ #include "gui/menu_item/selection.h"
++#include "gui/menu_item/voice/polyphony_policy.h"
+ #include "gui/ui/sound_editor.h"
+ #include "model/drum/drum.h"
+ #include "model/instrument/kit.h"
+@@ -28,6 +30,37 @@
+ #include <hid/display/oled.h>
+ 
+ namespace deluge::gui::menu_item::voice {
++class ChokeGroup final : public Integer {
++public:
++	using Integer::Integer;
++	void readCurrentValue() override {
++		auto* soundDrum = static_cast<SoundDrum*>(soundEditor.currentSound);
++		this->setValue(deluge::choke_group::normalize(soundDrum->chokeGroup));
++	}
++	void writeCurrentValue() override {
++		auto* soundDrum = static_cast<SoundDrum*>(soundEditor.currentSound);
++		deluge::choke_group::assignNormalized(soundDrum->chokeGroup, this->getValue());
++	}
++	[[nodiscard]] int32_t getMinValue() const override { return deluge::choke_group::kMinimum; }
++	[[nodiscard]] int32_t getMaxValue() const override { return deluge::choke_group::kMaximum; }
++	[[nodiscard]] RenderingStyle getRenderingStyle() const override { return NUMBER; }
++	[[nodiscard]] std::string_view getName() const override {
++		return l10n::getView(polyphony_policy::chokeGroupTitle(display->haveOLED()));
++	}
++	bool isRelevant(ModControllableAudio*, int32_t) const override {
++		return soundEditor.editingKitRow() && soundEditor.currentSound->polyphonic == PolyphonyMode::CHOKE;
++	}
++
++protected:
++	void drawValue() override {
++		char text[4];
++		deluge::choke_group::formatSevenSegmentValue(this->getValue(), text);
++		display->setText(text);
++	}
++};
++
++extern ChokeGroup chokeGroupMenu;
++
+ class VoiceCount : public IntegerWithOff {
+ public:
+ 	using IntegerWithOff::IntegerWithOff;
+@@ -137,10 +170,15 @@ public:
+ 		return options;
+ 	}
+ 	MenuItem* selectButtonPress() override {
+-		if (this->getValue<PolyphonyMode>() == PolyphonyMode::POLY) {
++		switch (polyphony_policy::detailMenuFor(this->getValue<PolyphonyMode>(), soundEditor.editingKitRow())) {
++		case polyphony_policy::DetailMenu::VOICE_COUNT:
+ 			return &polyphonicVoiceCountMenu;
++		case polyphony_policy::DetailMenu::CHOKE_GROUP:
++			return &chokeGroupMenu;
++		case polyphony_policy::DetailMenu::NONE:
++			return Selection::selectButtonPress();
+ 		}
+-		return Selection::selectButtonPress();
++		__builtin_unreachable();
+ 	}
+ 
+ 	void getColumnLabel(StringBuf& label) override {
+diff --git a/src/deluge/gui/menu_item/voice/polyphony_policy.h b/src/deluge/gui/menu_item/voice/polyphony_policy.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..d4af819d08739c4b77718bff26014f74d46256a7
+--- /dev/null
++++ b/src/deluge/gui/menu_item/voice/polyphony_policy.h
+@@ -0,0 +1,38 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++#include "gui/l10n/strings.h"
++
++namespace deluge::gui::menu_item::voice::polyphony_policy {
++
++enum class DetailMenu : uint8_t {
++	NONE,
++	VOICE_COUNT,
++	CHOKE_GROUP,
++};
++
++[[nodiscard]] constexpr DetailMenu detailMenuFor(PolyphonyMode mode, bool editingKitRow) {
++	if (mode == PolyphonyMode::POLY) {
++		return DetailMenu::VOICE_COUNT;
++	}
++	if (mode == PolyphonyMode::CHOKE && editingKitRow) {
++		return DetailMenu::CHOKE_GROUP;
++	}
++	return DetailMenu::NONE;
++}
++
++[[nodiscard]] constexpr l10n::String chokeGroupTitle(bool haveOLED) {
++	return haveOLED ? l10n::String::STRING_FOR_CHOKE_GROUP : l10n::String::STRING_FOR_CHOKE_GROUP_SHORT;
++}
++
++} // namespace deluge::gui::menu_item::voice::polyphony_policy
+diff --git a/src/deluge/gui/ui/menus.cpp b/src/deluge/gui/ui/menus.cpp
+index 221c0f60021af6882e9a839dfc38ae997401a407..b82497c26b1b38ba5cb539e5a76c9ecbd73b6b96 100644
+--- a/src/deluge/gui/ui/menus.cpp
++++ b/src/deluge/gui/ui/menus.cpp
+@@ -454,6 +454,7 @@ PLACE_SDRAM_BSS Submenu kitArpMenu{
+ 
+ PLACE_SDRAM_BSS voice::PolyphonyType polyphonyMenu{STRING_FOR_POLYPHONY};
+ PLACE_SDRAM_BSS voice::VoiceCount voice::polyphonicVoiceCountMenu{STRING_FOR_MAX_VOICES};
++PLACE_SDRAM_BSS voice::ChokeGroup voice::chokeGroupMenu{STRING_FOR_CHOKE_GROUP};
+ PLACE_SDRAM_BSS voice::Portamento portaMenu{STRING_FOR_PORTAMENTO};
+ PLACE_SDRAM_BSS voice::Priority priorityMenu{STRING_FOR_PRIORITY};
+ 
+diff --git a/src/deluge/model/drum/drum.h b/src/deluge/model/drum/drum.h
+index 50708ba359c4e30232a4ed3b07cbb2d59a1b8879..59e2baf36fdbd118bf2811a7cc3c83aee0fa3275 100644
+--- a/src/deluge/model/drum/drum.h
++++ b/src/deluge/model/drum/drum.h
+@@ -79,8 +79,6 @@ public:
+ 	virtual Error readFromFile(Deserializer& reader, Song* song, Clip* clip, int32_t readAutomationUpToPos) = 0;
+ 	virtual void drumWontBeRenderedForAWhile();
+ 	virtual std::string getDrumName() = 0;
+-	virtual void choke(ModelStackWithSoundFlags* modelStack) {} // modelStack can be NULL if you really insist
+-
+ 	void writeMIDICommandsToFile(Serializer& writer);
+ 	void writeDrumTagsToFile(Serializer& writer);
+ 	bool readDrumTagFromFile(Deserializer& reader, char const* tagName);
+diff --git a/src/deluge/model/instrument/kit.cpp b/src/deluge/model/instrument/kit.cpp
+index 34e7791f0d053ba90802d10a8bcbee587315f09b..8a5f7172ceaa2fc7626447a9cedad838d5f4eb1c 100644
+--- a/src/deluge/model/instrument/kit.cpp
++++ b/src/deluge/model/instrument/kit.cpp
+@@ -250,6 +250,17 @@ moveOn:
+ 	return true;
+ }
+ 
++deluge::project_compatibility::LocalSaveSchema Kit::requiredSaveSchema() const {
++	deluge::project_compatibility::LocalSaveSchemaRequirement requirement;
++	for (Drum* drum = firstDrum; drum; drum = drum->next) {
++		if (drum->type == DrumType::SOUND) {
++			auto* soundDrum = static_cast<SoundDrum*>(drum);
++			requirement.includeChokeGroup(soundDrum->chokeGroup);
++		}
++	}
++	return requirement.value();
++}
++
+ void Kit::writeDrumToFile(Serializer& writer, Drum* thisDrum, ParamManager* paramManagerForDrum, bool savingSong,
+                           int32_t* selectedDrumIndex, int32_t* drumIndex, Song* song) {
+ 	if (thisDrum == selectedDrum) {
+@@ -905,12 +916,6 @@ bool Kit::offerReceivedPitchBendToLearnedParams(MIDICable& cable, uint8_t channe
+ 	return messageUsed;
+ }
+ 
+-void Kit::choke() {
+-	for (Drum* thisDrum = firstDrum; thisDrum; thisDrum = thisDrum->next) {
+-		thisDrum->choke(nullptr);
+-	}
+-}
+-
+ void Kit::resyncLFOs() {
+ 	for (Drum* thisDrum = firstDrum; thisDrum; thisDrum = thisDrum->next) {
+ 		if (thisDrum && thisDrum->type == DrumType::SOUND) {
+@@ -1296,20 +1301,35 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
+ 		endDirectSoundDrumAudition(modelStack->song, static_cast<SoundDrum*>(drum));
+ 	}
+ 
++	auto startImmediately = [&](bool hasResolvedStart, Drum* drumToStart, auto&& start) {
++		return deluge::choke_group::performImmediateStart(
++		    hasResolvedStart,
++		    [&]() {
++			    if (drumToStart->type == DrumType::SOUND) {
++				    releaseChokeGroupBeforeImmediateStart(modelStack, static_cast<SoundDrum*>(drumToStart));
++			    }
++		    },
++		    start);
++	};
++
+ 	ArpeggiatorSettings* arpSettings = getArpSettings();
+ 	ArpReturnInstruction kitInstruction;
+ 	// Run everything by the Kit Arp...
+ 	int32_t drumIndex = -1;
+ 	if (activeClip == nullptr || arpSettings == nullptr) {
+-		drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate, samplesLate);
++		startImmediately(true, drum, [&]() {
++			drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate, samplesLate);
++		});
+ 		return;
+ 	}
+ 	NoteRow* thisNoteRow = ((InstrumentClip*)activeClip)->getNoteRowForDrum(drum, &drumIndex);
+ 	if (drumIndex != -1 && thisNoteRow->drum != nullptr) {
+ 		// Check if kit arp is bypassed
+ 		if (!thisNoteRow->drum->arpSettings.includeInKitArp) {
+-			thisNoteRow->drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate,
+-			                          samplesLate);
++			startImmediately(true, thisNoteRow->drum, [&]() {
++				thisNoteRow->drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate,
++				                          samplesLate);
++			});
+ 			return;
+ 		}
+ 		else if (thisNoteRow->drum->type == DrumType::SOUND) {
+@@ -1317,25 +1337,73 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
+ 			if (!((SoundDrum*)thisNoteRow->drum)->allowNoteTails(modelStackWithSoundFlags, true)) {
+ 				// If sound doesn't allow note tails, it cannot be included in the kit arp, as it doesn't produce note
+ 				// offs and will get us stuck notes
+-				thisNoteRow->drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength, ticksLate,
+-				                          samplesLate);
++				startImmediately(true, thisNoteRow->drum, [&]() {
++					thisNoteRow->drum->noteOn(modelStack, velocity, mpeValues, fromMIDIChannel, sampleSyncLength,
++					                          ticksLate, samplesLate);
++				});
+ 				return;
+ 			}
+ 		}
+ 
+ 		// If kit arp not bypassed, execute instruction
+ 		arpeggiator.noteOn(arpSettings, drumIndex, velocity, &kitInstruction, fromMIDIChannel, mpeValues);
+-		if (kitInstruction.arpNoteOn != nullptr && kitInstruction.arpNoteOn->noteCodeOnPostArp[0] != ARP_NOTE_NONE) {
+-			// Set the invertReverse flag for the drum arpeggiator
+-			thisNoteRow->drum->arpeggiator.invertReversedFromKitArp = kitInstruction.invertReversed;
+-			// Do row note on
+-			thisNoteRow->drum->noteOn(modelStack, kitInstruction.arpNoteOn->velocity,
+-			                          kitInstruction.arpNoteOn->mpeValues, 0, sampleSyncLength, ticksLate, samplesLate);
++		bool hasResolvedStart = deluge::choke_group::hasResolvedImmediateStart(kitInstruction);
++		if (startImmediately(hasResolvedStart, thisNoteRow->drum, [&]() {
++			    // Set the invertReverse flag for the drum arpeggiator
++			    thisNoteRow->drum->arpeggiator.invertReversedFromKitArp = kitInstruction.invertReversed;
++			    // Do row note on
++			    thisNoteRow->drum->noteOn(modelStack, kitInstruction.arpNoteOn->velocity,
++			                              kitInstruction.arpNoteOn->mpeValues, 0, sampleSyncLength, ticksLate,
++			                              samplesLate);
++		    })) {
+ 			kitInstruction.arpNoteOn->noteStatus[0] = ArpNoteStatus::PLAYING;
+ 		}
+ 	}
+ }
+ 
++void Kit::releaseChokeGroupBeforeImmediateStart(ModelStackWithThreeMainThings* modelStack, SoundDrum* triggeredDrum) {
++	if (!deluge::choke_group::participates(triggeredDrum->polyphonic)) {
++		return;
++	}
++
++	for (Drum* drum = firstDrum; drum; drum = drum->next) {
++		if (drum->type != DrumType::SOUND) {
++			continue;
++		}
++
++		auto* soundDrum = static_cast<SoundDrum*>(drum);
++		if (soundDrum == directlyAuditionedSoundDrum
++		    || !deluge::choke_group::matches(soundDrum->polyphonic, soundDrum->chokeGroup, triggeredDrum->chokeGroup)) {
++			continue;
++		}
++
++		if (soundDrum == triggeredDrum) {
++			soundDrum->releaseForChokeGroup(modelStack->addSoundFlags());
++			continue;
++		}
++
++		int32_t noteRowIndex = 0;
++		NoteRow* noteRow = activeClip
++		                       ? static_cast<InstrumentClip*>(activeClip)->getNoteRowForDrum(soundDrum, &noteRowIndex)
++		                       : nullptr;
++		ParamManager* paramManager =
++		    noteRow ? &noteRow->paramManager
++		            : modelStack->song->getBackedUpParamManagerPreferablyWithClip(soundDrum, activeClip);
++		if (!paramManager) {
++			paramManager = modelStack->song->findParamManagerForDrum(this, soundDrum);
++		}
++
++		char targetModelStackMemory[MODEL_STACK_MAX_SIZE];
++		ModelStackWithSoundFlags* targetModelStack =
++		    setupModelStackWithSong(targetModelStackMemory, modelStack->song)
++		        ->addTimelineCounter(activeClip)
++		        ->addNoteRow(noteRowIndex, noteRow)
++		        ->addOtherTwoThings(soundDrum, paramManager ? paramManager : modelStack->paramManager)
++		        ->addSoundFlags();
++		soundDrum->releaseForChokeGroup(targetModelStack);
++	}
++}
++
+ void Kit::noteOffPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum, int32_t velocity) {
+ 	ArpeggiatorSettings* arpSettings = getArpSettings();
+ 	ArpReturnInstruction kitInstruction;
+diff --git a/src/deluge/model/instrument/kit.h b/src/deluge/model/instrument/kit.h
+index 7e56142d755dab2ca8481c72c017242f2cb0e765..1ea5a5a6b6f3fbe82799d6a8e3e956980593937a 100644
+--- a/src/deluge/model/instrument/kit.h
++++ b/src/deluge/model/instrument/kit.h
+@@ -21,6 +21,7 @@
+ #include "dsp/stereo_sample.h"
+ #include "model/global_effectable/global_effectable_for_clip.h"
+ #include "model/instrument/instrument.h"
++#include "model/song/project_compatibility.h"
+ #include "modulation/arpeggiator.h"
+ class InstrumentClip;
+ class Drum;
+@@ -41,6 +42,7 @@ public:
+ 	Drum* getNextDrum(Drum* fromSoundSource);
+ 	Drum* getPrevDrum(Drum* fromSoundSource);
+ 	bool writeDataToFile(Serializer& writer, Clip* clipForSavingOutputOnly, Song* song) override;
++	[[nodiscard]] deluge::project_compatibility::LocalSaveSchema requiredSaveSchema() const;
+ 	void addDrum(Drum* newDrum);
+ 	Error readFromFile(Deserializer& reader, Song* song, Clip* clip, int32_t readAutomationUpToPos) override;
+ 	Drum* getFirstUnassignedDrum(InstrumentClip* clip);
+@@ -104,7 +106,6 @@ public:
+ 	                                      ModelStackWithTimelineCounter* modelStack) override {}
+ 
+ 	void beenEdited(bool shouldMoveToEmptySlot = true) override;
+-	void choke();
+ 	void resyncLFOs() override;
+ 	void removeDrumFromKitArpeggiator(int32_t drumIndex);
+ 	void removeDrum(Drum* drum);
+@@ -183,6 +184,7 @@ private:
+ 	void removeDrumFromLinkedList(Drum* drum);
+ 	void drumRemoved(Drum* drum);
+ 	void possiblySetSelectedDrumAndRefreshUI(Drum* thisDrum);
++	void releaseChokeGroupBeforeImmediateStart(ModelStackWithThreeMainThings* modelStack, SoundDrum* triggeredDrum);
+ 
+ 	// Kit Arp
+ 	void setupAndRenderArpPreOutput(ModelStackWithTimelineCounter* modelStackWithTimelineCounter,
+diff --git a/src/deluge/model/output.cpp b/src/deluge/model/output.cpp
+index e3c491e1cddac9cebf2b7d81cefa296623d21113..60fab648698285cd3960e071ba6dafa73bf46d34 100644
+--- a/src/deluge/model/output.cpp
++++ b/src/deluge/model/output.cpp
+@@ -23,9 +23,11 @@
+ #include "model/clip/clip_instance.h"
+ #include "model/clip/instrument_clip.h"
+ #include "model/consequence/consequence_clip_existence.h"
++#include "model/instrument/kit.h"
+ #include "model/model_stack.h"
+ #include "model/output_colour.h"
+ #include "model/song/clip_iterators.h"
++#include "model/song/project_compatibility.h"
+ #include "model/song/song.h"
+ #include "processing/engines/audio_engine.h"
+ #include "storage/storage_manager.h"
+@@ -254,7 +256,9 @@ void Output::writeToFile(Clip* clipForSavingOutputOnly, Song* song) {
+ 
+ 	if (clipForSavingOutputOnly) {
+ 		writer.writeFirmwareVersion();
+-		writer.writeEarliestCompatibleFirmwareVersion("4.1.0-alpha");
++		auto requiredSchema = type == OutputType::KIT ? static_cast<Kit*>(this)->requiredSaveSchema()
++		                                              : deluge::project_compatibility::LocalSaveSchema::NONE;
++		deluge::project_compatibility::writeCompatibilityMarker(writer, requiredSchema);
+ 	}
+ 
+ 	bool endedOpeningTag = writeDataToFile(writer, clipForSavingOutputOnly, song);
+diff --git a/src/deluge/model/song/project_compatibility.h b/src/deluge/model/song/project_compatibility.h
+index bb662d863d5c563f76b251c91ff9278bc05f8867..3637041c4246d3b13137ed60c919a76aa3d4d972 100644
+--- a/src/deluge/model/song/project_compatibility.h
++++ b/src/deluge/model/song/project_compatibility.h
+@@ -19,10 +19,12 @@ namespace deluge::project_compatibility {
+ 
+ inline constexpr std::string_view kLegacySongMinimumFirmware = "4.1.0-alpha";
+ inline constexpr std::string_view kExternalStepMinimumFirmware = deluge::firmware_compatibility::kLocalSaveSchema1;
++inline constexpr std::string_view kChokeGroupsMinimumFirmware = deluge::firmware_compatibility::kLocalSaveSchema2;
+ 
+ enum class LocalSaveSchema : uint8_t {
+ 	NONE = 0,
+ 	EXTERNAL_STEP = 1,
++	CHOKE_GROUPS = 2,
+ };
+ 
+ [[nodiscard]] constexpr LocalSaveSchema maximumRequiredSchema(LocalSaveSchema first, LocalSaveSchema second) {
+@@ -33,15 +35,39 @@ enum class LocalSaveSchema : uint8_t {
+ 	return containsExternalStepClip ? LocalSaveSchema::EXTERNAL_STEP : LocalSaveSchema::NONE;
+ }
+ 
+-/// Older firmware ignores unknown InstrumentClip fields and would run an External Step Clip from Song time.
++[[nodiscard]] constexpr LocalSaveSchema requiredSchemaForChokeGroup(uint8_t group) {
++	return group >= 2 && group <= 16 ? LocalSaveSchema::CHOKE_GROUPS : LocalSaveSchema::NONE;
++}
++
++class LocalSaveSchemaRequirement {
++public:
++	void include(LocalSaveSchema schema) { requiredSchema_ = maximumRequiredSchema(requiredSchema_, schema); }
++	void includeExternalStep(bool containsExternalStepClip) {
++		include(requiredSchemaForExternalStep(containsExternalStepClip));
++	}
++	void includeChokeGroup(uint8_t group) { include(requiredSchemaForChokeGroup(group)); }
++	[[nodiscard]] LocalSaveSchema value() const { return requiredSchema_; }
++
++private:
++	LocalSaveSchema requiredSchema_ = LocalSaveSchema::NONE;
++};
++
++/// Returns the oldest reader that understands every local field represented by requiredSchema.
+ [[nodiscard]] constexpr std::string_view earliestCompatibleFirmware(LocalSaveSchema requiredSchema) {
+ 	switch (requiredSchema) {
+ 	case LocalSaveSchema::NONE:
+ 		return kLegacySongMinimumFirmware;
+ 	case LocalSaveSchema::EXTERNAL_STEP:
+ 		return kExternalStepMinimumFirmware;
++	case LocalSaveSchema::CHOKE_GROUPS:
++		return kChokeGroupsMinimumFirmware;
+ 	}
+ 	__builtin_unreachable();
+ }
+ 
++template <typename Writer>
++inline void writeCompatibilityMarker(Writer& writer, LocalSaveSchema requiredSchema) {
++	writer.writeEarliestCompatibleFirmwareVersion(earliestCompatibleFirmware(requiredSchema).data());
++}
++
+ } // namespace deluge::project_compatibility
+diff --git a/src/deluge/model/song/song.cpp b/src/deluge/model/song/song.cpp
+index 3f272a29d46503739f04991c3cf7e5ce586af88d..bb99008f8254a085da7fffff14cdc01b13371958 100644
+--- a/src/deluge/model/song/song.cpp
++++ b/src/deluge/model/song/song.cpp
+@@ -1153,14 +1153,16 @@ void Song::writeToFile() {
+ 	writer.writeOpeningTagBeginning("song", true, false);
+ 
+ 	writer.writeFirmwareVersion();
+-	auto requiredSaveSchema = deluge::project_compatibility::LocalSaveSchema::NONE;
++	deluge::project_compatibility::LocalSaveSchemaRequirement requirement;
+ 	for (InstrumentClip* clip : InstrumentClips::everywhere(this)) {
+-		requiredSaveSchema = deluge::project_compatibility::maximumRequiredSchema(
+-		    requiredSaveSchema,
+-		    deluge::project_compatibility::requiredSchemaForExternalStep(clip->isExternalStepMode()));
++		requirement.includeExternalStep(clip->isExternalStepMode());
+ 	}
+-	writer.writeEarliestCompatibleFirmwareVersion(
+-	    deluge::project_compatibility::earliestCompatibleFirmware(requiredSaveSchema).data());
++	for (Output* output = firstOutput; output; output = output->next) {
++		if (output->type == OutputType::KIT) {
++			requirement.include(static_cast<Kit*>(output)->requiredSaveSchema());
++		}
++	}
++	deluge::project_compatibility::writeCompatibilityMarker(writer, requirement.value());
+ 
+ 	writer.writeAttribute("previewNumPads", 144);
+ 	writer.insertCommaIfNeeded();
+diff --git a/src/deluge/processing/sound/choke_group.h b/src/deluge/processing/sound/choke_group.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..47c1fd463d2af775ea559f6f346b10043a6c6069
+--- /dev/null
++++ b/src/deluge/processing/sound/choke_group.h
+@@ -0,0 +1,71 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
++ * License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
++ * version.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++#include "modulation/arpeggiator.h"
++
++#include <cstdint>
++
++namespace deluge::choke_group {
++
++inline constexpr uint8_t kDefault = 1;
++inline constexpr uint8_t kMinimum = 1;
++inline constexpr uint8_t kMaximum = 16;
++
++[[nodiscard]] constexpr uint8_t normalize(int32_t group) {
++	return group >= kMinimum && group <= kMaximum ? group : kDefault;
++}
++
++inline void assignNormalized(uint8_t& destination, int32_t group) {
++	destination = normalize(group);
++}
++
++template <typename WriteAttribute>
++inline void writeIfNonDefault(uint8_t group, WriteAttribute&& writeAttribute) {
++	group = normalize(group);
++	if (group != kDefault) {
++		writeAttribute(group);
++	}
++}
++
++[[nodiscard]] constexpr bool participates(PolyphonyMode mode) {
++	return mode == PolyphonyMode::CHOKE;
++}
++
++[[nodiscard]] constexpr bool matches(PolyphonyMode candidateMode, uint8_t candidateGroup, uint8_t triggeredGroup) {
++	return participates(candidateMode) && normalize(candidateGroup) == normalize(triggeredGroup);
++}
++
++[[nodiscard]] inline bool hasResolvedImmediateStart(const ArpReturnInstruction& instruction) {
++	return instruction.arpNoteOn != nullptr && instruction.arpNoteOn->noteCodeOnPostArp[0] != ARP_NOTE_NONE;
++}
++
++// Choking belongs to a resolved immediate start, not to the input event that may eventually produce one.
++template <typename BeforeStart, typename Start>
++inline bool performImmediateStart(bool hasResolvedStart, BeforeStart&& beforeStart, Start&& start) {
++	if (!hasResolvedStart) {
++		return false;
++	}
++	beforeStart();
++	start();
++	return true;
++}
++
++inline void formatSevenSegmentValue(uint8_t group, char (&text)[4]) {
++	group = normalize(group);
++	text[0] = 'G';
++	text[1] = '0' + group / 10;
++	text[2] = '0' + group % 10;
++	text[3] = '\0';
++}
++
++} // namespace deluge::choke_group
+diff --git a/src/deluge/processing/sound/sound_drum.cpp b/src/deluge/processing/sound/sound_drum.cpp
+index 928e2821a806badbe22592929cd77866bfa842b3..b6a9d5f94153291760d7a5d37c1798d290a8b2fe 100644
+--- a/src/deluge/processing/sound/sound_drum.cpp
++++ b/src/deluge/processing/sound/sound_drum.cpp
+@@ -17,13 +17,11 @@
+ 
+ #include "processing/sound/sound_drum.h"
+ #include "definitions_cxx.hpp"
+-#include "gui/views/automation_view.h"
+-#include "gui/views/instrument_clip_view.h"
+-#include "gui/views/view.h"
+ #include "mem_functions.h"
+ #include "model/action/action_logger.h"
+ #include "model/clip/clip.h"
+ #include "model/instrument/kit.h"
++#include "model/song/project_compatibility.h"
+ #include "model/song/song.h"
+ #include "model/voice/voice.h"
+ #include "processing/engines/audio_engine.h"
+@@ -36,6 +34,10 @@ bool SoundDrum::readTagFromFile(Deserializer& reader, char const* tagName) {
+ 		reader.readTagOrAttributeValueString(&path);
+ 		reader.exitTag("path");
+ 	}
++	else if (!strcmp(tagName, "chokeGroup")) {
++		deluge::choke_group::assignNormalized(chokeGroup, reader.readTagOrAttributeValueInt());
++		reader.exitTag("chokeGroup");
++	}
+ 	else if (readDrumTagFromFile(reader, tagName)) {
+ 		// Delegation is also considered a success.
+ 	}
+@@ -62,6 +64,7 @@ Error SoundDrum::clonePersistentStateFrom(SoundDrum& other) {
+ 	drumName = other.drumName;
+ 	path.set(&other.path);
+ 	nameIsDiscardable = other.nameIsDiscardable;
++	deluge::choke_group::assignNormalized(chokeGroup, other.chokeGroup);
+ 	midiInput = other.midiInput;
+ 	muteMIDICommand = other.muteMIDICommand;
+ 	arpSettings.cloneFrom(&other.arpSettings);
+@@ -72,11 +75,6 @@ Error SoundDrum::clonePersistentStateFrom(SoundDrum& other) {
+ void SoundDrum::noteOn(ModelStackWithThreeMainThings* modelStack, uint8_t velocity, int16_t const* mpeValues,
+                        int32_t fromMIDIChannel, uint32_t sampleSyncLength, int32_t ticksLate, uint32_t samplesLate) {
+ 
+-	// If part of a Kit, and in choke mode, choke other drums
+-	if (polyphonic == PolyphonyMode::CHOKE && (kit != nullptr)) {
+-		kit->choke();
+-	}
+-
+ 	Sound::noteOn(modelStack, &arpeggiator, kNoteForDrum, mpeValues, sampleSyncLength, ticksLate, samplesLate, velocity,
+ 	              fromMIDIChannel);
+ }
+@@ -136,7 +134,11 @@ void SoundDrum::writeToFileAsInstrument(bool savingSong, ParamManager* paramMana
+ 	Serializer& writer = GetSerializer();
+ 	writer.writeOpeningTagBeginning("sound", true);
+ 	writer.writeFirmwareVersion();
+-	writer.writeEarliestCompatibleFirmwareVersion("4.1.0-alpha");
++	uint8_t savedChokeGroup = deluge::choke_group::normalize(chokeGroup);
++	deluge::project_compatibility::writeCompatibilityMarker(
++	    writer, deluge::project_compatibility::requiredSchemaForChokeGroup(savedChokeGroup));
++	deluge::choke_group::writeIfNonDefault(savedChokeGroup,
++	                                       [&](uint8_t group) { writer.writeAttribute("chokeGroup", group); });
+ 	Sound::writeToFile(writer, savingSong, paramManager, &arpSettings, NULL);
+ 
+ 	if (savingSong) {}
+@@ -147,6 +149,8 @@ void SoundDrum::writeToFileAsInstrument(bool savingSong, ParamManager* paramMana
+ void SoundDrum::writeToFile(Serializer& writer, bool savingSong, ParamManager* paramManager) {
+ 	writer.writeOpeningTagBeginning("sound", true);
+ 	writeDrumTagsToFile(writer);
++	deluge::choke_group::writeIfNonDefault(chokeGroup,
++	                                       [&](uint8_t group) { writer.writeAttribute("chokeGroup", group); });
+ 
+ 	Sound::writeToFile(writer, savingSong, paramManager, &arpSettings, path.get());
+ 
+@@ -165,20 +169,27 @@ Error SoundDrum::readFromFile(Deserializer& reader, Song* song, Clip* clip, int3
+ 	return Sound::readFromFile(reader, modelStack, readAutomationUpToPos, &arpSettings);
+ }
+ 
+-// modelStack may be NULL
+-void SoundDrum::choke(ModelStackWithSoundFlags* modelStack) {
+-	if (polyphonic == PolyphonyMode::CHOKE) {
+-
+-		// Don't choke it if it's auditioned
+-		bool normalRowAudition = (getRootUI() == &instrumentClipView || getRootUI() == &automationView)
+-		                         && instrumentClipView.isDrumAuditioned(this);
+-		if (normalRowAudition || (kit && kit->isDirectSoundDrumAuditionActive(this))) {
+-			return;
++void SoundDrum::releaseForChokeGroup(ModelStackWithSoundFlags* modelStack) {
++	for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
++		int16_t noteCode = arpeggiator.glideNoteCodeCurrentlyOnPostArp[n];
++		if (noteCode != ARP_NOTE_NONE) {
++			noteOffPostArpeggiator(modelStack, noteCode);
+ 		}
+-
+-		// Ok, choke it
+-		fastReleaseAllVoices(modelStack); // Accepts NULL
+ 	}
++	for (int32_t n = 0; n < ARP_MAX_INSTRUCTION_NOTES; n++) {
++		int16_t noteCode = arpeggiator.active_note.noteCodeOnPostArp[n];
++		if (noteCode != ARP_NOTE_NONE) {
++			noteOffPostArpeggiator(modelStack, noteCode);
++		}
++	}
++
++	arpeggiator.glideNoteCodeCurrentlyOnPostArp.fill(ARP_NOTE_NONE);
++	arpeggiator.outputMIDIChannelForGlideNoteCurrentlyOnPostArp.fill(MIDI_CHANNEL_NONE);
++	arpeggiator.reset();
++	arpeggiator.invertReversedFromKitArp = false;
++	invertReversed = false;
++	fastReleaseAllVoices(modelStack);
++	reassessRenderSkippingStatus(modelStack);
+ }
+ 
+ void SoundDrum::setSkippingRendering(bool newSkipping) {
+diff --git a/src/deluge/processing/sound/sound_drum.h b/src/deluge/processing/sound/sound_drum.h
+index 33434f2d1305ca9e8094f637eb8ea52d976b7767..341e507a56bc4028582648b10fcc29b5a5809e73 100644
+--- a/src/deluge/processing/sound/sound_drum.h
++++ b/src/deluge/processing/sound/sound_drum.h
+@@ -20,6 +20,7 @@
+ #include "definitions_cxx.hpp"
+ #include "model/drum/drum.h"
+ #include "modulation/arpeggiator.h"
++#include "processing/sound/choke_group.h"
+ #include "processing/sound/sound.h"
+ #include "util/d_string.h"
+ 
+@@ -29,6 +30,7 @@ class SoundDrum final : public Sound, public Drum {
+ public:
+ 	String path;
+ 	bool nameIsDiscardable = false;
++	uint8_t chokeGroup = deluge::choke_group::kDefault;
+ 
+ 	SoundDrum() : Drum(DrumType::SOUND) {}
+ 
+@@ -52,7 +54,7 @@ public:
+ 	void writeToFileAsInstrument(bool savingSong, ParamManager* paramManager);
+ 	std::string getDrumName() override;
+ 	Error readFromFile(Deserializer& reader, Song* song, Clip* clip, int32_t readAutomationUpToPos) override;
+-	void choke(ModelStackWithSoundFlags* modelStack) override;
++	void releaseForChokeGroup(ModelStackWithSoundFlags* modelStack);
+ 	void setSkippingRendering(bool newSkipping) override;
+ 	uint8_t* getModKnobMode() override;
+ 	void drumWontBeRenderedForAWhile() override;
+diff --git a/src/deluge/storage/firmware_compatibility.h b/src/deluge/storage/firmware_compatibility.h
+index 3261011dc0bd280428d18cc5005031b181e35c36..e10f1a2cb214d4ac02d5733dfd7e926e308719d3 100644
+--- a/src/deluge/storage/firmware_compatibility.h
++++ b/src/deluge/storage/firmware_compatibility.h
+@@ -22,7 +22,8 @@ namespace deluge::firmware_compatibility {
+ inline constexpr std::string_view kLocalCompatibilityNamespace = "nl-";
+ inline constexpr std::string_view kLocalSaveSchemaPrefix = "nl-save-schema-";
+ inline constexpr std::string_view kLocalSaveSchema1 = "nl-save-schema-1";
+-inline constexpr uint32_t kSupportedLocalSaveSchema = 1;
++inline constexpr std::string_view kLocalSaveSchema2 = "nl-save-schema-2";
++inline constexpr uint32_t kSupportedLocalSaveSchema = 2;
+ 
+ [[nodiscard]] inline Error evaluateEarliestCompatibleFirmware(std::string_view requirement,
+                                                               FirmwareVersion currentFirmware,
+diff --git a/tests/spec/CMakeLists.txt b/tests/spec/CMakeLists.txt
+index 8e019b3a892920dce78c3c28afe06888e116e12e..45709a423f3cddee280b94a50ab1d903adf11139 100644
+--- a/tests/spec/CMakeLists.txt
++++ b/tests/spec/CMakeLists.txt
+@@ -49,10 +49,18 @@ endfunction()
+ create_specs_driver(all_specs ${CMAKE_CURRENT_LIST_DIR})
+ target_link_libraries(all_specs PUBLIC deluge_spec)
+ target_sources(all_specs PRIVATE
++  ../../src/deluge/gui/l10n/g_english.cpp
++  ../../src/deluge/gui/l10n/g_seven_segment.cpp
++  ../../src/deluge/gui/l10n/l10n.cpp
+   ../../src/deluge/storage/JsonDeserializer.cpp
+   ../../src/deluge/util/firmware_version.cpp
+   json_deserializer_test_support.cpp
+ )
++set_source_files_properties(
++  ../../src/deluge/gui/l10n/g_english.cpp
++  ../../src/deluge/gui/l10n/g_seven_segment.cpp
++  PROPERTIES COMPILE_DEFINITIONS IN_UNIT_TESTS
++)
+ target_include_directories(all_specs BEFORE PRIVATE ../32bit_unit_tests/mocks/)
+ 
+ # Visual harness for the OLED starfield. Renders frames as ASCII so the ported
+diff --git a/tests/spec/external_step_menu_spec.cpp b/tests/spec/external_step_menu_spec.cpp
+index 245c9fee0490cceff64ff0e4291d59262bf4c7f0..13e1b399d80517f4097e4feb2cedac761032a1ff 100644
+--- a/tests/spec/external_step_menu_spec.cpp
++++ b/tests/spec/external_step_menu_spec.cpp
+@@ -74,16 +74,20 @@ describe external_step_menu("External Step menu and compatibility", $ {
+ 
+ 	it("guards only Songs that still contain External Step Clips", _ {
+ 		using namespace deluge::project_compatibility;
+-		auto requiredSchema = LocalSaveSchema::NONE;
+-		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(false));
+-		expect(requiredSchema).to_equal(LocalSaveSchema::NONE);
+-		expect(earliestCompatibleFirmware(requiredSchema)).to_equal(kLegacySongMinimumFirmware);
++		LocalSaveSchemaRequirement requirement;
++		requirement.includeExternalStep(false);
++		expect(requirement.value()).to_equal(LocalSaveSchema::NONE);
++		expect(earliestCompatibleFirmware(requirement.value())).to_equal(kLegacySongMinimumFirmware);
+ 
+-		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(true));
+-		requiredSchema = maximumRequiredSchema(requiredSchema, requiredSchemaForExternalStep(false));
+-		expect(requiredSchema).to_equal(LocalSaveSchema::EXTERNAL_STEP);
+-		expect(earliestCompatibleFirmware(requiredSchema)).to_equal(kExternalStepMinimumFirmware);
++		requirement.includeExternalStep(true);
++		requirement.includeExternalStep(false);
++		expect(requirement.value()).to_equal(LocalSaveSchema::EXTERNAL_STEP);
++		expect(earliestCompatibleFirmware(requirement.value())).to_equal(kExternalStepMinimumFirmware);
+ 		expect(kExternalStepMinimumFirmware).to_equal(std::string_view{"nl-save-schema-1"});
++
++		requirement.includeChokeGroup(2);
++		expect(requirement.value()).to_equal(LocalSaveSchema::CHOKE_GROUPS);
++		expect(earliestCompatibleFirmware(requirement.value())).to_equal(kChokeGroupsMinimumFirmware);
+ 	});
+ });
+ 
+diff --git a/tests/spec/firmware_compatibility_spec.cpp b/tests/spec/firmware_compatibility_spec.cpp
+index f3bab7a4d927f4978fae7b7fc432a9c20b132518..66435d5db81067be35d69b93753fa0932a162587 100644
+--- a/tests/spec/firmware_compatibility_spec.cpp
++++ b/tests/spec/firmware_compatibility_spec.cpp
+@@ -15,6 +15,9 @@ describe firmware_compatibility("Firmware compatibility", $ {
+ 			expect(compatibility::evaluateEarliestCompatibleFirmware("nl-save-schema-1", current,
+ 			                                                           ignoreIncorrectFirmware))
+ 			    .to_equal(Error::NONE);
++			expect(compatibility::evaluateEarliestCompatibleFirmware("nl-save-schema-2", current,
++			                                                           ignoreIncorrectFirmware))
++			    .to_equal(Error::NONE);
+ 		}
+ 	});
+ 
+@@ -32,7 +35,7 @@ describe firmware_compatibility("Firmware compatibility", $ {
+ 			         "nl-save-schema1",
+ 			         "nl-save-schemax-1",
+ 			         "nl-other-1",
+-			         "nl-save-schema-2",
++			         "nl-save-schema-3",
+ 			         "nl-save-schema-",
+ 			         "nl-save-schema-01",
+ 			         "nl-save-schema-one",
+diff --git a/tests/spec/kit_choke_group_spec.cpp b/tests/spec/kit_choke_group_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..a0fd90632dcf434df6d9aa45b3e96997e3e2b849
+--- /dev/null
++++ b/tests/spec/kit_choke_group_spec.cpp
+@@ -0,0 +1,155 @@
++#include "gui/l10n/l10n.h"
++#include "gui/menu_item/voice/polyphony_policy.h"
++#include "model/song/project_compatibility.h"
++#include "processing/sound/choke_group.h"
++#include "storage/song_load.h"
++#include "storage/storage_manager.h"
++
++#include "cppspec.hpp"
++
++#include <array>
++#include <string>
++#include <string_view>
++
++namespace choke_group = deluge::choke_group;
++namespace compatibility = deluge::project_compatibility;
++namespace polyphony_policy = deluge::gui::menu_item::voice::polyphony_policy;
++
++namespace {
++
++struct CompatibilityMarkerWriter {
++	void writeEarliestCompatibleFirmwareVersion(char const* value) { marker = value; }
++	std::string marker;
++};
++
++} // namespace
++
++// clang-format off
++describe kit_choke_group("Kit choke groups", $ {
++	it("applies the Sound Drum default and normalized read and clone assignments", _ {
++		uint8_t loadedGroup = choke_group::kDefault;
++		expect(loadedGroup).to_equal(uint8_t{1});
++
++		choke_group::assignNormalized(loadedGroup, 0);
++		expect(loadedGroup).to_equal(uint8_t{1});
++		choke_group::assignNormalized(loadedGroup, 16);
++		expect(loadedGroup).to_equal(uint8_t{16});
++		choke_group::assignNormalized(loadedGroup, 17);
++		expect(loadedGroup).to_equal(uint8_t{1});
++
++		uint8_t clonedGroup = 9;
++		choke_group::assignNormalized(clonedGroup, 16);
++		expect(clonedGroup).to_equal(uint8_t{16});
++		choke_group::assignNormalized(clonedGroup, 17);
++		expect(clonedGroup).to_equal(uint8_t{1});
++	});
++
++	it("writes only a normalized non-default Sound Drum group", _ {
++		int32_t writes = 0;
++		uint8_t writtenGroup = 0;
++		auto record = [&](uint8_t group) {
++			++writes;
++			writtenGroup = group;
++		};
++
++		choke_group::writeIfNonDefault(1, record);
++		expect(writes).to_equal(0);
++		choke_group::writeIfNonDefault(2, record);
++		expect(writes).to_equal(1);
++		expect(writtenGroup).to_equal(uint8_t{2});
++		choke_group::writeIfNonDefault(17, record);
++		expect(writes).to_equal(1);
++	});
++
++	it("matches only CHOKE participants in the same normalized group", _ {
++		expect(choke_group::matches(PolyphonyMode::CHOKE, 1, 1)).to_be_true();
++		expect(choke_group::matches(PolyphonyMode::CHOKE, 2, 2)).to_be_true();
++		expect(choke_group::matches(PolyphonyMode::CHOKE, 2, 1)).to_be_false();
++		expect(choke_group::matches(PolyphonyMode::POLY, 1, 1)).to_be_false();
++		expect(choke_group::matches(PolyphonyMode::MONO, 1, 1)).to_be_false();
++	});
++
++	it("releases immediately before a resolved start and does nothing for a no-output arp input", _ {
++		ArpReturnInstruction instruction;
++		std::string events;
++		bool started = choke_group::performImmediateStart(
++		    choke_group::hasResolvedImmediateStart(instruction), [&]() { events += "release "; },
++		    [&]() { events += "start"; });
++		expect(started).to_be_false();
++		expect(std::string_view{events}).to_equal(std::string_view{});
++
++		ArpNote resolvedNote;
++		resolvedNote.noteCodeOnPostArp.fill(ARP_NOTE_NONE);
++		instruction.arpNoteOn = &resolvedNote;
++		expect(choke_group::hasResolvedImmediateStart(instruction)).to_be_false();
++		resolvedNote.noteCodeOnPostArp[0] = 4;
++		started = choke_group::performImmediateStart(
++		    choke_group::hasResolvedImmediateStart(instruction), [&]() { events += "release "; },
++		    [&]() { events += "start"; });
++		expect(started).to_be_true();
++		expect(std::string_view{events}).to_equal(std::string_view{"release start"});
++	});
++
++	it("keeps schema two for an inactive non-CHOKE group and when combined with External Step", _ {
++		compatibility::LocalSaveSchemaRequirement requirement;
++		expect(choke_group::participates(PolyphonyMode::POLY)).to_be_false();
++		requirement.includeChokeGroup(2);
++		expect(requirement.value()).to_equal(compatibility::LocalSaveSchema::CHOKE_GROUPS);
++
++		requirement.includeExternalStep(true);
++		requirement.includeChokeGroup(1);
++		expect(requirement.value()).to_equal(compatibility::LocalSaveSchema::CHOKE_GROUPS);
++	});
++
++	it("writes schema-two Kit and saved-row root markers and rejects a future root", _ {
++		compatibility::LocalSaveSchemaRequirement kitRequirement;
++		kitRequirement.includeChokeGroup(2);
++		CompatibilityMarkerWriter kitWriter;
++		compatibility::writeCompatibilityMarker(kitWriter, kitRequirement.value());
++		expect(std::string_view{kitWriter.marker}).to_equal(std::string_view{"nl-save-schema-2"});
++
++		CompatibilityMarkerWriter savedRowWriter;
++		compatibility::writeCompatibilityMarker(savedRowWriter, compatibility::requiredSchemaForChokeGroup(2));
++		expect(std::string_view{savedRowWriter.marker}).to_equal(std::string_view{"nl-save-schema-2"});
++
++		char supportedRoot[] = R"({"firmwareVersion":"c1.3.1","earliestCompatibleFirmware":"nl-save-schema-2","chokeGroup":2})";
++		JsonDeserializer supportedReader{reinterpret_cast<uint8_t*>(supportedRoot), sizeof(supportedRoot) - 1};
++		expect(deluge::song_load::readJsonRootFirmwareCompatibility(supportedReader)).to_equal(Error::NONE);
++
++		char futureRoot[] = R"({"firmwareVersion":"c1.3.1","earliestCompatibleFirmware":"nl-save-schema-3","chokeGroup":2})";
++		JsonDeserializer futureReader{reinterpret_cast<uint8_t*>(futureRoot), sizeof(futureRoot) - 1};
++		expect(deluge::song_load::readJsonRootFirmwareCompatibility(futureReader))
++		    .to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++	});
++
++	it("routes contextual Select and resolves exact OLED and seven-segment labels", _ {
++		using polyphony_policy::DetailMenu;
++		expect(polyphony_policy::detailMenuFor(PolyphonyMode::POLY, false)).to_equal(DetailMenu::VOICE_COUNT);
++		expect(polyphony_policy::detailMenuFor(PolyphonyMode::CHOKE, true)).to_equal(DetailMenu::CHOKE_GROUP);
++		expect(polyphony_policy::detailMenuFor(PolyphonyMode::CHOKE, false)).to_equal(DetailMenu::NONE);
++		expect(polyphony_policy::detailMenuFor(PolyphonyMode::MONO, true)).to_equal(DetailMenu::NONE);
++
++		expect(deluge::l10n::getView(deluge::l10n::built_in::english, polyphony_policy::chokeGroupTitle(true)))
++		    .to_equal(std::string_view{"Choke group"});
++		expect(deluge::l10n::getView(deluge::l10n::built_in::seven_segment,
++		                             polyphony_policy::chokeGroupTitle(false)))
++		    .to_equal(std::string_view{"CHGP"});
++	});
++
++	it("formats every choke-group value as G01 through G16", _ {
++		constexpr std::array expected = {
++		    std::string_view{"G01"}, std::string_view{"G02"}, std::string_view{"G03"}, std::string_view{"G04"},
++		    std::string_view{"G05"}, std::string_view{"G06"}, std::string_view{"G07"}, std::string_view{"G08"},
++		    std::string_view{"G09"}, std::string_view{"G10"}, std::string_view{"G11"}, std::string_view{"G12"},
++		    std::string_view{"G13"}, std::string_view{"G14"}, std::string_view{"G15"}, std::string_view{"G16"},
++		};
++		for (uint8_t group = 1; group <= expected.size(); ++group) {
++			char text[4];
++			choke_group::formatSevenSegmentValue(group, text);
++			expect(std::string_view{text}).to_equal(expected[group - 1]);
++		}
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(kit_choke_group)
+diff --git a/tests/spec/song_load_preflight_spec.cpp b/tests/spec/song_load_preflight_spec.cpp
+index 86d9c7efaff7931f47f521ded6252ea73dc90eaa..8f025939e75c4b1c7fe01fd45b0e4bcedeb7c47a 100644
+--- a/tests/spec/song_load_preflight_spec.cpp
++++ b/tests/spec/song_load_preflight_spec.cpp
+@@ -109,12 +109,21 @@ describe song_load_preflight("Song load compatibility preflight", $ {
+ 		expect(result).to_equal(Error::NONE);
+ 	});
+ 
+-	it("rejects a too-new JSON Song root with the production in-memory deserializer", _ {
++	it("reads a schema-two JSON Song root with the production in-memory deserializer", _ {
+ 		char json[] = R"({"firmwareVersion":"c1.3.1","earliestCompatibleFirmware":"nl-save-schema-2","previewNumPads":144})";
+ 		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
+ 
+ 		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
+ 
++		expect(result).to_equal(Error::NONE);
++	});
++
++	it("rejects a future schema JSON Song root with the production in-memory deserializer", _ {
++		char json[] = R"({"firmwareVersion":"c1.3.1","earliestCompatibleFirmware":"nl-save-schema-3","previewNumPads":144})";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
+ 		expect(result).to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
+ 	});
+ 

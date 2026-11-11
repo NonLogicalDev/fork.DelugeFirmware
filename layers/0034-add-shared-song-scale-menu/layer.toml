@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add shared Song scale menu\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,350 @@
+{
+  "source": "git@github.com:NonLogicalDev/fork.DelugeFirmware.git",
+  "base": "9e3132dc17070695b40f69bada5565a33ce428b4",
+  "original_tip": "2391b7cad4907843890d8b6c052651a77abd6bbf",
+  "layers": [
+    {
+      "layer": "0002-consolidate-korg-directory-casing",
+      "original_commit": "c2686c4b72671e56c4acf7d1648204f7361fefe7",
+      "parent": "9e3132dc17070695b40f69bada5565a33ce428b4",
+      "original_tree": "e3c03ddf67df0a623a442ee28e3a70cd2ab8c308",
+      "original_headers": "tree e3c03ddf67df0a623a442ee28e3a70cd2ab8c308\nparent 9e3132dc17070695b40f69bada5565a33ce428b4\nauthor Oleg Utkin <hello@nonlogical.net> 1787362518 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330574 -0700\nchange-id wqoquorrvppvnqqpxmunqozqllyyosrv",
+      "original_message": "consolidate Korg directory casing\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0003-add-local-nix-build-environment",
+      "original_commit": "55b5273a175b2b47eca9c92ee51839ea1a1528e5",
+      "parent": "c2686c4b72671e56c4acf7d1648204f7361fefe7",
+      "original_tree": "3571b14f010533c4d07d32e7c180814711e7d87e",
+      "original_headers": "tree 3571b14f010533c4d07d32e7c180814711e7d87e\nparent c2686c4b72671e56c4acf7d1648204f7361fefe7\nauthor Oleg Utkin <oleg@nonlogical.net> 1787360564 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330574 -0700\nchange-id zyyvmolzkvlmyrpokulwrupktooklvzo",
+      "original_message": "add local Nix build environment\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0004-add-keyboard-view-chord-detection",
+      "original_commit": "9ec4805740acafb71e8e42bdcd84642887138970",
+      "parent": "55b5273a175b2b47eca9c92ee51839ea1a1528e5",
+      "original_tree": "1f5a8a1c0ca4131bb4ad561bbc0fd5db25d0b8be",
+      "original_headers": "tree 1f5a8a1c0ca4131bb4ad561bbc0fd5db25d0b8be\nparent 55b5273a175b2b47eca9c92ee51839ea1a1528e5\nauthor Oleg Utkin <oleg@nonlogical.net> 1787365883 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id xrvmnrqtlozuwxuprvvvlvmxysrvuvps",
+      "original_message": "add Keyboard View chord detection\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0005-show-chord-and-latest-pressed-note",
+      "original_commit": "909a563306ca3288a114342f860aa44f8ca8746b",
+      "parent": "9ec4805740acafb71e8e42bdcd84642887138970",
+      "original_tree": "6565df1d0d5db4532d421533df90f05601998432",
+      "original_headers": "tree 6565df1d0d5db4532d421533df90f05601998432\nparent 9ec4805740acafb71e8e42bdcd84642887138970\nauthor Oleg Utkin <oleg@nonlogical.net> 1787367993 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id ukvlvnwqroqqskmwzxqtymwxlrvlqlsl",
+      "original_message": "show chord and latest pressed note\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0006-add-manual-slicer-kit-creation-option",
+      "original_commit": "fe303056d81d132aa59a26c4f82cd8f7d514ad18",
+      "parent": "909a563306ca3288a114342f860aa44f8ca8746b",
+      "original_tree": "6fbebafb9b9c52d8ccd589696c592c288dc204c3",
+      "original_headers": "tree 6fbebafb9b9c52d8ccd589696c592c288dc204c3\nparent 909a563306ca3288a114342f860aa44f8ca8746b\nauthor Oleg Utkin <oleg@nonlogical.net> 1787382862 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id xlpkozkxpruvoxuuxoqnysuuuuuwrsuz",
+      "original_message": "add manual slicer kit creation option\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0007-improve-manual-slicer-controls",
+      "original_commit": "bc10ef872f19a5c689aea36b5bc374b4d1568ab7",
+      "parent": "fe303056d81d132aa59a26c4f82cd8f7d514ad18",
+      "original_tree": "78d35779dd5898230ccdfc0217f4a15ae207b7e4",
+      "original_headers": "tree 78d35779dd5898230ccdfc0217f4a15ae207b7e4\nparent fe303056d81d132aa59a26c4f82cd8f7d514ad18\nauthor Oleg Utkin <oleg@nonlogical.net> 1787384658 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id zynrzllsruqymlomzxwoupnkzykxlwlw",
+      "original_message": "improve manual slicer controls\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0008-stop-preview-when-opening-manual-slice",
+      "original_commit": "843618fb6342160e9521939a1377d754ceb7603e",
+      "parent": "bc10ef872f19a5c689aea36b5bc374b4d1568ab7",
+      "original_tree": "ceb225ff78f50a444cc1b73bb67b380b1bcce884",
+      "original_headers": "tree ceb225ff78f50a444cc1b73bb67b380b1bcce884\nparent bc10ef872f19a5c689aea36b5bc374b4d1568ab7\nauthor Oleg Utkin <oleg@nonlogical.net> 1787385611 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id lrtxupmsvqnlzywnzprmyovnorlsukqn",
+      "original_message": "stop preview when opening manual slice\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0009-add-panic-action",
+      "original_commit": "7ee4fe3aefdadbba67feaed17359efbc24a29c6b",
+      "parent": "843618fb6342160e9521939a1377d754ceb7603e",
+      "original_tree": "e6985ad3a348c30ca9a13a939c12383360976041",
+      "original_headers": "tree e6985ad3a348c30ca9a13a939c12383360976041\nparent 843618fb6342160e9521939a1377d754ceb7603e\nauthor Oleg Utkin <oleg@nonlogical.net> 1787386233 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id twlnuxmqrmqttrkvwmwwpqumsvnqzvvl",
+      "original_message": "add Panic action\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0010-copy-and-paste-kit-rows",
+      "original_commit": "05cc17406d852812d77237b435f7dc70d773884c",
+      "parent": "7ee4fe3aefdadbba67feaed17359efbc24a29c6b",
+      "original_tree": "1219e58ce81fabbceec34171367f4ec5da4bb743",
+      "original_headers": "tree 1219e58ce81fabbceec34171367f4ec5da4bb743\nparent 7ee4fe3aefdadbba67feaed17359efbc24a29c6b\nauthor Oleg Utkin <oleg@nonlogical.net> 1787391645 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id zkznkwozplkmrvrqlkonvqqonwxyqkyk",
+      "original_message": "copy and paste Kit rows\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0011-reuse-a-kit-from-manual-slice",
+      "original_commit": "f511144707517912b9ba50bd11eb806e67cf81a1",
+      "parent": "05cc17406d852812d77237b435f7dc70d773884c",
+      "original_tree": "a42b3f5b23b285e78722184abfe3503d861b82ff",
+      "original_headers": "tree a42b3f5b23b285e78722184abfe3503d861b82ff\nparent 05cc17406d852812d77237b435f7dc70d773884c\nauthor Oleg Utkin <oleg@nonlogical.net> 1787392936 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id pnvzntvmqkqktuxryzpuoyowvxkvmrpv",
+      "original_message": "reuse a Kit from Manual Slice\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0012-add-shift-five-tap-panic-gesture",
+      "original_commit": "49bac595bbd4f67b6acea6365edfd4275d6e1fea",
+      "parent": "f511144707517912b9ba50bd11eb806e67cf81a1",
+      "original_tree": "fc9162326f01e821ae159d5f901a55a36e679bf7",
+      "original_headers": "tree fc9162326f01e821ae159d5f901a55a36e679bf7\nparent f511144707517912b9ba50bd11eb806e67cf81a1\nauthor Oleg Utkin <oleg@nonlogical.net> 1787394098 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id rrrrumvqwwklkumwtmrmpourrvvmxxso",
+      "original_message": "add Shift five-tap panic gesture\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0013-make-kit-row-reordering-undoable",
+      "original_commit": "5dc25215a1eed7d488d334f37df12efd3d710570",
+      "parent": "49bac595bbd4f67b6acea6365edfd4275d6e1fea",
+      "original_tree": "ecd8cb069431a3917de4b985483c2b9832785324",
+      "original_headers": "tree ecd8cb069431a3917de4b985483c2b9832785324\nparent 49bac595bbd4f67b6acea6365edfd4275d6e1fea\nauthor Oleg Utkin <oleg@nonlogical.net> 1787397819 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id pqpvvquwpwnyuosuksvssqroonmoqovw",
+      "original_message": "make Kit row reordering undoable\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0014-empty-change-marker",
+      "original_commit": "711d48340ddb9c42d65db6088434b4b9c2ba5e58",
+      "parent": "5dc25215a1eed7d488d334f37df12efd3d710570",
+      "original_tree": "ecd8cb069431a3917de4b985483c2b9832785324",
+      "original_headers": "tree ecd8cb069431a3917de4b985483c2b9832785324\nparent 5dc25215a1eed7d488d334f37df12efd3d710570\nauthor Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id rzyvlqmtrwkryvtlmqwmunrmlqrrqkmk",
+      "original_message": "",
+      "empty_message_replaced": true
+    },
+    {
+      "layer": "0015-add-midi-sustain-pedal-feature-flag",
+      "original_commit": "11720210ccca99c6c8155a571acdcfbe5c9bb588",
+      "parent": "711d48340ddb9c42d65db6088434b4b9c2ba5e58",
+      "original_tree": "ef7af58f1ebf799ed0e9c128167185093d81f9b9",
+      "original_headers": "tree ef7af58f1ebf799ed0e9c128167185093d81f9b9\nparent 711d48340ddb9c42d65db6088434b4b9c2ba5e58\nauthor Oleg Utkin <oleg@nonlogical.net> 1787437825 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330614 -0700\nchange-id xookvmtnplspzuqopkspoyrqpkpumkzu",
+      "original_message": "add MIDI sustain pedal feature flag\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0016-add-song-grid-track-column-glow",
+      "original_commit": "ed3261d45a98c622b08d6e767a17ce6311665d2f",
+      "parent": "11720210ccca99c6c8155a571acdcfbe5c9bb588",
+      "original_tree": "b565fae2776f90c11e15971ac9d0d2512978684c",
+      "original_headers": "tree b565fae2776f90c11e15971ac9d0d2512978684c\nparent 11720210ccca99c6c8155a571acdcfbe5c9bb588\nauthor Oleg Utkin <oleg@nonlogical.net> 1787464024 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330614 -0700\nchange-id olwpyqxupytwllnkxktlnmysqpuqysyp",
+      "original_message": "add Song Grid track column glow\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0017-fix-repeated-audio-looper-recording",
+      "original_commit": "d401be8a41b8394b7404d05069c2ba4918df5369",
+      "parent": "ed3261d45a98c622b08d6e767a17ce6311665d2f",
+      "original_tree": "9ee84420ec9caaf1512c5834f00e056190712d37",
+      "original_headers": "tree 9ee84420ec9caaf1512c5834f00e056190712d37\nparent ed3261d45a98c622b08d6e767a17ce6311665d2f\nauthor Oleg Utkin <oleg@nonlogical.net> 1787566897 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330614 -0700\nchange-id rkmozsmsuzsuovozomxxkulrqtwsrorx",
+      "original_message": "fix repeated Audio Looper recording\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0018-synchronize-grid-and-audio-clip-colors",
+      "original_commit": "2e54a5ccb97908d797cef165b9abbbc85da45b1a",
+      "parent": "d401be8a41b8394b7404d05069c2ba4918df5369",
+      "original_tree": "46daf5731b02bbc62ae3490541533297ae4cf58f",
+      "original_headers": "tree 46daf5731b02bbc62ae3490541533297ae4cf58f\nparent d401be8a41b8394b7404d05069c2ba4918df5369\nauthor Oleg Utkin <oleg@nonlogical.net> 1787588239 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330614 -0700\nchange-id lytqzpuynpzutxuzltvuwowtlrryxuzk",
+      "original_message": "synchronize Grid and Audio Clip colors\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0019-keep-waveform-rendering-valid-for-long-samples",
+      "original_commit": "37f31692eb66b548bb40f7e7ed5e5ac094b14333",
+      "parent": "2e54a5ccb97908d797cef165b9abbbc85da45b1a",
+      "original_tree": "8a3904d37222f2625c81df79ddf9415d6e3d1c93",
+      "original_headers": "tree 8a3904d37222f2625c81df79ddf9415d6e3d1c93\nparent 2e54a5ccb97908d797cef165b9abbbc85da45b1a\nauthor Oleg Utkin <oleg@nonlogical.net> 1787618655 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330614 -0700\nchange-id rrrrtvstzpvkmlsswkwqqtomqmxklmnr",
+      "original_message": "keep waveform rendering valid for long samples\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0020-correct-reversed-waveform-row-ranges",
+      "original_commit": "3312eab8093c5e569d5fece9ff675b117356cde5",
+      "parent": "37f31692eb66b548bb40f7e7ed5e5ac094b14333",
+      "original_tree": "e0f5ce426365b2842b476d8b510ceee12338fc79",
+      "original_headers": "tree e0f5ce426365b2842b476d8b510ceee12338fc79\nparent 37f31692eb66b548bb40f7e7ed5e5ac094b14333\nauthor Oleg Utkin <oleg@nonlogical.net> 1787618984 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330614 -0700\nchange-id ryzzlqzzlnrpzzlkxlmvplxvmtwopznu",
+      "original_message": "correct reversed waveform row ranges\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0021-add-efficient-oled-waveform-displays",
+      "original_commit": "1415cc3ea9995aa95b246523091f1cbba6882b91",
+      "parent": "3312eab8093c5e569d5fece9ff675b117356cde5",
+      "original_tree": "47ff5e3c0b8e1c8219492654ca53bf0b83b63506",
+      "original_headers": "tree 47ff5e3c0b8e1c8219492654ca53bf0b83b63506\nparent 3312eab8093c5e569d5fece9ff675b117356cde5\nauthor Oleg Utkin <oleg@nonlogical.net> 1787602167 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330614 -0700\nchange-id pvqpsstyvuynpuxtrlxmwlukrwrqntlm",
+      "original_message": "add efficient OLED waveform displays\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0022-add-compact-oled-clip-progress-ruler",
+      "original_commit": "14e6a4ab34605b649343f15e171132323663c4b0",
+      "parent": "1415cc3ea9995aa95b246523091f1cbba6882b91",
+      "original_tree": "d79cfb0ecef66a0cc51c6b1556366277bed47b7d",
+      "original_headers": "tree d79cfb0ecef66a0cc51c6b1556366277bed47b7d\nparent 1415cc3ea9995aa95b246523091f1cbba6882b91\nauthor Oleg Utkin <oleg@nonlogical.net> 1787623164 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330654 -0700\nchange-id pkolkoympqyoqzsntmuwqknrxzoyvslk",
+      "original_message": "add compact OLED clip progress ruler\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0023-audition-current-waveform-editor-kit-row",
+      "original_commit": "79438e02b876e42469c3ccdf8137fb39e7c81a79",
+      "parent": "14e6a4ab34605b649343f15e171132323663c4b0",
+      "original_tree": "9ee40e4c9369322539c29519a390ff520d5decc9",
+      "original_headers": "tree 9ee40e4c9369322539c29519a390ff520d5decc9\nparent 14e6a4ab34605b649343f15e171132323663c4b0\nauthor Oleg Utkin <oleg@nonlogical.net> 1787637273 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330654 -0700\nchange-id vzymkworvqtnuxlopzxkzyywwxzxynyz",
+      "original_message": "audition current Waveform Editor Kit row\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0024-add-recoverable-audio-clip-start-editing",
+      "original_commit": "20accda819dcffff9947f08238a770cf18410fab",
+      "parent": "79438e02b876e42469c3ccdf8137fb39e7c81a79",
+      "original_tree": "b0e5380538090e75d3e8cd556d0afd72a7c3c790",
+      "original_headers": "tree b0e5380538090e75d3e8cd556d0afd72a7c3c790\nparent 79438e02b876e42469c3ccdf8137fb39e7c81a79\nauthor Oleg Utkin <oleg@nonlogical.net> 1787644576 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330673 -0700\nchange-id uptykxlqxwmmqnxkpxtoytquxxuomusu",
+      "original_message": "add recoverable audio clip start editing\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0025-improve-waveform-editor-entry-and-bound-selection",
+      "original_commit": "43863dfec2ec623507c230a8bec19f089c69e554",
+      "parent": "20accda819dcffff9947f08238a770cf18410fab",
+      "original_tree": "347cdfaaf57f902f002bf46cc29a784f3184c938",
+      "original_headers": "tree 347cdfaaf57f902f002bf46cc29a784f3184c938\nparent 20accda819dcffff9947f08238a770cf18410fab\nauthor Oleg Utkin <oleg@nonlogical.net> 1787645909 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330697 -0700\nchange-id tpnnwpqpyllyzmrqruuxmspunpquwlwv",
+      "original_message": "improve waveform editor entry and bound selection\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0026-add-velocity-drums-velocity-profiles",
+      "original_commit": "78801ea319fbe3d7edc5a88b5200e36366d540eb",
+      "parent": "43863dfec2ec623507c230a8bec19f089c69e554",
+      "original_tree": "6236282dc881b72c56e9ad4c6ea384ffed3f023b",
+      "original_headers": "tree 6236282dc881b72c56e9ad4c6ea384ffed3f023b\nparent 43863dfec2ec623507c230a8bec19f089c69e554\nauthor Oleg Utkin <oleg@nonlogical.net> 1787766514 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330697 -0700\nchange-id ulztwqmrxzvzxynuxpvxmmnxqzkpkrtz",
+      "original_message": "add Velocity Drums velocity profiles\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0027-reject-unsupported-song-compatibility-versions",
+      "original_commit": "65557a0845ee83bec468242e639c255b0636fc5d",
+      "parent": "78801ea319fbe3d7edc5a88b5200e36366d540eb",
+      "original_tree": "41fa5ce719fd5c3011dcad201ba20aef80fa63fe",
+      "original_headers": "tree 41fa5ce719fd5c3011dcad201ba20aef80fa63fe\nparent 78801ea319fbe3d7edc5a88b5200e36366d540eb\nauthor Oleg Utkin <oleg@nonlogical.net> 1788154372 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330749 -0700\nchange-id wxsvvosvtvrrzukpxssvrtxpwtplyntx",
+      "original_message": "reject unsupported Song compatibility versions\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0028-add-external-step-midi-clips",
+      "original_commit": "8922902857362ef6cd3fe69d47609a26a07d6a95",
+      "parent": "65557a0845ee83bec468242e639c255b0636fc5d",
+      "original_tree": "88c2761bd87ddeb7740b8ae51fee6327162a1a26",
+      "original_headers": "tree 88c2761bd87ddeb7740b8ae51fee6327162a1a26\nparent 65557a0845ee83bec468242e639c255b0636fc5d\nauthor Oleg Utkin <oleg@nonlogical.net> 1787797047 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330850 -0700\nchange-id plloqspkvmmqysvtrpxlkvrnssssyzut",
+      "original_message": "add external step MIDI Clips\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0029-make-preview-only-note-input-release-order-safe",
+      "original_commit": "057ec02382c463a15a5698ec0dd9f129ed6c0c3a",
+      "parent": "8922902857362ef6cd3fe69d47609a26a07d6a95",
+      "original_tree": "e57f6a10545b8f7f1bacb011398502d61b5ed705",
+      "original_headers": "tree e57f6a10545b8f7f1bacb011398502d61b5ed705\nparent 8922902857362ef6cd3fe69d47609a26a07d6a95\nauthor Oleg Utkin <oleg@nonlogical.net> 1788127974 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330850 -0700\nchange-id ruwsmuworlnvkrovryntpqnnmmnsppoz",
+      "original_message": "make preview-only note input release-order safe\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0030-correct-slicer-playhead-source",
+      "original_commit": "922932fa58761e5b01ae083f1375f3cd90217da4",
+      "parent": "057ec02382c463a15a5698ec0dd9f129ed6c0c3a",
+      "original_tree": "bcf600c384f8982abc7ae37d320b460aca9c709f",
+      "original_headers": "tree bcf600c384f8982abc7ae37d320b460aca9c709f\nparent 057ec02382c463a15a5698ec0dd9f129ed6c0c3a\nauthor Oleg Utkin <oleg@nonlogical.net> 1788144283 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330850 -0700\nchange-id utzutxtoqvqxtuuzvxounlxkluzuwosk",
+      "original_message": "correct Slicer playhead source\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0031-improve-waveform-playhead-visibility",
+      "original_commit": "87fff9adf4bfd6c3b3bc128be28875d5a967bc95",
+      "parent": "922932fa58761e5b01ae083f1375f3cd90217da4",
+      "original_tree": "fe1fb30e1a96db2cc239f33d9da6e8566dec95ad",
+      "original_headers": "tree fe1fb30e1a96db2cc239f33d9da6e8566dec95ad\nparent 922932fa58761e5b01ae083f1375f3cd90217da4\nauthor Oleg Utkin <oleg@nonlogical.net> 1788144798 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330850 -0700\nchange-id sqppvqulwllyokvmmsyryrnwwozytzrq",
+      "original_message": "improve waveform playhead visibility\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0032-add-kit-choke-groups",
+      "original_commit": "f165dfe2788e802eb1c7e727bba0718d29cc03e8",
+      "parent": "87fff9adf4bfd6c3b3bc128be28875d5a967bc95",
+      "original_tree": "cd9f05fe4957da62abc8b82b5e6b9bbdd213fffc",
+      "original_headers": "tree cd9f05fe4957da62abc8b82b5e6b9bbdd213fffc\nparent 87fff9adf4bfd6c3b3bc128be28875d5a967bc95\nauthor Oleg Utkin <oleg@nonlogical.net> 1788158521 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330878 -0700\nchange-id lrnvyroynrowxploosotkupouqrwkqpn",
+      "original_message": "add Kit choke groups\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0033-catalog-firmware-keybindings",
+      "original_commit": "c71c082023297c0ed58180a1f28f63e76879e8ac",
+      "parent": "f165dfe2788e802eb1c7e727bba0718d29cc03e8",
+      "original_tree": "e9ec86bbcd32294838838921503896a1164474d1",
+      "original_headers": "tree e9ec86bbcd32294838838921503896a1164474d1\nparent f165dfe2788e802eb1c7e727bba0718d29cc03e8\nauthor Oleg Utkin <oleg@nonlogical.net> 1788731133 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330878 -0700\nchange-id yunwxlynmwmqprqtsyqwqzwvnwwllkqo",
+      "original_message": "catalog firmware keybindings\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0034-add-shared-song-scale-menu",
+      "original_commit": "4767f28b4f3c030be568d533e761c17ffea7e47e",
+      "parent": "c71c082023297c0ed58180a1f28f63e76879e8ac",
+      "original_tree": "a3e9f6f9c3e356638a651a5d6abbb8c4da767a65",
+      "original_headers": "tree a3e9f6f9c3e356638a651a5d6abbb8c4da767a65\nparent c71c082023297c0ed58180a1f28f63e76879e8ac\nauthor Oleg Utkin <oleg@nonlogical.net> 1789255297 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789331027 -0700\nchange-id zynqpnkvppuxpvzynqtwnulvmynzqvwt",
+      "original_message": "add shared Song scale menu\n",
+      "empty_message_replaced": false
+    },
+    {
+      "layer": "0035-add-precise-envelope-time-controls",
+      "original_commit": "2391b7cad4907843890d8b6c052651a77abd6bbf",
+      "parent": "4767f28b4f3c030be568d533e761c17ffea7e47e",
+      "original_tree": "cdc903646a5ff9a81a05225a346d17d16fe5ad31",
+      "original_headers": "tree cdc903646a5ff9a81a05225a346d17d16fe5ad31\nparent 4767f28b4f3c030be568d533e761c17ffea7e47e\nauthor Oleg Utkin <oleg@nonlogical.net> 1789329743 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789365782 -0700\nchange-id vozpwssnpstpruwunxqvullvmxvoqyvy",
+      "original_message": "add precise envelope time controls\n",
+      "empty_message_replaced": false
+    }
+  ],
+  "original_remote_branches": {
+    "origin": "2391b7cad4907843890d8b6c052651a77abd6bbf",
+    "origin/main": "9e3132dc17070695b40f69bada5565a33ce428b4",
+    "origin/nl/latest": "2391b7cad4907843890d8b6c052651a77abd6bbf",
+    "origin/nl/patch-audio-clip-01": "20accda819dcffff9947f08238a770cf18410fab",
+    "origin/nl/patch-envelopes-01": "2391b7cad4907843890d8b6c052651a77abd6bbf",
+    "origin/nl/patch-kb-chords-01": "9ec4805740acafb71e8e42bdcd84642887138970",
+    "origin/nl/patch-kb-chords-02": "909a563306ca3288a114342f860aa44f8ca8746b",
+    "origin/nl/patch-kb-drums-01": "78801ea319fbe3d7edc5a88b5200e36366d540eb",
+    "origin/nl/patch-keybindings-01": "c71c082023297c0ed58180a1f28f63e76879e8ac",
+    "origin/nl/patch-kit-rows-01": "05cc17406d852812d77237b435f7dc70d773884c",
+    "origin/nl/patch-kit-rows-02": "f165dfe2788e802eb1c7e727bba0718d29cc03e8",
+    "origin/nl/patch-midi-input-01": "11720210ccca99c6c8155a571acdcfbe5c9bb588",
+    "origin/nl/patch-midi-sequencer-01": "8922902857362ef6cd3fe69d47609a26a07d6a95",
+    "origin/nl/patch-nix-env-01": "55b5273a175b2b47eca9c92ee51839ea1a1528e5",
+    "origin/nl/patch-note-input-01": "057ec02382c463a15a5698ec0dd9f129ed6c0c3a",
+    "origin/nl/patch-oled-01": "1415cc3ea9995aa95b246523091f1cbba6882b91",
+    "origin/nl/patch-oled-02": "14e6a4ab34605b649343f15e171132323663c4b0",
+    "origin/nl/patch-oled-03": "87fff9adf4bfd6c3b3bc128be28875d5a967bc95",
+    "origin/nl/patch-panic-01": "7ee4fe3aefdadbba67feaed17359efbc24a29c6b",
+    "origin/nl/patch-panic-02": "49bac595bbd4f67b6acea6365edfd4275d6e1fea",
+    "origin/nl/patch-sample-editor-01": "79438e02b876e42469c3ccdf8137fb39e7c81a79",
+    "origin/nl/patch-sample-editor-02": "43863dfec2ec623507c230a8bec19f089c69e554",
+    "origin/nl/patch-sample-slicer-01": "fe303056d81d132aa59a26c4f82cd8f7d514ad18",
+    "origin/nl/patch-sample-slicer-02": "bc10ef872f19a5c689aea36b5bc374b4d1568ab7",
+    "origin/nl/patch-sample-slicer-03": "843618fb6342160e9521939a1377d754ceb7603e",
+    "origin/nl/patch-sample-slicer-04": "f511144707517912b9ba50bd11eb806e67cf81a1",
+    "origin/nl/patch-scale-controls-01": "4767f28b4f3c030be568d533e761c17ffea7e47e",
+    "origin/nl/patch-song-grid-01": "ed3261d45a98c622b08d6e767a17ce6311665d2f",
+    "origin/nl/patch-song-grid-02": "2e54a5ccb97908d797cef165b9abbbc85da45b1a",
+    "origin/nl/patch-undo-01": "5dc25215a1eed7d488d334f37df12efd3d710570",
+    "origin/ns/bug-audio-looper-01": "d401be8a41b8394b7404d05069c2ba4918df5369",
+    "origin/ns/bug-slicer-01": "922932fa58761e5b01ae083f1375f3cd90217da4",
+    "origin/ns/bug-song-load-01": "65557a0845ee83bec468242e639c255b0636fc5d",
+    "origin/ns/bug-waveform-01": "37f31692eb66b548bb40f7e7ed5e5ac094b14333",
+    "origin/ns/bug-waveform-02": "3312eab8093c5e569d5fece9ff675b117356cde5"
+  }
+}

@@ -1,0 +1,195 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 99eb35aa149aa248c8ed1d37915cc773f1961670..2c44589c2142665f952b23b970ba197e55f5fe27 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -4,12 +4,13 @@
+ 
+ This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
+ 
+-The local stack currently contains four deviations:
++The local stack currently contains five deviations:
+ 
+ 1. Normalize the Korg MIDI-definition directory casing.
+ 2. Provide a reproducible Apple Silicon Nix build environment.
+ 3. Identify held chords in Keyboard View.
+ 4. Show the latest physical held note under a recognized OLED chord label.
++5. Start kit creation in Manual Slice mode directly from the sample browser.
+ 
+ No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
+ 
+@@ -103,6 +104,33 @@ When exact chord recognition is active on an OLED, show both the harmony and the
+ - Automated tests demonstrate that press order chooses the latest physical held note, that a release promotes the latest remaining physical note, and that a generated note cannot take precedence.
+ - The host unit-test suite and a local Release build pass.
+ 
++## 5. Manual Slice entry during kit creation
++
++### Intent
++
++Let a player choose manual slice placement before creating a kit, rather than entering the standard slicer and changing its mode afterward.
++
++### Required behavior
++
++- When the sample browser is creating a kit from a selected audio file, its action menu contains three choices: Load all, Slice, and Manual slice.
++- Manual slice is available under the same selected-file condition as the existing Slice action. It is not offered for a folder.
++- Choosing Manual slice opens the existing Slicer directly in its established Manual mode, with the same initial one-slice state, waveform view, pad editing, slice count, transpose, preview, save, confirm, and cancel behavior that Manual mode already provides.
++- Entering either Manual slice or the existing Slice action requests the Slicer's initial grid redraw immediately. The player does not need to move an encoder or send another input before the waveform and Slicer grid appear.
++- Choosing the existing Slice action continues to open the Slicer in its established Region mode with its existing initial slice count and controls.
++- The Manual slice selection applies only to that entry into the Slicer. A later normal Slice entry must still begin in Region mode.
++- The new menu label is localized for both OLED and seven-segment displays.
++
++### Compatibility and boundaries
++
++- Do not add a new slicing algorithm, slice-detection heuristic, kit type, sample format rule, maximum slice count, or save format.
++- Do not change the behavior of Load all, standard Slice, the Slicer mode-switch control, existing manual slicing actions, sample playback, kit playback, MIDI, or project saving.
++- The new choice is a faster route to an existing mode. It does not persist as a global default.
++
++### Verification contract
++
++- A human runtime check on a physical Deluge should confirm that Manual slice starts in Manual mode, standard Slice still starts in Region mode, and a normal entry after Manual slice is still Region mode.
++- The host unit-test suite and a local Release build pass. The build remains local-only; flashing and installation are human-controlled.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/context_menu/sample_browser/kit.cpp b/src/deluge/gui/context_menu/sample_browser/kit.cpp
+index 6e1ae220e9018e5833064c4c4b21f8a0d14f364d..81bf4e0d35a0d3b2383ea627a80b3d96ee12460c 100644
+--- a/src/deluge/gui/context_menu/sample_browser/kit.cpp
++++ b/src/deluge/gui/context_menu/sample_browser/kit.cpp
+@@ -35,10 +35,11 @@ char const* Kit::getTitle() {
+ std::span<char const*> Kit::getOptions() {
+ 	using enum l10n::String;
+ 	static char const* options[] = {
+-	    l10n::get(STRING_FOR_LOAD_ALL), //<
+-	    l10n::get(STRING_FOR_SLICE)     //<
++	    l10n::get(STRING_FOR_LOAD_ALL),     // <
++	    l10n::get(STRING_FOR_SLICE),        // <
++	    l10n::get(STRING_FOR_MANUAL_SLICE), // <
+ 	};
+-	return {options, 2};
++	return {options, 3};
+ }
+ 
+ bool Kit::isCurrentOptionAvailable() {
+@@ -54,10 +55,17 @@ bool Kit::acceptCurrentOption() {
+ 	switch (currentOption) {
+ 	case 0: // Import whole folder
+ 		return sampleBrowser.importFolderAsKit();
+-	default: // Slicer
++	case 1: // Slicer
+ 		display->setNextTransitionDirection(1);
+ 		openUI(&slicer);
+ 		return true;
++	case 2: // Manual slicer
++		slicer.requestInitialMode(SLICER_MODE_MANUAL);
++		display->setNextTransitionDirection(1);
++		openUI(&slicer);
++		return true;
++	default:
++		return false;
+ 	}
+ }
+ 
+diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
+index c6c373fbff576e29ae9d0f6c04739f9650c9b97b..2a4fe459069f415be28ec183fcb38345071c813b 100644
+--- a/src/deluge/gui/l10n/english.json
++++ b/src/deluge/gui/l10n/english.json
+@@ -155,6 +155,7 @@
+     "STRING_FOR_ONCE_LAUNCH": "Once",
+     "STRING_FOR_LOAD_ALL": "Load all",
+     "STRING_FOR_SLICE": "Slice",
++    "STRING_FOR_MANUAL_SLICE": "Manual slice",
+     "STRING_FOR_MULTISAMPLES": "Multisamples",
+     "STRING_FOR_BASIC": "Basic",
+     "STRING_FOR_SINGLE_CYCLE": "Single-cycle",
+diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
+index 578659d2f6c8da11caa94d99fe573767c1dfdded..4ea0207006cad6e6733296eb231aba0d07016bd6 100644
+--- a/src/deluge/gui/l10n/g_english.cpp
++++ b/src/deluge/gui/l10n/g_english.cpp
+@@ -168,6 +168,7 @@ PLACE_SDRAM_DATA Language english{
+         {STRING_FOR_ONCE_LAUNCH, "Once"},
+         {STRING_FOR_LOAD_ALL, "Load all"},
+         {STRING_FOR_SLICE, "Slice"},
++        {STRING_FOR_MANUAL_SLICE, "Manual slice"},
+         {STRING_FOR_MULTISAMPLES, "Multisamples"},
+         {STRING_FOR_BASIC, "Basic"},
+         {STRING_FOR_SINGLE_CYCLE, "Single-cycle"},
+diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
+index 99d48d8fa9afd332664bb12185f1ea586c6fb347..9fe413435cb395f493bbced262102d0561d96189 100644
+--- a/src/deluge/gui/l10n/g_seven_segment.cpp
++++ b/src/deluge/gui/l10n/g_seven_segment.cpp
+@@ -75,6 +75,7 @@ PLACE_SDRAM_DATA Language seven_segment{
+         {STRING_FOR_ONCE_LAUNCH, "ONCE"},
+         {STRING_FOR_LOAD_ALL, "ALL"},
+         {STRING_FOR_SLICE, "SLICE"},
++        {STRING_FOR_MANUAL_SLICE, "MANUAL SLICE"},
+         {STRING_FOR_MULTISAMPLES, "MULTI"},
+         {STRING_FOR_BASIC, "BASIC"},
+         {STRING_FOR_SINGLE_CYCLE, "SINGLE-CYCLE"},
+diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
+index fae846423c7bdfee80e0e489e984cb6634bb616d..bcc4425973ed50c34cbecdb1eb8f5539c122107a 100644
+--- a/src/deluge/gui/l10n/seven_segment.json
++++ b/src/deluge/gui/l10n/seven_segment.json
+@@ -69,6 +69,7 @@
+ 
+         "STRING_FOR_LOAD_ALL": "ALL",
+         "STRING_FOR_SLICE": "SLICE",
++        "STRING_FOR_MANUAL_SLICE": "MANUAL SLICE",
+ 
+         "STRING_FOR_MULTISAMPLES": "MULTI",
+         "STRING_FOR_BASIC": "BASIC",
+diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
+index 41d19c15e40f422f848696bb199db5288b63c9f3..139af3260eec0cf32c4b70a4175b0ae06a68ca25 100644
+--- a/src/deluge/gui/l10n/strings.h
++++ b/src/deluge/gui/l10n/strings.h
+@@ -145,6 +145,7 @@ enum class String : size_t {
+ 	// gui/context_menu/sample_browser/kit.cpp
+ 	STRING_FOR_LOAD_ALL,
+ 	STRING_FOR_SLICE,
++	STRING_FOR_MANUAL_SLICE,
+ 
+ 	// gui/context_menu/sample_browser/synth.cpp
+ 	STRING_FOR_MULTISAMPLES,
+diff --git a/src/deluge/gui/ui/slicer.cpp b/src/deluge/gui/ui/slicer.cpp
+index 5e8c6de202f67576f75690dcc86a677e6ece450f..c1527491c27ada2223fa59b5366ae27ebe984daa 100644
+--- a/src/deluge/gui/ui/slicer.cpp
++++ b/src/deluge/gui/ui/slicer.cpp
+@@ -62,7 +62,8 @@ void Slicer::focusRegained() {
+ 
+ 	numManualSlice = 1;
+ 	currentSlice = 0;
+-	slicerMode = SLICER_MODE_REGION;
++	slicerMode = requestedInitialMode;
++	requestedInitialMode = SLICER_MODE_REGION;
+ 	for (int32_t i = 0; i < MAX_MANUAL_SLICES; i++) {
+ 		manualSlicePoints[i].startPos = 0;
+ 		manualSlicePoints[i].transpose = 0;
+@@ -71,6 +72,8 @@ void Slicer::focusRegained() {
+ 	if (display->have7SEG()) {
+ 		redraw();
+ 	}
++
++	uiNeedsRendering(this, 0xFFFFFFFF, 0xFFFFFFFF);
+ }
+ 
+ void Slicer::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+diff --git a/src/deluge/gui/ui/slicer.h b/src/deluge/gui/ui/slicer.h
+index ee09170fe1b4c17b12804d845c43e516c0bc3e67..d3d3f124615439ae6b3a96ac375417081a5790f0 100644
+--- a/src/deluge/gui/ui/slicer.h
++++ b/src/deluge/gui/ui/slicer.h
+@@ -47,6 +47,7 @@ public:
+ 
+ 	void stopAnyPreviewing();
+ 	void preview(int64_t startPoint, int64_t endPoint, int32_t transpose, int32_t on);
++	void requestInitialMode(int32_t mode) { requestedInitialMode = mode; }
+ 
+ 	int32_t numManualSlice;
+ 	int32_t currentSlice;
+@@ -61,6 +62,8 @@ public:
+ 	UIType getUIType() override { return UIType::SLICER; }
+ 
+ private:
++	int32_t requestedInitialMode = SLICER_MODE_REGION;
++
+ 	// 7SEG Only
+ 	void redraw();
+ 

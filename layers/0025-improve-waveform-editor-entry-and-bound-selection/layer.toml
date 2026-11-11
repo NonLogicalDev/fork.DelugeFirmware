@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "improve waveform editor entry and bound selection\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

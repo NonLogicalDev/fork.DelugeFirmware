@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "copy and paste Kit rows\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

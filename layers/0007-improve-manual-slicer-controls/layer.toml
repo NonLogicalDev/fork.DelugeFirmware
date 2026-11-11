@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "improve manual slicer controls\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

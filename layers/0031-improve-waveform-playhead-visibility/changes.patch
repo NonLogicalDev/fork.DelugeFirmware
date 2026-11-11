@@ -1,0 +1,1087 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 974e37f6cb3f736305e5f3d4ae0ba3fdf926a130..2be58fc789d51a3b99412d55846af27e9ed061a3 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -4,7 +4,7 @@
+ 
+ This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
+ 
+-The local stack currently contains twenty-four deviations:
++The local stack currently contains twenty-five deviations:
+ 
+ 1. Normalize the Korg MIDI-definition directory casing.
+ 2. Provide a reproducible Apple Silicon Nix build environment.
+@@ -30,6 +30,7 @@ The local stack currently contains twenty-four deviations:
+ 22. Add selectable velocity profiles to Velocity Drums.
+ 23. Let Session MIDI-Out Clips advance from independent external steps.
+ 24. Make held-Horizontal preview-only note input release-order safe across Clip and Keyboard views.
++25. Keep playheads legible on full-screen waveform displays.
+ 
+ No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
+ 
+@@ -502,13 +503,13 @@ Show sample shape and the edited region on an OLED Deluge without adding sample
+ - Each group of adjacent OLED ranges that occupies one pad column covers exactly the same half-open sample interval as that pad column, including when the visible sample count does not divide evenly into display ranges. When enough distinct source samples are visible to address every range independently, each sample is measured by the same range that its horizontal display projection occupies. At tighter zooms, adjacent ranges deliberately share sample ownership rather than implying detail that does not exist. Ranges with identical half-open sample ownership reuse one collected peak result instead of repeating sample analysis.
+ - If cached waveform amplitude is unavailable for part of the view, every successfully measured part remains visible while the unavailable part stays blank and can be retried by the normal editing redraw path. OLED rendering must not initiate sample analysis, decoding, cluster loading, storage access, memory allocation, or audio-engine servicing to fill it.
+ - The companion consumes the generic renderer behavior from deviations 15 and 16: valid long recordings remain visible when zoomed out, and reversed views remain inside the same visible half-open range as the pad waveform.
+-- A static editor schedules no waveform-driven display refreshes after its current state has been drawn. Playback, audition, marker blinking, and periodic graphics routines do not animate or refresh the OLED waveform.
++- A static editor schedules no waveform-driven display refreshes after its current state has been drawn. Except for the source-matched playhead required by deviation 25, playback, audition, marker blinking, and periodic graphics routines do not animate or refresh the OLED waveform.
+ 
+ ### Compatibility and boundaries
+ 
+ - Preserve the pad waveform's viewport, layout, colors, markers, and navigation, plus marker limits, slice calculations, playback, audition, saving, audio processing, control gestures, and project format. On the two OLED editing surfaces, each pad column may show more precise extrema from the same visible region; this refinement must not trigger a second sample-analysis pass.
+ - Preserve all 7SEG behavior. Do not add an OLED waveform to Sample Browser, idle Audio Clip View, Session, Arranger, recording screens, or other unrelated views.
+-- Do not add a playback cursor, stereo lanes, filled amplitude bars, inverted selection, a project-persistent or Audio-Clip-wide waveform cache, a timer, or a background waveform task.
++- Except for the bounded source-matched cursor in deviation 25, do not add a playback cursor, stereo lanes, filled amplitude bars, inverted selection, a project-persistent or Audio-Clip-wide waveform cache, a timer, or a background waveform task.
+ - OLED waveform rendering remains display-only and must never run from an audio-rendering path. A physical power comparison is required before claiming a battery-life improvement.
+ - No local behavior authorizes flashing, installation, publication, or upstream submission.
+ 
+@@ -789,6 +790,40 @@ Let a player hold the Horizontal encoder while trying notes or drums, hear the o
+ - Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
+ - On a physical Deluge, check stopped audition, playback, armed recording, and count-in in Kit and melodic Clips; both release orders; Horizontal pressed after a normal note starts; repeated and overlapping notes; chords; held pads while turning Horizontal; MIDI-Out and CV output; view exit; Stop; and Panic. Confirm no stuck sound, stray note, shortened prior note, lost note-off, or changed encoder gesture. Physical verification remains human-controlled and does not authorize flashing.
+ 
++## 25. Legible full-screen waveform playheads
++
++### Intent
++
++Make the current playback position immediately readable on every full-screen single-source waveform without letting a dense or strongly colored waveform overpower it. Give the OLED sample-editing waveform the same source-specific playback feedback while keeping the display work bounded.
++
++### Required behavior
++
++- Sample Marker Editor, Region and Manual/Lazy Slicer, Audio Clip View, and Sample Browser render the waveform base moderately dimmer than today. The intended level is seven eighths of the established full waveform intensity. Start and End bounds, loop and slice markers, undefined regions, controls, selections, and playhead colors retain their established strength and draw above the waveform.
++- A playhead appears only when the audio currently sounding is the exact source represented by the displayed waveform. An unrelated voice, an earlier preview, another Drum, another Clip, or a matching filename without matching sample identity must never drive it.
++- Sample Marker Editor follows the newest active voice whose sample holder owns the displayed sample. Audio Clip View follows only the displayed active Clip. Sample Browser follows only its active browser-preview sample. Region and new-Kit Slicer follow only the browser preview, while Manual/Lazy and existing-Kit Slicer follow only the selected Sound.
++- The Region Slicer pad cursor spans all eight waveform rows. The Manual/Lazy Slicer cursor spans only its four waveform rows and never covers its slice pads. Other full-screen pad cursors retain the height already owned by their waveform.
++- Sample Marker Editor and both Slicer modes add a one-column OLED playhead to their existing waveform companion. It maps the raw source position into the complete visible waveform range, draws after every waveform contour and bound marker, and reverses the pixels in its column so it stays visible over both empty and lit areas.
++- The OLED cursor moves only while the exact displayed source is actively playing and its projected display column changes. It disappears after stop, release, source replacement, view exit, or movement outside the visible range. Scrolling or zooming remaps it to the same source position without changing playback or resetting the playhead.
++- Moving OLED feedback is refreshed no more than twenty times per second through an existing display service path. An unchanged projected column produces no OLED work. Hiding or replacing a cursor performs one cleanup update so no stale column remains.
++- Audio Clip View keeps its existing whole-Clip OLED ruler instead of gaining a second waveform cursor. Sample Browser keeps its existing filename display and gains no OLED waveform.
++
++### Compatibility and boundaries
++
++- Preserve waveform shape, sample analysis, color family, Clip and track color ownership, bounds, slice locations, viewports, scrolling, zooming, reverse playback, audition controls, transport behavior, recording, sample data, project data, and audio output.
++- Preserve the established pad cursor color, bound and marker colors, Slicer control colors, grey undefined regions, and every non-waveform pad. Only the full-screen waveform base becomes dimmer.
++- Preserve Session, Row, Grid, Arranger, recorder, transition, cached thumbnail, and single-row waveform brightness and cursor behavior. Those multi-source or overview surfaces are not full-screen single-source editors.
++- Preserve all seven-segment behavior. Do not add a new display timer, background task, playback engine, persistent setting, saved data, or firmware compatibility requirement.
++- OLED drawing consumes only the already cached waveform, marker, viewport, and projected playback state. It performs no sample scan, decoding, cluster load, storage access, memory allocation, audio rendering, or direct display transfer.
++- No behavior in this deviation authorizes firmware flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- Focused checks cover included and excluded surface selection, the seven-eighths waveform level, untouched overlay strength, exact source matching, newest matching voice selection, Region and Manual row ownership, first and last visible columns, offscreen positions, stopped and replaced sources, reverse movement, loop wrap, scrolling, zooming, and stale-cursor cleanup on exit.
++- OLED checks cover one-column mapping, contrast over blank and lit waveform pixels, overlap with selected and unselected markers, visibility transitions, the twenty-hertz limit, unchanged-column suppression, viewport changes, and one final cleanup update.
++- Source review confirms that the browser, editor, Slicer, and Clip each use their own authoritative playback source; excluded thumbnails are unchanged; dynamic display work is fixed and bounded; and no display path allocates, accesses storage or samples, renders audio, creates a timer, or sends the OLED directly.
++- Format every affected source, compile changed production units with the target ARM Release toolchain, run the complete configured host suite, and complete one uninterrupted logged local Release firmware build.
++- On a physical OLED Deluge, check each included surface with sparse and dense waveforms, forward and reverse playback, loop wrap, start and end edits, Slicer Region and Manual audition, browser preview, markers, popups, scrolling, zooming, stop, source replacement, and exit. Confirm that the waveform is still readable, the playhead is more obvious, no stale cursor remains, and audio, storage streaming, recording, and display response do not regress. Physical verification remains human-controlled and does not authorize flashing.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/ui/browser/sample_browser.cpp b/src/deluge/gui/ui/browser/sample_browser.cpp
+index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242bd3bf492 100644
+--- a/src/deluge/gui/ui/browser/sample_browser.cpp
++++ b/src/deluge/gui/ui/browser/sample_browser.cpp
+@@ -55,6 +55,8 @@
+ #include "model/model_stack.h"
+ #include "model/note/note_row.h"
+ #include "model/song/song.h"
++#include "model/voice/voice.h"
++#include "model/voice/voice_sample.h"
+ #include "modulation/automation/auto_param.h"
+ #include "modulation/params/param_manager.h"
+ #include "modulation/params/param_set.h"
+@@ -71,6 +73,7 @@
+ #include "storage/storage_manager.h"
+ #include "util/d_string.h"
+ #include "util/functions.h"
++#include <algorithm>
+ #include <cstring>
+ 
+ namespace params = deluge::modulation::params;
+@@ -79,6 +82,10 @@ using namespace gui;
+ 
+ SampleBrowser sampleBrowser{};
+ 
++namespace {
++constexpr uint8_t kNoCursorColours[kDisplayHeight]{};
++}
++
+ char const* allowedFileExtensionsAudio[] = {"WAV", "AIFF", "AIF", NULL};
+ 
+ SampleBrowser::SampleBrowser() {
+@@ -257,6 +264,7 @@ void SampleBrowser::currentFileChanged(int32_t movementDirection) {
+ 
+ void SampleBrowser::exitAndNeverDeleteDrum() {
+ 	display->setNextTransitionDirection(-1);
++	PadLEDs::clearTickSquares(false);
+ 	close();
+ }
+ 
+@@ -265,6 +273,7 @@ void SampleBrowser::exitAction() {
+ 	UI* redrawUI = nullptr;
+ 
+ 	display->setNextTransitionDirection(-1);
++	PadLEDs::clearTickSquares(false);
+ 	if (!isUIOpen(&soundEditor)) {
+ 		// If no file was selected, the user wanted to get out of creating this Drum.
+ 		// Only if some unassigned Drums
+@@ -368,6 +377,7 @@ void SampleBrowser::enterKeyPress() {
+ 
+ 		if (error != Error::NONE) {
+ 			display->displayError(error);
++			PadLEDs::clearTickSquares(false);
+ 			close(); // Don't use goBackToSoundEditor() because that would do a left-scroll
+ 		}
+ 	}
+@@ -657,9 +667,10 @@ void SampleBrowser::previewIfPossible(int32_t movementDirection) {
+ 						drawKeys();
+ 					}
+ 					else if (!qwertyVisible) {
+-						waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+-						                                  waveformBasicNavigator.xZoom, PadLEDs::image,
+-						                                  &waveformBasicNavigator.renderData);
++						waveformRenderer.renderFullScreen(
++						    waveformBasicNavigator.sample, waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
++						    PadLEDs::image, &waveformBasicNavigator.renderData, nullptr, std::nullopt, false,
++						    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 						PadLEDs::sendOutMainPadColours();
+ 					}
+ 					qwertyCurrentlyDrawnOnscreen = qwertyVisible;
+@@ -699,6 +710,56 @@ void SampleBrowser::previewIfPossible(int32_t movementDirection) {
+ 
+ void SampleBrowser::scrollFinished() {
+ 	exitUIMode(UI_MODE_HORIZONTAL_SCROLL);
++	if (currentlyShowingSamplePreview && !qwertyVisible && waveformBasicNavigator.sample) {
++		// Keep the established transition frames, then apply the focused intensity to the resting waveform.
++		waveformRenderer.renderFullScreenFromData(
++		    waveformBasicNavigator.sample, PadLEDs::image, &waveformBasicNavigator.renderData, std::nullopt, false,
++		    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
++		PadLEDs::sendOutMainPadColours();
++	}
++}
++
++void SampleBrowser::graphicsRoutine() {
++	if (!currentlyShowingSamplePreview && !qwertyVisible) {
++		UI::graphicsRoutine();
++		return;
++	}
++	if (PadLEDs::flashCursor == FLASH_CURSOR_OFF) {
++		return;
++	}
++
++	int32_t newTickSquare = 255;
++	Sample* displayedSample = currentlyShowingSamplePreview && !qwertyVisible ? waveformBasicNavigator.sample : nullptr;
++	SoundDrum* previewSound = AudioEngine::sampleForPreview;
++	if (displayedSample && previewSound && previewSound->hasActiveVoices()
++	    && previewSound->sources[0].ranges.getNumElements() > 0) {
++		auto* range = static_cast<MultisampleRange*>(previewSound->sources[0].ranges.getElement(0));
++		AudioFileHolder* holder = range->getAudioFileHolder();
++		if (holder->audioFile == displayedSample) {
++			const int32_t centerPart = previewSound->numUnison >> 1;
++			auto validVoices =
++			    previewSound->voices() | std::views::filter([holder, centerPart](const Sound::ActiveVoice& voice) {
++				    const VoiceUnisonPartSource& part = voice->unisonParts[centerPart].sources[0];
++				    return deluge::gui::waveform::isWaveformPlayheadCandidate(
++				        voice->guides[0].audioFileHolder == holder, part.active, part.voiceSample != nullptr);
++			    });
++			if (!validVoices.empty()) {
++				const Sound::ActiveVoice& voice = *std::ranges::max_element(validVoices, {}, &Voice::orderSounded);
++				VoiceUnisonPartSource* part = &voice->unisonParts[centerPart].sources[0];
++				const int32_t samplePos = part->voiceSample->getPlaySample(displayedSample, &voice->guides[0]);
++				if (samplePos >= waveformBasicNavigator.xScroll) {
++					newTickSquare = (samplePos - waveformBasicNavigator.xScroll) / waveformBasicNavigator.xZoom;
++					if (newTickSquare >= kDisplayWidth) {
++						newTickSquare = 255;
++					}
++				}
++			}
++		}
++	}
++
++	uint8_t tickSquares[kDisplayHeight];
++	memset(tickSquares, newTickSquare, sizeof(tickSquares));
++	PadLEDs::setTickSquares(tickSquares, kNoCursorColours);
+ }
+ 
+ void SampleBrowser::displayCurrentFilename() {
+@@ -2062,8 +2123,8 @@ getOut:
+ 					}
+ 
+ 					kit->addDrum(drum);
+-					ModelStackWithNoteRow* newNoteRowModelStack = noteRowModelStack->addNoteRow(
+-					    clip->getNoteRowId(newNoteRow, noteRowIndex), newNoteRow);
++					ModelStackWithNoteRow* newNoteRowModelStack =
++					    noteRowModelStack->addNoteRow(clip->getNoteRowId(newNoteRow, noteRowIndex), newNoteRow);
+ 					newNoteRow->setDrum(drum, kit, newNoteRowModelStack, nullptr, &paramManager);
+ 				}
+ 				else {
+@@ -2155,9 +2216,10 @@ ActionResult SampleBrowser::horizontalEncoderAction(int32_t offset) {
+ 			bool success = waveformBasicNavigator.scroll(offset);
+ 
+ 			if (success) {
+-				waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+-				                                  waveformBasicNavigator.xZoom, PadLEDs::image,
+-				                                  &waveformBasicNavigator.renderData);
++				waveformRenderer.renderFullScreen(
++				    waveformBasicNavigator.sample, waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
++				    PadLEDs::image, &waveformBasicNavigator.renderData, nullptr, std::nullopt, false, kDisplayWidth,
++				    deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 				PadLEDs::sendOutMainPadColours();
+ 			}
+ 		}
+diff --git a/src/deluge/gui/ui/browser/sample_browser.h b/src/deluge/gui/ui/browser/sample_browser.h
+index cb0c5b7fef25d8a2cbce054f921585dd25fd424a..53ab1a980faa714be59e91d6c2423189cfa78870 100644
+--- a/src/deluge/gui/ui/browser/sample_browser.h
++++ b/src/deluge/gui/ui/browser/sample_browser.h
+@@ -54,6 +54,7 @@ public:
+ 	Error claimAudioFileForInstrument(bool makeWaveTableWorkAtAllCosts = false);
+ 	Error claimAudioFileForAudioClip();
+ 	void scrollFinished() override;
++	void graphicsRoutine() override;
+ 	bool importFolderAsKit();
+ 	bool importFolderAsMultisamples();
+ 	ActionResult timerCallback() override;
+@@ -99,7 +100,6 @@ private:
+ 	bool currentlyShowingSamplePreview;
+ 
+ 	bool qwertyCurrentlyDrawnOnscreen; // This will linger as true even when qwertyVisible has been set to false
+-
+ };
+ 
+ extern SampleBrowser sampleBrowser;
+diff --git a/src/deluge/gui/ui/sample_marker_editor.cpp b/src/deluge/gui/ui/sample_marker_editor.cpp
+index efa1b6d5d3e027db206e576d18bd23815ecd1814..5da4221196ae495066d09bdaef10155ddc4484ab 100644
+--- a/src/deluge/gui/ui/sample_marker_editor.cpp
++++ b/src/deluge/gui/ui/sample_marker_editor.cpp
+@@ -136,6 +136,7 @@ bool SampleMarkerEditor::getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) {
+ bool SampleMarkerEditor::opened() {
+ 	endKitRowAudition();
+ 	boundSwitchPressActive = false;
++	oledPlayheadState_.reset();
+ 
+ 	if (getRootUI() == &keyboardScreen) {
+ 		PadLEDs::skipGreyoutFade();
+@@ -787,6 +788,7 @@ ActionResult SampleMarkerEditor::buttonAction(deluge::hid::Button b, bool on, bo
+ ActionResult SampleMarkerEditor::exitUI() {
+ 	endKitRowAudition();
+ 	boundSwitchPressActive = false;
++	oledPlayheadState_.reset();
+ 	if (markerType == MarkerType::START || markerType == MarkerType::END) {
+ 		selectedPlaybackBound = reverseRemap(markerType);
+ 	}
+@@ -1013,7 +1015,8 @@ ActionResult SampleMarkerEditor::timerCallback() {
+ 		}
+ 
+ 		waveformRenderer.renderOneCol(waveformBasicNavigator.sample, x, PadLEDs::image,
+-		                              &waveformBasicNavigator.renderData);
++		                              &waveformBasicNavigator.renderData, false, std::nullopt,
++		                              deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 		renderMarkerInCol(x, PadLEDs::image, markerType, 0, kDisplayHeight, false);
+ 		PadLEDs::sortLedsForCol(x);
+ 		break;
+@@ -1034,9 +1037,11 @@ ActionResult SampleMarkerEditor::timerCallback() {
+ 			}
+ 
+ 			waveformRenderer.renderOneCol(waveformBasicNavigator.sample, x, PadLEDs::image,
+-			                              &waveformBasicNavigator.renderData);
++			                              &waveformBasicNavigator.renderData, false, std::nullopt,
++			                              deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 			waveformRenderer.renderOneCol(waveformBasicNavigator.sample, otherMarkerX, PadLEDs::image,
+-			                              &waveformBasicNavigator.renderData);
++			                              &waveformBasicNavigator.renderData, false, std::nullopt,
++			                              deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 
+ 			renderColumn(x, PadLEDs::image, cols, supressMask);
+ 			renderColumn(otherMarkerX, PadLEDs::image, cols, supressMask);
+@@ -1051,7 +1056,8 @@ ActionResult SampleMarkerEditor::timerCallback() {
+ 			}
+ 
+ 			waveformRenderer.renderOneCol(waveformBasicNavigator.sample, x, PadLEDs::image,
+-			                              &waveformBasicNavigator.renderData);
++			                              &waveformBasicNavigator.renderData, false, std::nullopt,
++			                              deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 
+ 			// render the selected marker solid, and flash the rest of the column with the color for the other marker
+ 			renderColumn(x, PadLEDs::image, cols, supressMask);
+@@ -1190,46 +1196,49 @@ void SampleMarkerEditor::graphicsRoutine() {
+ 	}
+ #endif
+ 
+-	if (PadLEDs::flashCursor == FLASH_CURSOR_OFF) {
+-		return;
+-	}
+-
+ 	int32_t newTickSquare = 255;
+ 
+ 	VoiceSample* voiceSample = nullptr;
+ 	SamplePlaybackGuide* guide = nullptr;
++	Sample* displayedSample = waveformBasicNavigator.sample;
+ 
+ 	// InstrumentClips / Samples
+-	if (getCurrentClip()->type == ClipType::INSTRUMENT) {
+-		if (soundEditor.currentSound->hasActiveVoices()) {
+-			auto valid_voices_view =
+-			    soundEditor.currentSound->voices() | std::views::filter([](const Sound::ActiveVoice& voice) {
+-				    // Ensure correct MultisampleRange.
+-				    return voice->guides[soundEditor.currentSourceIndex].audioFileHolder
+-				           == soundEditor.currentMultiRange->getAudioFileHolder();
+-			    });
++	if (displayedSample && getCurrentClip()->type == ClipType::INSTRUMENT) {
++		AudioFileHolder* holder =
++		    soundEditor.currentMultiRange ? soundEditor.currentMultiRange->getAudioFileHolder() : nullptr;
++		if (holder && holder->audioFile == displayedSample && soundEditor.currentSound
++		    && soundEditor.currentSound->hasActiveVoices()) {
++			const int32_t sourceIndex = soundEditor.currentSourceIndex;
++			const int32_t centerPart = soundEditor.currentSound->numUnison >> 1;
++			auto isPlayableVoice = [holder, sourceIndex, centerPart](const Sound::ActiveVoice& voice) {
++				const VoiceUnisonPartSource& part = voice->unisonParts[centerPart].sources[sourceIndex];
++				return deluge::gui::waveform::isWaveformPlayheadCandidate(
++				    voice->guides[sourceIndex].audioFileHolder == holder, part.active, part.voiceSample != nullptr);
++			};
++			auto valid_voices_view = soundEditor.currentSound->voices() | std::views::filter(isPlayableVoice);
+ 
+ 			if (!valid_voices_view.empty()) {
+ 				auto& assigned_voice = *std::ranges::max_element(valid_voices_view, {}, &Voice::orderSounded);
+ 
+-				VoiceUnisonPartSource* part = &assigned_voice->unisonParts[soundEditor.currentSound->numUnison >> 1]
+-				                                   .sources[soundEditor.currentSourceIndex];
+-				if (part != nullptr && part->active) {
+-					voiceSample = part->voiceSample;
+-					guide = &assigned_voice->guides[soundEditor.currentSourceIndex];
+-				}
++				VoiceUnisonPartSource* part = &assigned_voice->unisonParts[centerPart].sources[sourceIndex];
++				voiceSample = part->voiceSample;
++				guide = &assigned_voice->guides[sourceIndex];
+ 			}
+ 		}
+ 	}
+ 
+ 	// AudioClips
+-	else {
+-		voiceSample = getCurrentAudioClip()->voiceSample;
+-		guide = &getCurrentAudioClip()->guide;
++	else if (displayedSample) {
++		AudioClip* clip = getCurrentAudioClip();
++		if (clip && clip->sampleHolder.audioFile == displayedSample) {
++			voiceSample = clip->voiceSample;
++			guide = &clip->guide;
++		}
+ 	}
+ 
++	int32_t samplePos = 0;
+ 	if (voiceSample) {
+-		int32_t samplePos = voiceSample->getPlaySample(waveformBasicNavigator.sample, guide);
++		samplePos = voiceSample->getPlaySample(displayedSample, guide);
+ 		if (samplePos >= waveformBasicNavigator.xScroll) {
+ 			newTickSquare = (samplePos - waveformBasicNavigator.xScroll) / waveformBasicNavigator.xZoom;
+ 			if (newTickSquare >= kDisplayWidth) {
+@@ -1237,6 +1246,22 @@ void SampleMarkerEditor::graphicsRoutine() {
+ 			}
+ 		}
+ 	}
++	if (display->haveOLED()
++	    && oledPlayheadState_.update(
++	        {
++	            .displayedSample = displayedSample,
++	            .playingSample = voiceSample ? displayedSample : nullptr,
++	            .samplePosition = samplePos,
++	            .xScroll = waveformBasicNavigator.xScroll,
++	            .xZoom = waveformBasicNavigator.xZoom,
++	        },
++	        AudioEngine::audioSampleTimer)) {
++		renderUIsForOled();
++	}
++
++	if (PadLEDs::flashCursor == FLASH_CURSOR_OFF) {
++		return;
++	}
+ 
+ 	uint8_t tickSquares[kDisplayHeight];
+ 	memset(tickSquares, newTickSquare, kDisplayHeight);
+@@ -1366,6 +1391,9 @@ void SampleMarkerEditor::renderOLED(deluge::hid::display::oled_canvas::Canvas& c
+ 		int32_t x = viewport.samplePositionToX(cols[marker].pos, endBoundary);
+ 		drawOledMarker(canvas, x, type == markerType);
+ 	}
++	deluge::gui::waveform::renderOledWaveformPlayhead(canvas, oledPlayheadState_, sample,
++	                                                  waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
++	                                                  kOledWaveformTop, kOledWaveformBottom);
+ }
+ 
+ void SampleMarkerEditor::loopUnlock() {
+@@ -1516,8 +1544,9 @@ bool SampleMarkerEditor::renderMainPads(uint32_t whichRows, RGB image[][kDisplay
+ 
+ 	if (display->haveOLED() && image == PadLEDs::image) {
+ 		const auto oledWaveform = waveformBasicNavigator.prepareOledWaveformForPadRendering();
+-		waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, image,
+-		                                          &waveformBasicNavigator.renderData);
++		waveformRenderer.renderFullScreenFromData(
++		    waveformBasicNavigator.sample, image, &waveformBasicNavigator.renderData, std::nullopt, false,
++		    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 		if (!oledWaveform.complete) {
+ 			uiNeedsRendering(this, 0xFFFFFFFF, 0);
+ 		}
+@@ -1530,7 +1559,9 @@ bool SampleMarkerEditor::renderMainPads(uint32_t whichRows, RGB image[][kDisplay
+ 			waveformBasicNavigator.invalidateOledPadRenderData();
+ 		}
+ 		waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+-		                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData);
++		                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData,
++		                                  nullptr, std::nullopt, false, kDisplayWidth,
++		                                  deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 	}
+ 
+ 	if (markerType != MarkerType::NONE) {
+diff --git a/src/deluge/gui/ui/sample_marker_editor.h b/src/deluge/gui/ui/sample_marker_editor.h
+index 36ca7897f92cd332105924c81b1d7cd10fe815c9..bf41345769e4b54592a3229aa924d981153b506a 100644
+--- a/src/deluge/gui/ui/sample_marker_editor.h
++++ b/src/deluge/gui/ui/sample_marker_editor.h
+@@ -19,6 +19,7 @@
+ 
+ #include "definitions_cxx.hpp"
+ #include "gui/ui/ui.h"
++#include "gui/waveform/waveform_playhead.h"
+ #include "hid/button.h"
+ #include <cstdint>
+ 
+@@ -107,6 +108,7 @@ private:
+ 	SoundDrum* auditionedKitDrum = nullptr;
+ 	Kit* auditionedKit = nullptr;
+ 	bool kitRowAuditionStarted = false;
++	deluge::gui::waveform::OledWaveformPlayheadState oledPlayheadState_{};
+ };
+ 
+ extern SampleMarkerEditor sampleMarkerEditor;
+diff --git a/src/deluge/gui/ui/slicer.cpp b/src/deluge/gui/ui/slicer.cpp
+index fa4d4de81b686adadb8c1717ae85e4e9dd83ab4e..401dd8be297c2d65b3e408c3849facbf1a482a0b 100644
+--- a/src/deluge/gui/ui/slicer.cpp
++++ b/src/deluge/gui/ui/slicer.cpp
+@@ -114,6 +114,7 @@ bool Slicer::opened() {
+ 	requestedInitialMode = SLICER_MODE_REGION;
+ 	horizontalEncoderPressed = false;
+ 	horizontalEncoderPressUsed = false;
++	oledPlayheadState_.reset();
+ 	usesExistingKit = !sampleBrowser.canImportWholeKit();
+ 	batchPlaybackMode = deluge::gui::slicer_playback::BatchMode::AUTO;
+ 	manualPreviewChangedRepeatMode = false;
+@@ -170,44 +171,41 @@ void Slicer::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+ 	if (slicerMode == SLICER_MODE_REGION) {
+ 		const uint64_t sampleLength = sample->lengthInSamples;
+ 		const uint64_t regionCount = numClips;
+-		if (sampleLength == 0 || regionCount < 2 || viewport.span() == 0) {
+-			return;
+-		}
++		if (sampleLength != 0 && regionCount >= 2 && viewport.span() != 0) {
++			const uint64_t viewStart = std::max<int64_t>(waveformBasicNavigator.renderData.xScroll, 0);
++			const uint64_t firstBoundary = std::max<uint64_t>(1, divideRoundUp(viewStart * regionCount, sampleLength));
++			if (firstBoundary < regionCount) {
++				const uint64_t boundaryStride = std::max<uint64_t>(
++				    1, divideRoundUp(2 * regionCount * viewport.span(), sampleLength * OLED_MAIN_WIDTH_PIXELS));
+ 
+-		const uint64_t viewStart = std::max<int64_t>(waveformBasicNavigator.renderData.xScroll, 0);
+-		const uint64_t firstBoundary = std::max<uint64_t>(1, divideRoundUp(viewStart * regionCount, sampleLength));
+-		if (firstBoundary >= regionCount) {
+-			return;
+-		}
+-		const uint64_t boundaryStride = std::max<uint64_t>(
+-		    1, divideRoundUp(2 * regionCount * viewport.span(), sampleLength * OLED_MAIN_WIDTH_PIXELS));
++				const uint64_t firstProduct = sampleLength * firstBoundary;
++				uint64_t boundary = firstProduct / regionCount;
++				uint64_t phase = firstProduct - boundary * regionCount;
++				const uint64_t stepProduct = sampleLength * boundaryStride;
++				const uint64_t boundaryStep = stepProduct / regionCount;
++				const uint64_t phaseStep = stepProduct - boundaryStep * regionCount;
++				const uint64_t viewEnd = viewStart + viewport.span();
++				int32_t previousX = -2;
++				uint64_t iterations = 0;
++				for (uint64_t i = firstBoundary; i < regionCount && iterations < kMaxOledRegionBoundaries;
++				     i += boundaryStride, iterations++) {
++					if (boundary >= viewEnd) {
++						break;
++					}
+ 
+-		const uint64_t firstProduct = sampleLength * firstBoundary;
+-		uint64_t boundary = firstProduct / regionCount;
+-		uint64_t phase = firstProduct - boundary * regionCount;
+-		const uint64_t stepProduct = sampleLength * boundaryStride;
+-		const uint64_t boundaryStep = stepProduct / regionCount;
+-		const uint64_t phaseStep = stepProduct - boundaryStep * regionCount;
+-		const uint64_t viewEnd = viewStart + viewport.span();
+-		int32_t previousX = -2;
+-		uint64_t iterations = 0;
+-		for (uint64_t i = firstBoundary; i < regionCount && iterations < kMaxOledRegionBoundaries;
+-		     i += boundaryStride, iterations++) {
+-			if (boundary >= viewEnd) {
+-				break;
+-			}
++					int32_t x = viewport.samplePositionToX(boundary);
++					if (x >= 0 && x - previousX >= 2) {
++						drawOledBoundary(canvas, x, false);
++						previousX = x;
++					}
+ 
+-			int32_t x = viewport.samplePositionToX(boundary);
+-			if (x >= 0 && x - previousX >= 2) {
+-				drawOledBoundary(canvas, x, false);
+-				previousX = x;
+-			}
+-
+-			boundary += boundaryStep;
+-			phase += phaseStep;
+-			if (phase >= regionCount) {
+-				boundary++;
+-				phase -= regionCount;
++					boundary += boundaryStep;
++					phase += phaseStep;
++					if (phase >= regionCount) {
++						boundary++;
++						phase -= regionCount;
++					}
++				}
+ 			}
+ 		}
+ 	}
+@@ -222,6 +220,9 @@ void Slicer::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
+ 		int32_t endX = viewport.samplePositionToX(currentEnd, true);
+ 		drawOledBoundary(canvas, endX, true);
+ 	}
++	deluge::gui::waveform::renderOledWaveformPlayhead(canvas, oledPlayheadState_, sample,
++	                                                  waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
++	                                                  kOledWaveformTop, kOledWaveformBottom);
+ }
+ 
+ void Slicer::redraw() {
+@@ -238,31 +239,36 @@ bool Slicer::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSid
+ 
+ 	if (slicerMode == SLICER_MODE_REGION) {
+ 		if (useOledWaveformData) {
+-			waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, image,
+-			                                          &waveformBasicNavigator.renderData);
++			waveformRenderer.renderFullScreenFromData(
++			    waveformBasicNavigator.sample, image, &waveformBasicNavigator.renderData, std::nullopt, false,
++			    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 		}
+ 		else {
+ 			if (display->haveOLED()) {
+ 				waveformBasicNavigator.invalidateOledPadRenderData();
+ 			}
+ 			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+-			                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData);
++			                                  waveformBasicNavigator.xZoom, image, &waveformBasicNavigator.renderData,
++			                                  nullptr, std::nullopt, false, kDisplayWidth,
++			                                  deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 		}
+ 	}
+ 	else if (slicerMode == SLICER_MODE_MANUAL) {
+ 
+ 		RGB myImage[kDisplayHeight][kDisplayWidth + kSideBarWidth];
+ 		if (useOledWaveformData) {
+-			waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, myImage,
+-			                                          &waveformBasicNavigator.renderData);
++			waveformRenderer.renderFullScreenFromData(
++			    waveformBasicNavigator.sample, myImage, &waveformBasicNavigator.renderData, std::nullopt, false,
++			    kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 		}
+ 		else {
+ 			if (display->haveOLED()) {
+ 				waveformBasicNavigator.invalidateOledPadRenderData();
+ 			}
+ 			waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+-			                                  waveformBasicNavigator.xZoom, myImage,
+-			                                  &waveformBasicNavigator.renderData);
++			                                  waveformBasicNavigator.xZoom, myImage, &waveformBasicNavigator.renderData,
++			                                  nullptr, std::nullopt, false, kDisplayWidth,
++			                                  deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 		}
+ 
+ 		for (int32_t xx = 0; xx < kDisplayWidth; xx++) {
+@@ -343,6 +349,7 @@ void Slicer::graphicsRoutine() {
+ 	int32_t newTickSquare = 255;
+ 	VoiceSample* voiceSample = nullptr;
+ 	SamplePlaybackGuide* guide = nullptr;
++	int32_t samplePos = 0;
+ 	SoundDrum* drum = deluge::gui::slicer_playhead::getSource(isRegionMode, usesExistingKit)
+ 	                          == deluge::gui::slicer_playhead::Source::BROWSER_PREVIEW
+ 	                      ? AudioEngine::sampleForPreview
+@@ -356,23 +363,25 @@ void Slicer::graphicsRoutine() {
+ 		// Slicer can leave both the browser preview and a selected Kit row sounding. Only the source owned by this
+ 		// Slicer mode may move the cursor, and only while it is playing the waveform currently on screen.
+ 		if (holder->audioFile == displayedSample) {
+-			auto validVoices = drum->voices() | std::views::filter([holder](const Sound::ActiveVoice& voice) {
+-				                   return voice->guides[0].audioFileHolder == holder;
+-			                   });
++			const int32_t centerPart = drum->numUnison >> 1;
++			auto isPlayableVoice = [holder, centerPart](const Sound::ActiveVoice& voice) {
++				const VoiceUnisonPartSource& part = voice->unisonParts[centerPart].sources[0];
++				return deluge::gui::waveform::isWaveformPlayheadCandidate(voice->guides[0].audioFileHolder == holder,
++				                                                          part.active, part.voiceSample != nullptr);
++			};
++			auto validVoices = drum->voices() | std::views::filter(isPlayableVoice);
+ 
+ 			if (!validVoices.empty()) {
+ 				const Sound::ActiveVoice& voice = *std::ranges::max_element(validVoices, {}, &Voice::orderSounded);
+-				VoiceUnisonPartSource* part = &voice->unisonParts[drum->numUnison >> 1].sources[0];
+-				if (part->active) {
+-					voiceSample = part->voiceSample;
+-					guide = &voice->guides[0];
+-				}
++				VoiceUnisonPartSource* part = &voice->unisonParts[centerPart].sources[0];
++				voiceSample = part->voiceSample;
++				guide = &voice->guides[0];
+ 			}
+ 		}
+ 	}
+ 
+ 	if (voiceSample) {
+-		int32_t samplePos = voiceSample->getPlaySample(displayedSample, guide);
++		samplePos = voiceSample->getPlaySample(displayedSample, guide);
+ 		if (samplePos >= waveformBasicNavigator.xScroll) {
+ 			newTickSquare = (samplePos - waveformBasicNavigator.xScroll) / waveformBasicNavigator.xZoom;
+ 			if (newTickSquare >= kDisplayWidth) {
+@@ -380,6 +389,18 @@ void Slicer::graphicsRoutine() {
+ 			}
+ 		}
+ 	}
++	if (display->haveOLED()
++	    && oledPlayheadState_.update(
++	        {
++	            .displayedSample = displayedSample,
++	            .playingSample = voiceSample ? displayedSample : nullptr,
++	            .samplePosition = samplePos,
++	            .xScroll = waveformBasicNavigator.xScroll,
++	            .xZoom = waveformBasicNavigator.xZoom,
++	        },
++	        AudioEngine::audioSampleTimer)) {
++		renderUIsForOled();
++	}
+ 
+ 	uint8_t tickSquares[kDisplayHeight];
+ 	for (int32_t row = 0; row < kDisplayHeight; row++) {
+@@ -631,13 +652,15 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
+ 		if (slicerMode == SLICER_MODE_MANUAL) {
+ 			if (display->haveOLED()) {
+ 				waveformBasicNavigator.prepareOledWaveformForPadRendering();
+-				waveformRenderer.renderFullScreenFromData(waveformBasicNavigator.sample, PadLEDs::image,
+-				                                          &waveformBasicNavigator.renderData);
++				waveformRenderer.renderFullScreenFromData(
++				    waveformBasicNavigator.sample, PadLEDs::image, &waveformBasicNavigator.renderData, std::nullopt,
++				    false, kDisplayWidth, deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 			}
+ 			else {
+-				waveformRenderer.renderFullScreen(waveformBasicNavigator.sample, waveformBasicNavigator.xScroll,
+-				                                  waveformBasicNavigator.xZoom, PadLEDs::image,
+-				                                  &waveformBasicNavigator.renderData);
++				waveformRenderer.renderFullScreen(
++				    waveformBasicNavigator.sample, waveformBasicNavigator.xScroll, waveformBasicNavigator.xZoom,
++				    PadLEDs::image, &waveformBasicNavigator.renderData, nullptr, std::nullopt, false, kDisplayWidth,
++				    deluge::gui::waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
+ 			}
+ 			SoundDrum* soundDrum = (SoundDrum*)soundEditor.currentSound;
+ 			soundDrum->killAllVoices(); // stop
+@@ -651,6 +674,7 @@ ActionResult Slicer::buttonAction(deluge::hid::Button b, bool on, bool inCardRou
+ 		display->setNextTransitionDirection(-1);
+ 		// Forget Slicer's cursor before the browser redraws its own pads; that redraw supplies the next LED send.
+ 		PadLEDs::clearTickSquares(false);
++		oledPlayheadState_.reset();
+ 		close();
+ 	}
+ 	else {
+@@ -1086,6 +1110,7 @@ ramError2:
+ 	display->setNextTransitionDirection(-1);
+ 	// This closes both Browser and Slicer, so clear Slicer's cursor before Instrument Clip View redraws.
+ 	PadLEDs::clearTickSquares(false);
++	oledPlayheadState_.reset();
+ 	sampleBrowser.exitAndNeverDeleteDrum();
+ 	uiNeedsRendering(&instrumentClipView);
+ 	return true;
+diff --git a/src/deluge/gui/ui/slicer.h b/src/deluge/gui/ui/slicer.h
+index b563f79cfdd64f9cd3ce1df36acef1024d0ce0e9..6354f79dc19b1fb7a2b6f27897996414850f1e92 100644
+--- a/src/deluge/gui/ui/slicer.h
++++ b/src/deluge/gui/ui/slicer.h
+@@ -20,6 +20,7 @@
+ #include "definitions_cxx.hpp"
+ #include "gui/ui/slicer_batch_playback_mode.h"
+ #include "gui/ui/ui.h"
++#include "gui/waveform/waveform_playhead.h"
+ #include "hid/button.h"
+ 
+ #define SLICER_MODE_REGION 0
+@@ -79,6 +80,7 @@ private:
+ 	SampleRepeatMode repeatModeBeforeManualPreview = SampleRepeatMode::CUT;
+ 	bool manualPreviewChangedRepeatMode = false;
+ 	SoundDrum* manualSliceDrums[MAX_MANUAL_SLICES]{};
++	deluge::gui::waveform::OledWaveformPlayheadState oledPlayheadState_{};
+ 
+ 	// 7SEG Only
+ 	void redraw();
+diff --git a/src/deluge/gui/views/audio_clip_view.cpp b/src/deluge/gui/views/audio_clip_view.cpp
+index 16c6f5be9c81192b6dead315aadbe90608747430..2d3ecd907dfa1ae7c17bb253a71c8be8073f6059 100644
+--- a/src/deluge/gui/views/audio_clip_view.cpp
++++ b/src/deluge/gui/views/audio_clip_view.cpp
+@@ -177,8 +177,10 @@ bool AudioClipView::renderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth
+ 	}
+ 	int32_t xEnd = std::min(kDisplayWidth, visibleWaveformXEnd);
+ 
+-	bool success = waveformRenderer.renderFullScreen(getSample(), xScrollSamples, xZoomSamples, image, &clip.renderData,
+-	                                                 recorder, rgb, clip.sampleControls.isCurrentlyReversed(), xEnd);
++	bool success = waveformRenderer.renderFullScreen(
++	    getSample(), xScrollSamples, xZoomSamples, image, &clip.renderData, recorder, rgb,
++	    clip.sampleControls.isCurrentlyReversed(), xEnd,
++	    deluge::gui::waveform::padWaveformIntensityForRenderTarget(image == PadLEDs::image));
+ 
+ 	// If card being accessed and waveform would have to be re-examined, come back later
+ 	if (!success && image == PadLEDs::image) {
+diff --git a/src/deluge/gui/waveform/waveform_playhead.h b/src/deluge/gui/waveform/waveform_playhead.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..bbcac27123481dbdc4469c78e477e8ada42631bb
+--- /dev/null
++++ b/src/deluge/gui/waveform/waveform_playhead.h
+@@ -0,0 +1,125 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Audible Deluge Firmware.
++ *
++ * The Synthstrom Audible Deluge Firmware is free software: you can redistribute it and/or modify it under the
++ * terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the
++ * License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
++ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program. If not, see
++ * <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "definitions_cxx.hpp"
++#include "gui/waveform/oled_waveform_renderer.h"
++
++#include <cstdint>
++
++class Sample;
++
++namespace deluge::gui::waveform {
++
++enum class PadWaveformIntensity : uint16_t {
++	FULL = 256,
++	PLAYHEAD_FOCUSED = 224,
++};
++
++[[nodiscard]] constexpr PadWaveformIntensity padWaveformIntensityForRenderTarget(bool isLivePadImage) {
++	return isLivePadImage ? PadWaveformIntensity::PLAYHEAD_FOCUSED : PadWaveformIntensity::FULL;
++}
++
++[[nodiscard]] constexpr bool isWaveformPlayheadCandidate(bool hasExactHolder, bool centerPartActive,
++                                                         bool hasVoiceSample) {
++	return hasExactHolder && centerPartActive && hasVoiceSample;
++}
++
++[[nodiscard]] constexpr int32_t padWaveformBrightness(bool hasColour, PadWaveformIntensity intensity) {
++	const int32_t establishedBrightness = hasColour ? 256 : 128;
++	return establishedBrightness * static_cast<int32_t>(intensity) / 256;
++}
++
++constexpr uint32_t kOledWaveformPlayheadRefreshInterval = kSampleRate / 20;
++
++struct OledWaveformPlayheadInput {
++	Sample const* displayedSample{};
++	Sample const* playingSample{};
++	int64_t samplePosition{};
++	int64_t xScroll{};
++	int64_t xZoom{};
++};
++
++class OledWaveformPlayheadState {
++public:
++	void reset() { *this = {}; }
++
++	[[nodiscard]] bool update(OledWaveformPlayheadInput const& input, uint32_t now) {
++		Sample const* desiredSample = nullptr;
++		int32_t desiredColumn = -1;
++		int64_t desiredScroll = 0;
++		int64_t desiredZoom = 0;
++		if (input.displayedSample && input.playingSample == input.displayedSample) {
++			desiredSample = input.displayedSample;
++			desiredScroll = input.xScroll;
++			desiredZoom = input.xZoom;
++			desiredColumn = OledWaveformViewport{input.xScroll, input.xZoom}.samplePositionToX(input.samplePosition);
++			if (desiredColumn < 0) {
++				desiredSample = nullptr;
++				desiredScroll = 0;
++				desiredZoom = 0;
++			}
++		}
++
++		const bool changed = !initialized_ || desiredSample != sample_ || desiredColumn != column_
++		                     || (desiredSample && (desiredScroll != xScroll_ || desiredZoom != xZoom_));
++		if (!changed) {
++			return false;
++		}
++		if (hasRefreshed_ && now - lastRefreshTime_ < kOledWaveformPlayheadRefreshInterval) {
++			return false;
++		}
++
++		initialized_ = true;
++		sample_ = desiredSample;
++		column_ = desiredColumn;
++		xScroll_ = desiredScroll;
++		xZoom_ = desiredZoom;
++		if (!sample_ && !hasRefreshed_) {
++			return false;
++		}
++		lastRefreshTime_ = now;
++		hasRefreshed_ = true;
++		return true;
++	}
++
++	[[nodiscard]] int32_t visibleColumn(Sample const* displayedSample, int64_t xScroll, int64_t xZoom) const {
++		return initialized_ && sample_ && sample_ == displayedSample && xScroll_ == xScroll && xZoom_ == xZoom ? column_
++		                                                                                                       : -1;
++	}
++
++private:
++	Sample const* sample_{};
++	int64_t xScroll_{};
++	int64_t xZoom_{};
++	int32_t column_{-1};
++	uint32_t lastRefreshTime_{};
++	bool initialized_{};
++	bool hasRefreshed_{};
++};
++
++template <typename Canvas>
++void renderOledWaveformPlayhead(Canvas& canvas, OledWaveformPlayheadState const& state, Sample const* displayedSample,
++                                int64_t xScroll, int64_t xZoom, int32_t top, int32_t bottom) {
++	const int32_t x = state.visibleColumn(displayedSample, xScroll, xZoom);
++	if (x >= 0) {
++		canvas.invertArea(x, 1, top, bottom);
++	}
++}
++
++} // namespace deluge::gui::waveform
+diff --git a/src/deluge/gui/waveform/waveform_renderer.cpp b/src/deluge/gui/waveform/waveform_renderer.cpp
+index ff49a856d0536d62f25b9c0dcc1a02110123b284..9679a336f5ca6a81838d47f742da5334a1c75273 100644
+--- a/src/deluge/gui/waveform/waveform_renderer.cpp
++++ b/src/deluge/gui/waveform/waveform_renderer.cpp
+@@ -47,19 +47,20 @@ static_assert(Cluster::kSizeFAT16Max <= std::numeric_limits<int32_t>::max());
+ // Returns false if had trouble loading some (will often not be all) Clusters, e.g. cos we're in the card routine
+ bool WaveformRenderer::renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
+                                         RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
+-                                        SampleRecorder* recorder, std::optional<RGB> rgb, bool reversed, int32_t xEnd) {
++                                        SampleRecorder* recorder, std::optional<RGB> rgb, bool reversed, int32_t xEnd,
++                                        deluge::gui::waveform::PadWaveformIntensity intensity) {
+ 
+ 	bool completeSuccess = findPeaksPerCol(sample, xScroll, xZoom, data, recorder);
+ 	if (!completeSuccess) {
+ 		return false;
+ 	}
+-	renderFullScreenFromData(sample, thisImage, data, rgb, reversed, xEnd);
++	renderFullScreenFromData(sample, thisImage, data, rgb, reversed, xEnd, intensity);
+ 	return true;
+ }
+ 
+ void WaveformRenderer::renderFullScreenFromData(Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth],
+                                                 WaveformRenderData* data, std::optional<RGB> rgb, bool reversed,
+-                                                int32_t xEnd) {
++                                                int32_t xEnd, deluge::gui::waveform::PadWaveformIntensity intensity) {
+ 
+ 	// Clear display
+ 	for (int32_t y = 0; y < kDisplayHeight; y++) {
+@@ -67,7 +68,7 @@ void WaveformRenderer::renderFullScreenFromData(Sample* sample, RGB thisImage[][
+ 	}
+ 
+ 	for (int32_t xDisplay = 0; xDisplay < xEnd; xDisplay++) {
+-		renderOneCol(sample, xDisplay, thisImage, data, reversed, rgb);
++		renderOneCol(sample, xDisplay, thisImage, data, reversed, rgb, intensity);
+ 	}
+ }
+ 
+@@ -742,9 +743,10 @@ void WaveformRenderer::drawColBar(int32_t xDisplay, int32_t min24, int32_t max24
+ }
+ 
+ void WaveformRenderer::renderOneCol(Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth],
+-                                    WaveformRenderData* data, bool reversed, std::optional<RGB> rgb) {
++                                    WaveformRenderData* data, bool reversed, std::optional<RGB> rgb,
++                                    deluge::gui::waveform::PadWaveformIntensity intensity) {
+ 	int32_t min24, max24;
+-	int32_t brightness = rgb ? 256 : 128;
++	int32_t brightness = deluge::gui::waveform::padWaveformBrightness(rgb.has_value(), intensity);
+ 
+ 	int32_t xDisplaySource = reversed ? (kDisplayWidth - 1 - xDisplay) : xDisplay;
+ 
+diff --git a/src/deluge/gui/waveform/waveform_renderer.h b/src/deluge/gui/waveform/waveform_renderer.h
+index 385971d9ed3ca637aa9105233e22a8ae28eb3c61..7cdffea81a0bf6e077aab7c96ca3c4e6f90e26bd 100644
+--- a/src/deluge/gui/waveform/waveform_renderer.h
++++ b/src/deluge/gui/waveform/waveform_renderer.h
+@@ -19,6 +19,7 @@
+ 
+ #include "definitions_cxx.hpp"
+ #include "gui/colour/colour.h"
++#include "gui/waveform/waveform_playhead.h"
+ #include <cstdint>
+ #include <optional>
+ 
+@@ -41,17 +42,21 @@ class WaveformRenderer {
+ public:
+ 	WaveformRenderer();
+ 
+-	bool renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
+-	                      RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
+-	                      SampleRecorder* recorder = nullptr, std::optional<RGB> rgb = std::nullopt,
+-	                      bool reversed = false, int32_t xEnd = kDisplayWidth);
+-	void renderFullScreenFromData(Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth],
+-	                              WaveformRenderData* data, std::optional<RGB> rgb = std::nullopt,
+-	                              bool reversed = false, int32_t xEnd = kDisplayWidth);
++	bool renderFullScreen(
++	    Sample* sample, int64_t xScroll, uint64_t xZoom, RGB thisImage[][kDisplayWidth + kSideBarWidth],
++	    WaveformRenderData* data, SampleRecorder* recorder = nullptr, std::optional<RGB> rgb = std::nullopt,
++	    bool reversed = false, int32_t xEnd = kDisplayWidth,
++	    deluge::gui::waveform::PadWaveformIntensity intensity = deluge::gui::waveform::PadWaveformIntensity::FULL);
++	void renderFullScreenFromData(
++	    Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
++	    std::optional<RGB> rgb = std::nullopt, bool reversed = false, int32_t xEnd = kDisplayWidth,
++	    deluge::gui::waveform::PadWaveformIntensity intensity = deluge::gui::waveform::PadWaveformIntensity::FULL);
+ 	bool renderAsSingleRow(Sample* sample, int64_t xScroll, uint64_t xZoom, RGB* thisImage, WaveformRenderData* data,
+ 	                       SampleRecorder* recorder, RGB rgb, bool reversed, int32_t xStart, int32_t xEnd);
+-	void renderOneCol(Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth],
+-	                  WaveformRenderData* data, bool reversed = false, std::optional<RGB> rgb = std::nullopt);
++	void renderOneCol(
++	    Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
++	    bool reversed = false, std::optional<RGB> rgb = std::nullopt,
++	    deluge::gui::waveform::PadWaveformIntensity intensity = deluge::gui::waveform::PadWaveformIntensity::FULL);
+ 	void renderOneColForCollapseAnimation(int32_t xDisplay, int32_t xDisplayOutput, int32_t maxPeakFromZero,
+ 	                                      int32_t progress, RGB thisImage[][kDisplayWidth + kSideBarWidth],
+ 	                                      WaveformRenderData* data, std::optional<RGB> rgb, bool reversed,
+diff --git a/tests/spec/waveform_playhead_spec.cpp b/tests/spec/waveform_playhead_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..0afda4c026058c8e2620d1a3a741a408445c7d0e
+--- /dev/null
++++ b/tests/spec/waveform_playhead_spec.cpp
+@@ -0,0 +1,126 @@
++#include "gui/waveform/waveform_playhead.h"
++
++#include "cppspec.hpp"
++
++#include <array>
++#include <cstdint>
++
++namespace waveform = deluge::gui::waveform;
++
++namespace {
++
++Sample const* sampleIdentity(uintptr_t value) {
++	return reinterpret_cast<Sample const*>(value);
++}
++
++waveform::OledWaveformPlayheadInput input(Sample const* displayed, Sample const* playing, int64_t position,
++                                          int64_t scroll = 100, int64_t zoom = 10) {
++	return {
++	    .displayedSample = displayed,
++	    .playingSample = playing,
++	    .samplePosition = position,
++	    .xScroll = scroll,
++	    .xZoom = zoom,
++	};
++}
++
++class InvertingCanvas {
++public:
++	void invertArea(int32_t x, int32_t width, int32_t top, int32_t bottom) {
++		for (int32_t y = top; y <= bottom; y++) {
++			for (int32_t column = x; column < x + width; column++) {
++				pixels[y][column] = !pixels[y][column];
++			}
++		}
++	}
++
++	std::array<std::array<bool, OLED_MAIN_WIDTH_PIXELS>, OLED_MAIN_HEIGHT_PIXELS> pixels{};
++};
++
++} // namespace
++
++static_assert(waveform::padWaveformBrightness(false, waveform::PadWaveformIntensity::FULL) == 128);
++static_assert(waveform::padWaveformBrightness(false, waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED) == 112);
++static_assert(waveform::padWaveformBrightness(true, waveform::PadWaveformIntensity::FULL) == 256);
++static_assert(waveform::padWaveformBrightness(true, waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED) == 224);
++static_assert(waveform::padWaveformIntensityForRenderTarget(true) == waveform::PadWaveformIntensity::PLAYHEAD_FOCUSED);
++static_assert(waveform::padWaveformIntensityForRenderTarget(false) == waveform::PadWaveformIntensity::FULL);
++static_assert(waveform::isWaveformPlayheadCandidate(true, true, true));
++static_assert(!waveform::isWaveformPlayheadCandidate(false, true, true));
++static_assert(!waveform::isWaveformPlayheadCandidate(true, false, true));
++static_assert(!waveform::isWaveformPlayheadCandidate(true, true, false));
++
++// clang-format off
++describe waveform_playhead("Waveform playhead", $ {
++	it("maps exact sample ownership across the OLED viewport", _ {
++		auto const* sampleA = sampleIdentity(1);
++		auto const* sampleB = sampleIdentity(2);
++		waveform::OledWaveformPlayheadState state;
++
++		expect(state.update(input(sampleA, sampleB, 100), 0)).to_be_false();
++		expect(state.visibleColumn(sampleA, 100, 10)).to_equal(-1);
++		expect(state.update(input(sampleA, sampleA, 100), 1)).to_be_true();
++		expect(state.visibleColumn(sampleA, 100, 10)).to_equal(0);
++
++		state.reset();
++		expect(state.update(input(sampleA, sampleA, 259), 2)).to_be_true();
++		expect(state.visibleColumn(sampleA, 100, 10)).to_equal(127);
++		expect(state.visibleColumn(sampleB, 100, 10)).to_equal(-1);
++	});
++
++	it("suppresses offscreen sources and cleans a stopped cursor once", _ {
++		auto const* sample = sampleIdentity(1);
++		waveform::OledWaveformPlayheadState state;
++		const uint32_t interval = waveform::kOledWaveformPlayheadRefreshInterval;
++
++		expect(state.update(input(sample, sample, 99), 0)).to_be_false();
++		expect(state.update(input(sample, sample, 120), 1)).to_be_true();
++		expect(state.visibleColumn(sample, 100, 10)).to_equal(16);
++		expect(state.update(input(sample, nullptr, 0), interval)).to_be_false();
++		expect(state.update(input(sample, nullptr, 0), interval + 1)).to_be_true();
++		expect(state.visibleColumn(sample, 100, 10)).to_equal(-1);
++		expect(state.update(input(sample, nullptr, 0), interval + 2)).to_be_false();
++	});
++
++	it("caps movement at twenty hertz and ignores an unchanged pixel", _ {
++		auto const* sample = sampleIdentity(1);
++		waveform::OledWaveformPlayheadState state;
++		const uint32_t interval = waveform::kOledWaveformPlayheadRefreshInterval;
++
++		expect(state.update(input(sample, sample, 120), 100)).to_be_true();
++		expect(state.update(input(sample, sample, 121), 100 + interval)).to_be_false();
++		expect(state.update(input(sample, sample, 140), 100 + interval - 1)).to_be_false();
++		expect(state.visibleColumn(sample, 100, 10)).to_equal(16);
++		expect(state.update(input(sample, sample, 140), 100 + interval)).to_be_true();
++		expect(state.visibleColumn(sample, 100, 10)).to_equal(32);
++	});
++
++	it("hides a stale column until a changed viewport is committed", _ {
++		auto const* sample = sampleIdentity(1);
++		waveform::OledWaveformPlayheadState state;
++		const uint32_t interval = waveform::kOledWaveformPlayheadRefreshInterval;
++
++		expect(state.update(input(sample, sample, 180), 0)).to_be_true();
++		expect(state.visibleColumn(sample, 100, 10)).to_equal(64);
++		expect(state.visibleColumn(sample, 180, 10)).to_equal(-1);
++		expect(state.update(input(sample, sample, 180, 180, 10), interval)).to_be_true();
++		expect(state.visibleColumn(sample, 180, 10)).to_equal(0);
++	});
++
++	it("inverts one column after existing waveform and marker pixels", _ {
++		auto const* sample = sampleIdentity(1);
++		waveform::OledWaveformPlayheadState state;
++		expect(state.update(input(sample, sample, 120), 0)).to_be_true();
++
++		InvertingCanvas canvas;
++		canvas.pixels[20][16] = true;
++		waveform::renderOledWaveformPlayhead(canvas, state, sample, 100, 10, 18, 22);
++		expect(canvas.pixels[18][16]).to_be_true();
++		expect(canvas.pixels[20][16]).to_be_false();
++		expect(canvas.pixels[22][16]).to_be_true();
++		expect(canvas.pixels[20][15]).to_be_false();
++		expect(canvas.pixels[20][17]).to_be_false();
++	});
++});
++
++CPPSPEC_SPEC(waveform_playhead)

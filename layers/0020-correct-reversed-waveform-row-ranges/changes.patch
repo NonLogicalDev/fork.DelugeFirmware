@@ -1,0 +1,86 @@
+diff --git a/src/deluge/gui/waveform/waveform_render_data.h b/src/deluge/gui/waveform/waveform_render_data.h
+index 06ab44c1209267c9232bfa5c4ba761c88f7405b0..ba60cc6ffedd8dcd85115941991e41d07e263e5b 100644
+--- a/src/deluge/gui/waveform/waveform_render_data.h
++++ b/src/deluge/gui/waveform/waveform_render_data.h
+@@ -45,6 +45,15 @@ struct WaveformClusterPosition {
+ 	bool valid = false;
+ };
+ 
++struct WaveformColumnRange {
++	int32_t start;
++	int32_t end;
++};
++
++[[nodiscard]] constexpr WaveformColumnRange reverseWaveformColumnRange(int32_t start, int32_t end, int32_t width) {
++	return {width - end, width - start};
++}
++
+ namespace detail {
+ 
+ struct CheckedSamplePosition {
+diff --git a/src/deluge/gui/waveform/waveform_renderer.cpp b/src/deluge/gui/waveform/waveform_renderer.cpp
+index 9fb5f692f99ab8ff6ff6e17ca21e58860668d2b8..bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b 100644
+--- a/src/deluge/gui/waveform/waveform_renderer.cpp
++++ b/src/deluge/gui/waveform/waveform_renderer.cpp
+@@ -73,8 +73,9 @@ bool WaveformRenderer::renderAsSingleRow(Sample* sample, int64_t xScroll, uint64
+ 	int32_t xStartSource = xStart;
+ 	int32_t xEndSource = xEnd;
+ 	if (reversed) {
+-		xStartSource = kDisplayWidth - 1 - xEnd;
+-		xEndSource = kDisplayWidth - 1 - xStart;
++		const auto sourceRange = deluge::gui::waveform::reverseWaveformColumnRange(xStart, xEnd, kDisplayWidth);
++		xStartSource = sourceRange.start;
++		xEndSource = sourceRange.end;
+ 	}
+ 
+ 	bool completeSuccess = findPeaksPerCol(sample, xScroll, xZoom, data, recorder, xStartSource, xEndSource);
+@@ -227,6 +228,9 @@ void WaveformRenderer::renderOneColForCollapseAnimationInterpolation(int32_t xDi
+ bool WaveformRenderer::findPeaksPerCol(Sample* sample, int64_t xScrollSamples, uint64_t xZoomSamples,
+                                        WaveformRenderData* data, SampleRecorder* recorder, int32_t xStart,
+                                        int32_t xEnd) {
++	if (xStart < 0 || xStart > xEnd || xEnd > kDisplayWidth) {
++		return false;
++	}
+ 
+ 	if (xScrollSamples != data->xScroll || xZoomSamples != data->xZoom) {
+ 		memset(data->colStatus, 0, sizeof(data->colStatus));
+diff --git a/tests/spec/waveform_reversed_range_spec.cpp b/tests/spec/waveform_reversed_range_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..2a9b28013bfc254bfe396628f2641528ab5f48e3
+--- /dev/null
++++ b/tests/spec/waveform_reversed_range_spec.cpp
+@@ -0,0 +1,34 @@
++#include "gui/waveform/waveform_render_data.h"
++
++#include "cppspec.hpp"
++
++using deluge::gui::waveform::reverseWaveformColumnRange;
++
++// clang-format off
++describe waveform_reversed_range("reversed waveform column ranges", $ {
++	it("mirrors full and partial half-open ranges without leaving the display", _ {
++		const auto full = reverseWaveformColumnRange(0, kDisplayWidth, kDisplayWidth);
++		expect(full.start).to_equal(0);
++		expect(full.end).to_equal(kDisplayWidth);
++
++		const auto left = reverseWaveformColumnRange(0, 1, kDisplayWidth);
++		expect(left.start).to_equal(kDisplayWidth - 1);
++		expect(left.end).to_equal(kDisplayWidth);
++
++		const auto right = reverseWaveformColumnRange(kDisplayWidth - 1, kDisplayWidth, kDisplayWidth);
++		expect(right.start).to_equal(0);
++		expect(right.end).to_equal(1);
++
++		const auto subset = reverseWaveformColumnRange(2, 5, kDisplayWidth);
++		expect(subset.start).to_equal(11);
++		expect(subset.end).to_equal(14);
++		expect(subset.start >= 0 && subset.end <= kDisplayWidth && subset.start < subset.end).to_be_true();
++
++		const auto widerSubset = reverseWaveformColumnRange(3, 10, kDisplayWidth);
++		expect(widerSubset.start).to_equal(6);
++		expect(widerSubset.end).to_equal(13);
++	});
++});
++// clang-format on
++
++CPPSPEC_SPEC(waveform_reversed_range)

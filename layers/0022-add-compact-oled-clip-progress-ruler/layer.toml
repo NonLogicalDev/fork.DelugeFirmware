@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add compact OLED clip progress ruler\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

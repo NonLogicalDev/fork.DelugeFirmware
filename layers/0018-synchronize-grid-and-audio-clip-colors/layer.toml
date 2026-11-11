@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "synchronize Grid and Audio Clip colors\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

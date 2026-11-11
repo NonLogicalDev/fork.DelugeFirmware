@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add efficient OLED waveform displays\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add Keyboard View chord detection\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

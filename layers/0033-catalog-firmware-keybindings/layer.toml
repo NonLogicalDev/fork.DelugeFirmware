@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "catalog firmware keybindings\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "keep waveform rendering valid for long samples\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

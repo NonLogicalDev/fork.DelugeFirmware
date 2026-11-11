@@ -1,0 +1,806 @@
+diff --git a/src/deluge/gui/ui/load/load_song_ui.cpp b/src/deluge/gui/ui/load/load_song_ui.cpp
+index b7f3a7ed6644baeefdb5b939c3625b7d79e8c1c0..a848107f73659e4e33bcb80876549651cb473008 100644
+--- a/src/deluge/gui/ui/load/load_song_ui.cpp
++++ b/src/deluge/gui/ui/load/load_song_ui.cpp
+@@ -44,6 +44,7 @@
+ #include "storage/audio/audio_file_manager.h"
+ #include "storage/file_item.h"
+ #include "storage/flash_storage.h"
++#include "storage/song_load.h"
+ #include "storage/storage_manager.h"
+ #include "util/try.h"
+ #include <string.h>
+@@ -308,7 +309,6 @@ void LoadSongUI::doQueueLoadNextSongIfAvailable(int8_t offset) {
+ 
+ // Before calling this, you must set loadButtonReleased.
+ void LoadSongUI::performLoad() {
+-	performingLoad = true;
+ 	FileItem* currentFileItem = getCurrentFileItem();
+ 
+ 	if (!currentFileItem) {
+@@ -316,19 +316,24 @@ void LoadSongUI::performLoad() {
+ 		                          ? Error::FILE_NOT_FOUND
+ 		                          : Error::NO_FURTHER_FILES_THIS_DIRECTION); // Make it say "NONE" on numeric Deluge,
+ 		                                                                     // for consistency with old times.
+-		performingLoad = false;
+ 		return;
+ 	}
+ 
++	Error error = deluge::song_load::preflightAndReopen(
++	    [&]() { return StorageManager::preflightDelugeFileFirmware(currentFileItem, "song"); },
++	    [&]() { return StorageManager::openDelugeFile(currentFileItem, "song"); });
++	if (error != Error::NONE) {
++		display->displayError(error);
++		return;
++	}
++
++	performingLoad = true;
++
+ 	actionLogger.deleteAllLogs();
+ 
+ 	if (arrangement.hasPlaybackActive()) {
+ 		playbackHandler.switchToSession();
+ 	}
+-	Error error;
+-
+-	error = StorageManager::openDelugeFile(currentFileItem, "song");
+-
+ 	currentUIMode = UI_MODE_LOADING_SONG_ESSENTIAL_SAMPLES;
+ 	indicator_leds::setLedState(IndicatorLED::LOAD, false);
+ 	indicator_leds::setLedState(IndicatorLED::BACK, false);
+diff --git a/src/deluge/model/song/song.cpp b/src/deluge/model/song/song.cpp
+index f5bb1fd1e65d1fd943db0b0088c0a48e8cc99bbb..41155e0589b617f2a6e0c8c82dd8975570456e56 100644
+--- a/src/deluge/model/song/song.cpp
++++ b/src/deluge/model/song/song.cpp
+@@ -60,6 +60,7 @@
+ #include "processing/sound/sound_instrument.h"
+ #include "processing/stem_export/stem_export.h"
+ #include "storage/flash_storage.h"
++#include "storage/song_load.h"
+ #include "storage/storage_manager.h"
+ #include "util/lookuptables/lookuptables.h"
+ #include "util/try.h"
+@@ -1612,8 +1613,10 @@ Error Song::readFromFile(Deserializer& reader) {
+ 		default:
+ unknownTag:
+ 			if (!strcmp(tagName, "firmwareVersion") || !strcmp(tagName, "earliestCompatibleFirmware")) {
+-				reader.tryReadingFirmwareTagFromFile(tagName, false);
+-				reader.exitTag(tagName);
++				Error result = deluge::song_load::readFirmwareTag(reader, tagName);
++				if (result != Error::NONE) {
++					return result;
++				}
+ 			}
+ 			else if (!strcmp(tagName, "preview") || !strcmp(tagName, "previewNumPads")) {
+ 				reader.tryReadingFirmwareTagFromFile(tagName, false);
+diff --git a/src/deluge/storage/Deserializer.cpp b/src/deluge/storage/Deserializer.cpp
+index 3ce4854580b174a94fa8427952460cba61dbe98e..02924309fb25ae889da9cfde1226a9003478123b 100644
+--- a/src/deluge/storage/Deserializer.cpp
++++ b/src/deluge/storage/Deserializer.cpp
+@@ -844,7 +844,6 @@ Error XMLDeserializer::openXMLFile(FilePointer* filePointer, char const* firstTa
+ 		exitTag(tagName);
+ 	}
+ 
+-	closeWriter();
+ 	return Error::FILE_CORRUPTED;
+ }
+ 
+@@ -860,7 +859,6 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
+ 		char const* firmware_version_string = readTagOrAttributeValue();
+ 		auto earliestFirmware = FirmwareVersion::parse(firmware_version_string);
+ 		if (earliestFirmware > FirmwareVersion::current() && !ignoreIncorrectFirmware) {
+-			closeWriter();
+ 			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
+ 		}
+ 	}
+diff --git a/src/deluge/storage/JsonDeserializer.cpp b/src/deluge/storage/JsonDeserializer.cpp
+index 22c5508b8c0ca4a59ee31acb190fc3d7a383d55b..a0edd52e69dc7be3a8eb0250d7b81260b9cce384 100644
+--- a/src/deluge/storage/JsonDeserializer.cpp
++++ b/src/deluge/storage/JsonDeserializer.cpp
+@@ -21,15 +21,16 @@
+ #include "storage/cluster/cluster.h"
+ #include "storage/storage_manager.h"
+ #include "util/d_string.h"
++#include "util/d_stringbuf.h"
+ #include "util/firmware_version.h"
+ #include "util/functions.h"
+ #include "util/try.h"
+-#include <string.h>
++#include <algorithm>
++#include <cctype>
++#include <cstring>
+ 
+-extern "C" {
+-#include "RZA1/oled/oled_low_level.h"
+-#include "fatfs/diskio.h"
+-#include "fatfs/ff.h"
++namespace AudioEngine {
++void logAudioAction(char const* string, char const* file, int line);
+ }
+ 
+ /*******************************************************************************
+@@ -525,40 +526,90 @@ void JsonDeserializer::exitTag(char const* exitTagName, bool closeObject) {
+ 	// matching closing character. This can involve counting open and close characters until
+ 	// we get a match.
+ 	D_PRINTLN("Unread value detected");
+-	readState = JsonState::ValueRead; // declare victory prematurely.
+-	skipWhiteSpace();
+-	char leadingChar, trailingChar, currentChar, balanceCtr = 1;
+-	readChar(&leadingChar);
+-	// Strings are easy.
+-	if (leadingChar == '"') {
+-		skipUntilChar('"');
++	readState = JsonState::ValueRead;
++	if (!skipWhiteSpace()) {
+ 		return;
+ 	}
+-	if (leadingChar == '[')
+-		trailingChar = ']';
+-	else if (leadingChar == '{')
+-		trailingChar = '}';
+-	else if ((leadingChar == '-') || (leadingChar >= '0' && leadingChar <= '9')) {
+-		// The other possibility is a number
+-		readInt(); // skip the number.
+-		return;
+-	}
+-	else {
+-		D_PRINTLN("Malformed value encountered.");
+-	}
+ 
+-	while ((balanceCtr > 0) && readChar(&currentChar)) {
+-		if (currentChar == leadingChar)
+-			balanceCtr++;
+-		else if (currentChar == trailingChar)
+-			balanceCtr--;
++	char leadingChar;
++	if (!readChar(&leadingChar)) {
++		return;
++	}
++
++	// A string ends at the first unescaped quote.
++	if (leadingChar == '"') {
++		bool escaped = false;
++		char currentChar;
++		while (readChar(&currentChar)) {
++			if (escaped) {
++				escaped = false;
++			}
++			else if (currentChar == '\\') {
++				escaped = true;
++			}
++			else if (currentChar == '"') {
++				break;
++			}
++		}
++		return;
++	}
++
++	// Primitive values end before whitespace or their parent's delimiter. This preserves the
++	// delimiter so the next read can close the parent object or array normally.
++	if (leadingChar != '[' && leadingChar != '{') {
++		char currentChar;
++		while (peekChar(&currentChar) && currentChar != ',' && currentChar != '}' && currentChar != ']'
++		       && !std::isspace(static_cast<unsigned char>(currentChar))) {
++			readChar(&currentChar);
++		}
++		return;
++	}
++
++	int32_t objectBalance = leadingChar == '{' ? 1 : 0;
++	int32_t arrayBalance = leadingChar == '[' ? 1 : 0;
++	bool inString = false;
++	bool escaped = false;
++	char currentChar;
++	while ((objectBalance > 0 || arrayBalance > 0) && readChar(&currentChar)) {
++		if (inString) {
++			if (escaped) {
++				escaped = false;
++			}
++			else if (currentChar == '\\') {
++				escaped = true;
++			}
++			else if (currentChar == '"') {
++				inString = false;
++			}
++			continue;
++		}
++
++		switch (currentChar) {
++		case '"':
++			inString = true;
++			break;
++		case '{':
++			objectBalance++;
++			break;
++		case '}':
++			objectBalance--;
++			break;
++		case '[':
++			arrayBalance++;
++			break;
++		case ']':
++			arrayBalance--;
++			break;
++		default:
++			break;
++		}
+ 	}
+ }
+ 
+ Error JsonDeserializer::openJsonFile(FilePointer* filePointer, char const* firstTagName, char const* altTagName,
+                                      bool ignoreIncorrectFirmware) {
+ 
+-	AudioEngine::logAction("openJsonFile");
++	AudioEngine::logAudioAction("openJsonFile", __FILE__, __LINE__);
+ 
+ 	reset();
+ 
+@@ -579,7 +630,6 @@ Error JsonDeserializer::openJsonFile(FilePointer* filePointer, char const* first
+ 		exitTag(tagName);
+ 	}
+ 
+-	closeWriter();
+ 	return Error::FILE_CORRUPTED;
+ }
+ 
+@@ -595,7 +645,6 @@ Error JsonDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool
+ 		char const* firmware_version_string = readTagOrAttributeValue();
+ 		auto earliestFirmware = FirmwareVersion::parse(firmware_version_string);
+ 		if (earliestFirmware > FirmwareVersion::current() && !ignoreIncorrectFirmware) {
+-			closeWriter();
+ 			return Error::FILE_FIRMWARE_VERSION_TOO_NEW;
+ 		}
+ 	}
+@@ -605,4 +654,4 @@ Error JsonDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool
+ 	}
+ 
+ 	return Error::NONE;
+-}
+\ No newline at end of file
++}
+diff --git a/src/deluge/storage/song_load.h b/src/deluge/storage/song_load.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..e99b580b5c38acd99b054abafc8c286cac4bd583
+--- /dev/null
++++ b/src/deluge/storage/song_load.h
+@@ -0,0 +1,62 @@
++#pragma once
++
++#include "definitions_cxx.hpp"
++
++#include <cstring>
++
++namespace deluge::song_load {
++
++template <typename Reader>
++Error readFirmwareTag(Reader& reader, char const* tagName) {
++	Error result = reader.tryReadingFirmwareTagFromFile(tagName, false);
++	if (result == Error::NONE) {
++		reader.exitTag(tagName);
++	}
++	return result;
++}
++
++// Canonical Songs write the compatibility requirement before their payload, so they still stop after the two leading
++// firmware fields. Reordered files must skip root payload until the requirement is found; otherwise an unsupported
++// requirement after that payload would be discovered only by the destructive ordinary load. Legacy files without a
++// requirement are scanned to the end of the root before being reopened.
++template <typename Reader>
++Error readRootFirmwareCompatibility(Reader& reader) {
++	char const* tagName;
++	while (*(tagName = reader.readNextTagOrAttributeName())) {
++		bool const isCompatibilityRequirement = !strcmp(tagName, "earliestCompatibleFirmware");
++		Error result = readFirmwareTag(reader, tagName);
++		if (result == Error::RESULT_TAG_UNUSED) {
++			reader.exitTag(tagName);
++			continue;
++		}
++		if (result != Error::NONE) {
++			return result;
++		}
++		if (isCompatibilityRequirement) {
++			return Error::NONE;
++		}
++	}
++
++	return Error::NONE;
++}
++
++template <typename Reader>
++Error readJsonRootFirmwareCompatibility(Reader& reader) {
++	if (!reader.match('{')) {
++		return Error::FILE_CORRUPTED;
++	}
++	return readRootFirmwareCompatibility(reader);
++}
++
++// Keep both file opens ahead of every destructive part of Song loading. The second callback must reopen the file
++// because the compatibility preflight consumes the root header and closes its reader.
++template <typename Preflight, typename Reopen>
++Error preflightAndReopen(Preflight&& preflight, Reopen&& reopen) {
++	Error result = preflight();
++	if (result != Error::NONE) {
++		return result;
++	}
++	return reopen();
++}
++
++} // namespace deluge::song_load
+diff --git a/src/deluge/storage/storage_manager.cpp b/src/deluge/storage/storage_manager.cpp
+index 0185cd6992d7c1ddb7bcfbfdfdc07acedd524bb3..52f1e2e4165056ca769de7d3d9e139d4c0b5342f 100644
+--- a/src/deluge/storage/storage_manager.cpp
++++ b/src/deluge/storage/storage_manager.cpp
+@@ -39,6 +39,7 @@
+ #include "processing/sound/sound_instrument.h"
+ #include "storage/audio/audio_file_manager.h"
+ #include "storage/file_item.h"
++#include "storage/song_load.h"
+ 
+ #include "util/firmware_version.h"
+ #include "util/functions.h"
+@@ -728,7 +729,7 @@ Error StorageManager::openXMLFile(FilePointer* filePointer, XMLDeserializer& rea
+ 		return Error::NONE;
+ 	reader.closeWriter();
+ 
+-	return Error::FILE_CORRUPTED;
++	return err;
+ }
+ 
+ Error StorageManager::openJsonFile(FilePointer* filePointer, JsonDeserializer& reader, char const* firstTagName,
+@@ -744,7 +745,7 @@ Error StorageManager::openJsonFile(FilePointer* filePointer, JsonDeserializer& r
+ 		return Error::NONE;
+ 	reader.closeWriter();
+ 
+-	return Error::FILE_CORRUPTED;
++	return err;
+ }
+ 
+ Error StorageManager::openDelugeFile(FileItem* currentFileItem, char const* firstTagName, char const* altTagName,
+@@ -761,6 +762,23 @@ Error StorageManager::openDelugeFile(FileItem* currentFileItem, char const* firs
+ 	return error;
+ }
+ 
++Error StorageManager::preflightDelugeFileFirmware(FileItem* currentFileItem, char const* firstTagName,
++                                                  char const* altTagName) {
++	Error error = openDelugeFile(currentFileItem, firstTagName, altTagName);
++	if (error != Error::NONE) {
++		return error;
++	}
++
++	error = activeDeserializer == &smJsonDeserializer
++	            ? deluge::song_load::readJsonRootFirmwareCompatibility(*activeDeserializer)
++	            : deluge::song_load::readRootFirmwareCompatibility(*activeDeserializer);
++	FRESULT closeResult = activeDeserializer->closeWriter();
++	if (error != Error::NONE) {
++		return error;
++	}
++	return closeResult == FR_OK ? Error::NONE : Error::SD_CARD;
++}
++
+ bool StorageManager::buildPathToFile(const char* fileName) {
+ 
+ 	FRESULT res;
+diff --git a/src/deluge/storage/storage_manager.h b/src/deluge/storage/storage_manager.h
+index 366f8de77f853c092cefc0749a70bd9d476933ba..421d7e2a8ccbc30a9c3b4964fba80f36262baa91 100644
+--- a/src/deluge/storage/storage_manager.h
++++ b/src/deluge/storage/storage_manager.h
+@@ -377,6 +377,7 @@ Error openJsonFile(FilePointer* filePointer, JsonDeserializer& reader, char cons
+                    char const* altTagName = "", bool ignoreIncorrectFirmware = false);
+ Error openDelugeFile(FileItem* currentFileItem, char const* firstTagName, char const* altTagName = "",
+                      bool ignoreIncorrectFirmware = false);
++Error preflightDelugeFileFirmware(FileItem* currentFileItem, char const* firstTagName, char const* altTagName = "");
+ Error initSD();
+ 
+ bool fileExists(char const* pathName);
+diff --git a/src/deluge/util/firmware_version.cpp b/src/deluge/util/firmware_version.cpp
+index f4e57e2fec8528ec9fb81ef0244bec7c8df26354..a4c1bec2e9b73ecaafaf1fcedd11cf0edd09b98f 100644
+--- a/src/deluge/util/firmware_version.cpp
++++ b/src/deluge/util/firmware_version.cpp
+@@ -4,6 +4,10 @@
+ #include <string_view>
+ 
+ FirmwareVersion FirmwareVersion::parse(std::string_view version_string) {
++	if (version_string.empty()) {
++		return {Type::UNKNOWN, {0, 0, 0}};
++	}
++
+ 	Type type;
+ 
+ 	if (version_string[0] == 'c') {
+diff --git a/tests/spec/CMakeLists.txt b/tests/spec/CMakeLists.txt
+index affe7e74dece8c56c2c55b69c60fce7818704bf7..8e019b3a892920dce78c3c28afe06888e116e12e 100644
+--- a/tests/spec/CMakeLists.txt
++++ b/tests/spec/CMakeLists.txt
+@@ -48,6 +48,12 @@ endfunction()
+ 
+ create_specs_driver(all_specs ${CMAKE_CURRENT_LIST_DIR})
+ target_link_libraries(all_specs PUBLIC deluge_spec)
++target_sources(all_specs PRIVATE
++  ../../src/deluge/storage/JsonDeserializer.cpp
++  ../../src/deluge/util/firmware_version.cpp
++  json_deserializer_test_support.cpp
++)
++target_include_directories(all_specs BEFORE PRIVATE ../32bit_unit_tests/mocks/)
+ 
+ # Visual harness for the OLED starfield. Renders frames as ASCII so the ported
+ # animation can be checked by eye without hardware. Deliberately has no add_test:
+diff --git a/tests/spec/json_deserializer_test_support.cpp b/tests/spec/json_deserializer_test_support.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..9229e3b4ad3f8b6228e16a34fd3433a3d64d54aa
+--- /dev/null
++++ b/tests/spec/json_deserializer_test_support.cpp
+@@ -0,0 +1,91 @@
++#include "storage/cluster/cluster.h"
++#include "storage/storage_manager.h"
++#include "util/d_string.h"
++
++#include <cstdlib>
++
++// Host specs exercise the production JsonDeserializer. These definitions provide the memory-reader and otherwise
++// unused firmware dependencies that the full target normally gets from StorageManager, FatFS, and the audio engine.
++
++size_t Cluster::size = Cluster::kSizeFAT16Max;
++FirmwareVersion song_firmware_version = FirmwareVersion::current();
++
++namespace AudioEngine {
++void logAudioAction(char const*, char const*, int) {
++}
++} // namespace AudioEngine
++
++uint32_t hexToInt(char const* string) {
++	return static_cast<uint32_t>(strtoul(string, nullptr, 16));
++}
++
++bool getNibble(char ch, int* nibble) {
++	if (ch >= '0' && ch <= '9') {
++		*nibble = ch - '0';
++		return true;
++	}
++	if (ch >= 'A' && ch <= 'F') {
++		*nibble = ch - 'A' + 10;
++		return true;
++	}
++	if (ch >= 'a' && ch <= 'f') {
++		*nibble = ch - 'a' + 10;
++		return true;
++	}
++	return false;
++}
++
++void String::clear(bool) {
++}
++
++Error String::concatenateAtPos(char const*, int32_t, int32_t) {
++	return Error::NONE;
++}
++
++FileReader::FileReader()
++    : fileClusterBuffer{nullptr}, currentReadBufferEndPos{0}, fileReadBufferCurrentPos{0}, memoryBased{true},
++      callRoutines{false} {
++}
++
++FileReader::FileReader(char* memBuffer, uint32_t bufLen)
++    : fileClusterBuffer{memBuffer}, currentReadBufferEndPos{bufLen}, fileReadBufferCurrentPos{0}, memoryBased{true},
++      callRoutines{false} {
++}
++
++FileReader::~FileReader() = default;
++
++void FileReader::resetReader() {
++	fileReadBufferCurrentPos = 0;
++	readCount = 0;
++	reachedBufferEnd = false;
++}
++
++bool FileReader::readFileCluster() {
++	return false;
++}
++
++bool FileReader::readFileClusterIfNecessary() {
++	if (fileReadBufferCurrentPos >= currentReadBufferEndPos) {
++		reachedBufferEnd = true;
++	}
++	return !reachedBufferEnd;
++}
++
++bool FileReader::peekChar(char* thisChar) {
++	if (!readFileClusterIfNecessary()) {
++		return false;
++	}
++	*thisChar = fileClusterBuffer[fileReadBufferCurrentPos];
++	return true;
++}
++
++bool FileReader::readChar(char* thisChar) {
++	if (!peekChar(thisChar)) {
++		return false;
++	}
++	++fileReadBufferCurrentPos;
++	return true;
++}
++
++void FileReader::readDone() {
++}
+diff --git a/tests/spec/song_load_preflight_spec.cpp b/tests/spec/song_load_preflight_spec.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1313943b429122e2818fdeeeb44f99ec463f8c75
+--- /dev/null
++++ b/tests/spec/song_load_preflight_spec.cpp
+@@ -0,0 +1,277 @@
++#include "storage/song_load.h"
++#include "storage/storage_manager.h"
++
++#include "cppspec.hpp"
++
++#include <array>
++#include <string_view>
++
++namespace {
++
++struct HeaderField {
++	std::string_view name;
++	Error result;
++};
++
++template <size_t size>
++class RootHeaderReader {
++public:
++	explicit RootHeaderReader(std::array<HeaderField, size> fields) : fields_{fields} {}
++
++	char const* readNextTagOrAttributeName() {
++		if (next_ == size) {
++			return "";
++		}
++		return fields_[next_++].name.data();
++	}
++
++	Error tryReadingFirmwareTagFromFile(char const*, bool) { return fields_[next_ - 1].result; }
++
++	void exitTag(char const*) { ++exited_; }
++
++	[[nodiscard]] size_t fieldsRead() const { return next_; }
++	[[nodiscard]] size_t fieldsExited() const { return exited_; }
++
++private:
++	std::array<HeaderField, size> fields_;
++	size_t next_ = 0;
++	size_t exited_ = 0;
++};
++
++} // namespace
++
++// clang-format off
++describe song_load_preflight("Song load compatibility preflight", $ {
++	it("rejects an unsupported XML Song header before reopening or modeled state mutation", _ {
++		RootHeaderReader reader{std::array{
++		    HeaderField{"firmwareVersion", Error::NONE},
++		    HeaderField{"earliestCompatibleFirmware", Error::FILE_FIRMWARE_VERSION_TOO_NEW},
++		    HeaderField{"previewNumPads", Error::RESULT_TAG_UNUSED},
++		}};
++		bool reopened = false;
++		bool mutated = false;
++		int32_t closeCount = 0;
++
++		Error result = deluge::song_load::preflightAndReopen(
++		    [&]() {
++			    Error preflightResult = deluge::song_load::readRootFirmwareCompatibility(reader);
++			    ++closeCount;
++			    return preflightResult;
++		    },
++		    [&]() {
++			    reopened = true;
++			    return Error::NONE;
++		    });
++		if (result == Error::NONE) {
++			mutated = true;
++		}
++
++		expect(result).to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++		expect(closeCount).to_equal(1);
++		expect(reopened).to_be_false();
++		expect(mutated).to_be_false();
++		expect(reader.fieldsRead()).to_equal(size_t{2});
++		expect(reader.fieldsExited()).to_equal(size_t{1});
++	});
++
++	it("rejects an unsupported reordered XML Song header before reopening or modeled state mutation", _ {
++		RootHeaderReader reader{std::array{
++		    HeaderField{"previewNumPads", Error::RESULT_TAG_UNUSED},
++		    HeaderField{"firmwareVersion", Error::NONE},
++		    HeaderField{"earliestCompatibleFirmware", Error::FILE_FIRMWARE_VERSION_TOO_NEW},
++		}};
++		bool reopened = false;
++		bool mutated = false;
++
++		Error result = deluge::song_load::preflightAndReopen(
++		    [&]() { return deluge::song_load::readRootFirmwareCompatibility(reader); },
++		    [&]() {
++			    reopened = true;
++			    return Error::NONE;
++		    });
++		if (result == Error::NONE) {
++			mutated = true;
++		}
++
++		expect(result).to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++		expect(reopened).to_be_false();
++		expect(mutated).to_be_false();
++		expect(reader.fieldsRead()).to_equal(size_t{3});
++		expect(reader.fieldsExited()).to_equal(size_t{2});
++	});
++
++	it("reads a compatible JSON Song root with the production in-memory deserializer", _ {
++		char json[] = R"({"firmwareVersion":"0.0.0","earliestCompatibleFirmware":"0.0.0","previewNumPads":144})";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::NONE);
++	});
++
++	it("rejects a too-new JSON Song root with the production in-memory deserializer", _ {
++		char json[] = R"({"firmwareVersion":"c999.0.0","earliestCompatibleFirmware":"c999.0.0","previewNumPads":144})";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++	});
++
++	it("accepts an empty firmwareVersion as an unknown version without crashing the production reader", _ {
++		char json[] = R"({"firmwareVersion":"","earliestCompatibleFirmware":"0.0.0"})";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::NONE);
++		expect(song_firmware_version.type() == FirmwareVersion::Type::UNKNOWN).to_be_true();
++	});
++
++	it("continues to classify a nonempty invalid firmwareVersion as unknown", _ {
++		char json[] = R"({"firmwareVersion":"not-a-version","earliestCompatibleFirmware":"0.0.0"})";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::NONE);
++		expect(song_firmware_version.type() == FirmwareVersion::Type::UNKNOWN).to_be_true();
++	});
++
++	it("rejects a too-new JSON marker after root payload before reopening or modeled state mutation", _ {
++		char json[] = R"({"previewNumPads":144,"preview":{"rows":[1,2,3]},"firmwareVersion":"0.0.0","earliestCompatibleFirmware":"c999.0.0"})";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++		bool reopened = false;
++		bool mutated = false;
++
++		Error result = deluge::song_load::preflightAndReopen(
++		    [&]() { return deluge::song_load::readJsonRootFirmwareCompatibility(reader); },
++		    [&]() {
++			    reopened = true;
++			    return Error::NONE;
++		    });
++		if (result == Error::NONE) {
++			mutated = true;
++		}
++
++		expect(result).to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++		expect(reopened).to_be_false();
++		expect(mutated).to_be_false();
++	});
++
++	it("rejects a too-new JSON marker after nested payload strings containing structural characters", _ {
++		char json[] = R"json({"preview":{"label":"literal } and ] with quote \" and slash \\","rows":[{"label":"nested [ and {"}]},"firmwareVersion":"0.0.0","earliestCompatibleFirmware":"c999.0.0"})json";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++	});
++
++	it("rejects a too-new JSON marker after an escaped string payload", _ {
++		char json[] = R"json({"label":"literal } and ] with quote \" and slash \\","firmwareVersion":"0.0.0","earliestCompatibleFirmware":"c999.0.0"})json";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++	});
++
++	it("accepts compatible JSON after nested payload strings containing structural characters", _ {
++		char json[] = R"json({"preview":{"label":"literal } and ] with quote \" and slash \\","rows":[{"label":"nested [ and {"}]},"firmwareVersion":"0.0.0","earliestCompatibleFirmware":"0.0.0"})json";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::NONE);
++	});
++
++	it("accepts a compatible reordered JSON Song root with the production in-memory deserializer", _ {
++		char json[] = R"({"previewNumPads":144,"preview":[{"row":1},{"row":2}],"firmwareVersion":"0.0.0","earliestCompatibleFirmware":"0.0.0"})";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::NONE);
++	});
++
++	it("accepts a legacy JSON Song root without compatibility fields", _ {
++		char json[] = R"({"previewNumPads":144,"preview":[{"row":1},{"row":2}]})";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::NONE);
++	});
++
++	it("rejects JSON input without an inner Song object root", _ {
++		char json[] = R"("firmwareVersion":"c1.2.0")";
++		JsonDeserializer reader{reinterpret_cast<uint8_t*>(json), sizeof(json) - 1};
++
++		Error result = deluge::song_load::readJsonRootFirmwareCompatibility(reader);
++
++		expect(result).to_equal(Error::FILE_CORRUPTED);
++	});
++
++	it("closes a compatible Song preflight before reopening and modeled state mutation", _ {
++		RootHeaderReader reader{std::array{
++		    HeaderField{"firmwareVersion", Error::NONE},
++		    HeaderField{"earliestCompatibleFirmware", Error::NONE},
++		    HeaderField{"previewNumPads", Error::RESULT_TAG_UNUSED},
++		}};
++		bool reopened = false;
++		bool reopenedBeforeClose = false;
++		bool mutated = false;
++		int32_t closeCount = 0;
++
++		Error result = deluge::song_load::preflightAndReopen(
++		    [&]() {
++			    Error preflightResult = deluge::song_load::readRootFirmwareCompatibility(reader);
++			    ++closeCount;
++			    return preflightResult;
++		    },
++		    [&]() {
++			    reopenedBeforeClose = closeCount != 1;
++			    reopened = true;
++			    return Error::NONE;
++		    });
++		if (result == Error::NONE) {
++			mutated = true;
++		}
++
++		expect(result).to_equal(Error::NONE);
++		expect(closeCount).to_equal(1);
++		expect(reopened).to_be_true();
++		expect(reopenedBeforeClose).to_be_false();
++		expect(mutated).to_be_true();
++		expect(reader.fieldsRead()).to_equal(size_t{2});
++		expect(reader.fieldsExited()).to_equal(size_t{2});
++	});
++
++	it("preserves an ordinary reopen error", _ {
++		bool reopened = false;
++		Error result = deluge::song_load::preflightAndReopen(
++		    []() { return Error::NONE; },
++		    [&]() {
++			    reopened = true;
++			    return Error::FILE_CORRUPTED;
++		    });
++
++		expect(reopened).to_be_true();
++		expect(result).to_equal(Error::FILE_CORRUPTED);
++	});
++
++	it("propagates an unsupported firmware tag without consuming it as compatible", _ {
++		RootHeaderReader reader{
++		    std::array{HeaderField{"earliestCompatibleFirmware", Error::FILE_FIRMWARE_VERSION_TOO_NEW}},
++		};
++		char const* tagName = reader.readNextTagOrAttributeName();
++
++		Error result = deluge::song_load::readFirmwareTag(reader, tagName);
++
++		expect(result).to_equal(Error::FILE_FIRMWARE_VERSION_TOO_NEW);
++		expect(reader.fieldsExited()).to_equal(size_t{0});
++	});
++});
++
++CPPSPEC_SPEC(song_load_preflight)

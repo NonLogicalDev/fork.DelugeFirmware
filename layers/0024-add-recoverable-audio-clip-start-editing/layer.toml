@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add recoverable audio clip start editing\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,105 @@
+diff --git a/.nix/README.md b/.nix/README.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..41ceaf44a29ef4815ca395384a9dd9cbe8c5c4c9
+--- /dev/null
++++ b/.nix/README.md
+@@ -0,0 +1,9 @@
++# Deluge build environment
++
++From the repository root, enter the local environment with `nix develop path:./.nix`.
++
++It pins the upstream v22 macOS ARM toolchain and exposes it through `DBT_TOOLCHAIN_PATH`, along with Git, pre-commit, the Python helpers, and `ccache`. The compiler cache is stored at the ignored checkout-local path `.cache/ccache`; it never changes the selected compiler or the firmware output.
++
++Build a local Release binary with `DBT_NO_SYNC=1 ./dbt build Release`. The output is `build/Release/deluge.bin`. This does not flash or publish firmware.
++
++For a build directory created before `ccache` was added, reconfigure it once inside the environment with `DBT_NO_SYNC=1 ./dbt configure`. Later normal builds use the configured compiler launchers. Run `ccache --show-stats` to inspect cache use.
+diff --git a/.nix/flake.lock b/.nix/flake.lock
+new file mode 100644
+index 0000000000000000000000000000000000000000..a2b575278abcd011950a494079d35a57c72a0fc8
+--- /dev/null
++++ b/.nix/flake.lock
+@@ -0,0 +1,27 @@
++{
++  "nodes": {
++    "nixpkgs": {
++      "locked": {
++        "lastModified": 1787135253,
++        "narHash": "sha256-RD2kNWCG+Bjo6h+JVjWVNntZs2GtRoeY2xHjts/FNkA=",
++        "owner": "NixOS",
++        "repo": "nixpkgs",
++        "rev": "ffb3c9b700e759be2ef13237c9d8f953b32a1e46",
++        "type": "github"
++      },
++      "original": {
++        "owner": "NixOS",
++        "ref": "nixos-unstable",
++        "repo": "nixpkgs",
++        "type": "github"
++      }
++    },
++    "root": {
++      "inputs": {
++        "nixpkgs": "nixpkgs"
++      }
++    }
++  },
++  "root": "root",
++  "version": 7
++}
+diff --git a/.nix/flake.nix b/.nix/flake.nix
+new file mode 100644
+index 0000000000000000000000000000000000000000..1ec7ed03cd1ae5740604c71c25c6b55104f6fc50
+--- /dev/null
++++ b/.nix/flake.nix
+@@ -0,0 +1,51 @@
++{
++  description = "Local Deluge firmware build environment";
++
++  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
++
++  outputs = { nixpkgs, ... }:
++    let
++      system = "aarch64-darwin";
++      pkgs = import nixpkgs { inherit system; };
++      toolchainVersion = "22";
++      toolchain = builtins.fetchTarball {
++        url = "https://github.com/SynthstromAudible/dbt-toolchain/releases/download/v${toolchainVersion}/dbt-toolchain-${toolchainVersion}-darwin-arm64.tar.gz";
++        sha256 = "sha256-EXI2bX2mGJl14ZXtVfUaa7xRenWxfHg0PLPBsWJSOtc=";
++      };
++      toolchainLayout = pkgs.runCommand "deluge-toolchain-layout" { } ''
++        mkdir -p "$out/toolchain/v${toolchainVersion}"
++        ln -s ${toolchain} "$out/toolchain/v${toolchainVersion}/darwin-arm64"
++      '';
++      python = pkgs.python3.withPackages (ps: [
++        ps.ansi
++        ps.certifi
++        ps.pyserial
++        ps.setuptools
++      ]);
++    in {
++      devShells.${system}.default = pkgs.mkShell {
++        packages = [
++          pkgs.git
++          pkgs.pre-commit
++          pkgs.ccache
++          python
++        ];
++
++        DBT_TOOLCHAIN_PATH = "${toolchainLayout}";
++
++        shellHook = ''
++          toolchain="${toolchain}"
++          export PATH="$toolchain/arm-none-eabi-gcc/bin:$toolchain/cmake/bin:$toolchain/ninja-build/bin:$toolchain/clang-format:$toolchain/openocd/bin:$PATH"
++          export DELUGE_FW_ROOT="$PWD"
++          export CCACHE_DIR="$DELUGE_FW_ROOT/.cache/ccache"
++          export CCACHE_BASEDIR="$DELUGE_FW_ROOT"
++          export CCACHE_COMPILERCHECK=content
++          export CMAKE_C_COMPILER_LAUNCHER=ccache
++          export CMAKE_CXX_COMPILER_LAUNCHER=ccache
++          export DBT_NO_PYTHON_UPGRADE=1
++          export PYTHONNOUSERSITE=1
++          export PYTHONPATH="$DELUGE_FW_ROOT/scripts${PYTHONPATH:+:$PYTHONPATH}"
++        '';
++      };
++    };
++}

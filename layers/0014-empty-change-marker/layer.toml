@@ -1,0 +1,2 @@
+[vcs]
+commit-msg = "Preserve empty JJ change marker\n"

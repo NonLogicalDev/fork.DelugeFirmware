@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add Kit choke groups\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "add Velocity Drums velocity profiles\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -1,0 +1,6 @@
+[vcs]
+commit-msg = "stop preview when opening manual slice\n"
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

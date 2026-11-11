@@ -1,0 +1,391 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+index 2c7d56cbe3295aa81c8b55401107656bd4f6f0b4..0a2fd95905a6b4da890e9ad94c4e366d5a1c166b 100644
+--- a/DEVIATIONS.md
++++ b/DEVIATIONS.md
+@@ -4,7 +4,7 @@
+ 
+ This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
+ 
+-The local stack currently contains twelve deviations:
++The local stack currently contains fourteen deviations:
+ 
+ 1. Normalize the Korg MIDI-definition directory casing.
+ 2. Provide a reproducible Apple Silicon Nix build environment.
+@@ -18,6 +18,8 @@ The local stack currently contains twelve deviations:
+ 10. Copy, paste, and reorder a Kit Sound Drum row.
+ 11. Add optional incoming MIDI sustain-pedal support for internal Synth tracks.
+ 12. Show existing Song Grid track columns with a faint neutral base.
++13. Protect repeated recording into one Audio Clip in `Looper/FX` mode.
++14. Make Audio Clip waveforms follow their Song Grid track color.
+ 
+ No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
+ 
+@@ -383,6 +385,35 @@ Let a player record repeatedly into the same Audio Clip in `Looper/FX` mode with
+ - During separate later passes, cancel before completion and stop once without captured audio. Confirm that the previous completed take remains assigned and playable.
+ - Physical verification remains a human-controlled step and does not authorize flashing or installation.
+ 
++## 14. Song Grid and Audio Clip track color
++
++### Intent
++
++Give each Audio track one recognizable color across Song Grid and Audio Clip waveforms instead of maintaining unrelated track and clip colors.
++
++### Required behavior
++
++- The Song Grid track color is the authoritative hue for every Audio Clip attached to that Audio Output.
++- Every full-screen and single-row Audio Clip waveform renders a pastel form of that hue while retaining its established sample-shape and amplitude brightness.
++- A newly created Audio Clip uses its track color on its first render. A new clip in an existing Grid column immediately matches that column, and multiple Audio Clips attached to one Audio Output always share one waveform hue.
++- Changing an Audio track's color through the Song Grid updates every waveform attached to that track on its next render. Fine and coarse Grid color changes never leave the track in the reserved unassigned-color state.
++- The established Shift plus Vertical Encoder color gesture in Audio Clip View changes the shared Audio track color. The equivalent Shift plus held-clip gesture in Row Song View does the same and redraws every visible Audio Clip on that Output.
++- An in-place overdub keeps the existing Output color. An overdub that creates a new Audio Output receives and then follows that new Grid column's color.
++- The shared Output color survives save and reload through the established project format. Legacy per-clip color data remains readable and writable for compatibility, but it is only a fallback while an Audio Clip is temporarily unattached from an Output.
++
++### Compatibility and boundaries
++
++- Do not change Instrument Clip note colors, Kit-row colors, section colors, Arranger clip-instance colors, or the Song Grid's active, inactive, playing, selected, armed, solo, recording, MIDI-learn, and pulse brightness behavior.
++- Do not change waveform shape, amplitude analysis, sample data, audio playback, recording, overdub routing, track order, clip placement, or undo history.
++- A project whose Audio Output has no assigned color acquires one nonzero track color before its waveform is shown. The reserved unassigned value must never appear as a temporary visible red waveform or cause a later Grid render to choose a different hue.
++- No local behavior authorizes flashing, installation, publication, or upstream submission.
++
++### Verification contract
++
++- Focused host checks cover positive and negative color stepping, hue-range wraparound, accelerated steps, and crossing the reserved unassigned value. The complete configured host test suite and a local Release firmware build pass.
++- A physical Deluge check covers a fresh Audio track, a second clip in the same Grid column, Grid fine and coarse color changes, both Audio color gestures, multiple visible Row clips sharing one Output, an in-place overdub, an overdub-created Output, save and reload, and an older project whose Audio Output color is unassigned.
++- The physical check confirms the waveform stays in the same hue family as its Grid column while remaining visibly pastel, and that every excluded color and brightness system remains unchanged. No flashing is implied by this check.
++
+ ## Maintaining this document
+ 
+ Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/views/audio_clip_view.cpp b/src/deluge/gui/views/audio_clip_view.cpp
+index 4cad5cfdbc1549cb8d47bcdcf5d441d2d7f3a9c1..7f3e5865181efdce01f453d050c4623ad268c494 100644
+--- a/src/deluge/gui/views/audio_clip_view.cpp
++++ b/src/deluge/gui/views/audio_clip_view.cpp
+@@ -851,7 +851,7 @@ ActionResult AudioClipView::verticalEncoderAction(int32_t offset, bool inCardRou
+ 		}
+ 
+ 		// Shift colour spectrum
+-		getCurrentAudioClip()->colourOffset += offset;
++		getCurrentAudioClip()->changeColour(offset);
+ 		uiNeedsRendering(this, 0xFFFFFFFF, 0);
+ 	}
+ 	return ActionResult::DEALT_WITH;
+diff --git a/src/deluge/gui/views/session_view.cpp b/src/deluge/gui/views/session_view.cpp
+index 2d02ffaf3395725fe3e299ef176581825788a770..74b2f3f7680a64c053c915c12a3b1b34f2bf7133 100644
+--- a/src/deluge/gui/views/session_view.cpp
++++ b/src/deluge/gui/views/session_view.cpp
+@@ -82,6 +82,7 @@
+ #include "util/functions.h"
+ #include "util/try.h"
+ #include <algorithm>
++#include <cmath>
+ #include <cstdint>
+ #include <new>
+ 
+@@ -1442,12 +1443,19 @@ ActionResult SessionView::verticalEncoderAction(int32_t offset, bool inCardRouti
+ 		    && (Buttons::isShiftButtonPressed() || clipWasSelectedWithShift)) {
+ 
+ 			Clip* clip = getClipOnScreen(selectedClipYDisplay);
+-			if (!clip)
++			if (!clip) {
+ 				return ActionResult::NOT_DEALT_WITH;
++			}
+ 
+-			clip->colourOffset += offset;
+-
+-			requestRendering(this, 1 << selectedClipYDisplay, 0);
++			if (clip->type == ClipType::AUDIO) {
++				static_cast<AudioClip*>(clip)->changeColour(offset);
++				// Traditional Row overdubs may share one Audio Output, so every visible sibling must redraw.
++				requestRendering(this, 0xFFFFFFFF, 0);
++			}
++			else {
++				clip->colourOffset += offset;
++				requestRendering(this, 1 << selectedClipYDisplay, 0);
++			}
+ 
+ 			return ActionResult::DEALT_WITH;
+ 		}
+@@ -1671,7 +1679,6 @@ Error setPresetOrNextUnlaunchedOne(InstrumentClip* clip, OutputType outputType,
+ }
+ 
+ constexpr float colourStep = 22.5882352941;
+-static float lastColour = 192 - colourStep + 1;
+ 
+ Clip* SessionView::createNewClip(OutputType outputType, int32_t yDisplay) {
+ 	Clip* clip = nullptr;
+@@ -3409,13 +3416,7 @@ RGB SessionView::gridRenderClipColor(Clip* clip, int32_t x, int32_t y, bool rend
+ 		}
+ 	}
+ 
+-	// Set a random colour if unset and convert to result colour
+-	if (clip->output->colour == 0) {
+-		lastColour = std::fmod(lastColour + colourStep + 192, 192);
+-		clip->output->colour = lastColour;
+-	}
+-
+-	RGB resultColour = RGB::fromHue(clip->output->colour);
++	RGB resultColour = RGB::fromHue(clip->output->getOrAssignColour());
+ 
+ 	// Black phase of arm flashing
+ 	if (view.clipArmFlashOn && clip->armState != ArmState::OFF) {
+@@ -4489,13 +4490,10 @@ ActionResult SessionView::gridHandleScroll(int32_t offsetX, int32_t offsetY) {
+ 		auto track = gridTrackFromX(gridFirstPressedX, gridTrackCount());
+ 		if (track != nullptr) {
+ 			if (Buttons::isButtonPressed(hid::button::Y_ENC)) {
+-				track->colour += offsetY;
+-				if (track->colour == 0) {
+-					track->colour += offsetY;
+-				}
++				track->changeColour(offsetY);
+ 			}
+ 			else {
+-				track->colour = static_cast<int16_t>(track->colour + (colourStep * offsetY) + 192) % 192;
++				track->changeColour(static_cast<int32_t>(std::floor(colourStep * offsetY)));
+ 			}
+ 			requestRendering(this);
+ 		}
+diff --git a/src/deluge/model/clip/audio_clip.cpp b/src/deluge/model/clip/audio_clip.cpp
+index cd92ec43d49e1050c85605c1c16292c88a97c353..e478afad7ae22fac3d217284891ac1e6ce9674fc 100644
+--- a/src/deluge/model/clip/audio_clip.cpp
++++ b/src/deluge/model/clip/audio_clip.cpp
+@@ -27,6 +27,7 @@
+ #include "model/clip/clip_instance.h"
+ #include "model/consequence/consequence_output_existence.h"
+ #include "model/model_stack.h"
++#include "model/output_colour.h"
+ #include "model/sample/sample.h"
+ #include "model/sample/sample_recorder.h"
+ #include "model/song/song.h"
+@@ -1261,7 +1262,19 @@ Error AudioClip::setOutput(ModelStackWithTimelineCounter* modelStack, Output* ne
+ }
+ 
+ RGB AudioClip::getColour() {
+-	return RGB::fromHuePastel(colourOffset * -8 / 3);
++	if (!output) {
++		return RGB::fromHuePastel(colourOffset * -8 / 3);
++	}
++
++	return RGB::fromHuePastel(output->getOrAssignColour());
++}
++
++void AudioClip::changeColour(int32_t offset) {
++	// Retain the legacy per-clip value so an older firmware can still read a meaningful fallback colour.
++	colourOffset += offset;
++	if (output) {
++		output->changeColour(deluge::output_colour::audioClipHueOffset(offset));
++	}
+ }
+ 
+ void AudioClip::quantizeLengthForArrangementRecording(ModelStackWithTimelineCounter* modelStack,
+diff --git a/src/deluge/model/clip/audio_clip.h b/src/deluge/model/clip/audio_clip.h
+index c9d50e1adb78aa73e3f73a22872e41dce98d1df6..5ad20d0458b6ac40ec55f09737052c0ae3fc1e3c 100644
+--- a/src/deluge/model/clip/audio_clip.h
++++ b/src/deluge/model/clip/audio_clip.h
+@@ -71,6 +71,7 @@ public:
+ 	Error setOutput(ModelStackWithTimelineCounter* modelStack, Output* newOutput,
+ 	                AudioClip* favourClipForCloningParamManager = nullptr);
+ 	RGB getColour();
++	void changeColour(int32_t offset);
+ 	bool currentlyScrollableAndZoomable() override;
+ 	void getScrollAndZoomInSamples(int32_t xScroll, int32_t xZoom, int64_t* xScrollSamples, int64_t* xZoomSamples);
+ 	void clear(Action* action, ModelStackWithTimelineCounter* modelStack, bool clearAutomation,
+diff --git a/src/deluge/model/output.cpp b/src/deluge/model/output.cpp
+index 28432264f31b6e710acdb31a08832cb5cb4f72fe..e3c491e1cddac9cebf2b7d81cefa296623d21113 100644
+--- a/src/deluge/model/output.cpp
++++ b/src/deluge/model/output.cpp
+@@ -24,10 +24,17 @@
+ #include "model/clip/instrument_clip.h"
+ #include "model/consequence/consequence_clip_existence.h"
+ #include "model/model_stack.h"
++#include "model/output_colour.h"
+ #include "model/song/clip_iterators.h"
+ #include "model/song/song.h"
+ #include "processing/engines/audio_engine.h"
+ #include "storage/storage_manager.h"
++#include <cmath>
++
++namespace {
++constexpr float kDefaultColourStep = 22.5882352941;
++float lastAssignedColour = 192 - kDefaultColourStep + 1;
++} // namespace
+ 
+ Output::Output(OutputType newType) : type(newType) {
+ 	mutedInArrangementMode = false;
+@@ -44,6 +51,22 @@ Output::Output(OutputType newType) : type(newType) {
+ 	modKnobMode = 1;
+ }
+ 
++int16_t Output::getOrAssignColour() {
++	if (colour == 0) {
++		lastAssignedColour = std::fmod(lastAssignedColour + kDefaultColourStep + 192, 192);
++		colour = static_cast<int16_t>(lastAssignedColour);
++		if (colour == 0) {
++			colour = 1;
++		}
++	}
++
++	return colour;
++}
++
++void Output::changeColour(int32_t offset) {
++	colour = deluge::output_colour::step(getOrAssignColour(), offset);
++}
++
+ Output::~Output() {
+ 	removeRecorder(recorder);
+ 	// if another output is recording this one, we need to tell the other output to clear the pointer since we don't
+diff --git a/src/deluge/model/output.h b/src/deluge/model/output.h
+index 1a9b939c11f2c579a91c9250983cc73e0be8b6ce..56bf6b0dfa82ba956bc2c23b8333f1e8e4d1c45d 100644
+--- a/src/deluge/model/output.h
++++ b/src/deluge/model/output.h
+@@ -87,6 +87,8 @@ public:
+ 
+ 	ClipInstanceVector clipInstances;
+ 	[[nodiscard]] Clip* getActiveClip() const;
++	int16_t getOrAssignColour();
++	void changeColour(int32_t offset);
+ 	String name; // Contains the display name as the user sees it.
+ 	             // E.g. on numeric Deluge, SYNT000 will be just "0". Definitely no leading zeros, so not "000".
+ 	             // On OLED Deluge I thiiink SYNT000 would be "SYNT000"?
+diff --git a/src/deluge/model/output_colour.cpp b/src/deluge/model/output_colour.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..f6d1a2d5586ea2e311b0ad9000e6b6605f1349f9
+--- /dev/null
++++ b/src/deluge/model/output_colour.cpp
+@@ -0,0 +1,44 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Deluge Firmware.
++ *
++ * The Synthstrom Deluge Firmware is free software: you can redistribute it and/or modify it under the terms of the
++ * GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
++ * option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
++ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program. If not, see
++ * <https://www.gnu.org/licenses/>.
++ */
++
++#include "model/output_colour.h"
++
++namespace deluge::output_colour {
++
++namespace {
++constexpr int32_t kHueRange = 192;
++}
++
++int16_t step(int16_t colour, int32_t offset) {
++	int32_t nextColour = (colour + offset) % kHueRange;
++	if (nextColour < 0) {
++		nextColour += kHueRange;
++	}
++
++	// Zero means "not assigned" on Output, so cross it without storing it as a visible hue.
++	if (nextColour == 0) {
++		nextColour = offset < 0 ? kHueRange - 1 : 1;
++	}
++
++	return nextColour;
++}
++
++int32_t audioClipHueOffset(int32_t encoderOffset) {
++	return encoderOffset * -3;
++}
++
++} // namespace deluge::output_colour
+diff --git a/src/deluge/model/output_colour.h b/src/deluge/model/output_colour.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..efb1c930338afba3a778a9483d3db8523c1253a5
+--- /dev/null
++++ b/src/deluge/model/output_colour.h
+@@ -0,0 +1,27 @@
++/*
++ * Copyright © 2026 Synthstrom Audible Limited
++ *
++ * This file is part of The Synthstrom Deluge Firmware.
++ *
++ * The Synthstrom Deluge Firmware is free software: you can redistribute it and/or modify it under the terms of the
++ * GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your
++ * option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
++ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
++ * details.
++ *
++ * You should have received a copy of the GNU General Public License along with this program. If not, see
++ * <https://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <cstdint>
++
++namespace deluge::output_colour {
++
++int16_t step(int16_t colour, int32_t offset);
++int32_t audioClipHueOffset(int32_t encoderOffset);
++
++} // namespace deluge::output_colour
+diff --git a/tests/unit/CMakeLists.txt b/tests/unit/CMakeLists.txt
+index 3109524ef256368d03d8c90b4bada24b596ccf8a..3f26f20fc9868c98d99ec3b3ba1ad05d4c44ce96 100644
+--- a/tests/unit/CMakeLists.txt
++++ b/tests/unit/CMakeLists.txt
+@@ -66,6 +66,8 @@ file(GLOB_RECURSE deluge_SOURCES
+         ../../src/deluge/gui/ui/browser/default_name.cpp
+         # For generated slice-name tests
+         ../../src/deluge/model/drum/generated_slice_name.cpp
++        # For Output colour stepping tests
++        ../../src/deluge/model/output_colour.cpp
+ )
+ 
+ add_executable(UnitTests
+@@ -83,6 +85,7 @@ add_executable(UnitTests
+         name_compare_tests.cpp
+         default_name_tests.cpp
+         generated_slice_name_tests.cpp
++        output_colour_tests.cpp
+         rgb_tests.cpp
+         notes_state_tests.cpp
+ )
+diff --git a/tests/unit/output_colour_tests.cpp b/tests/unit/output_colour_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..512afb8f6be17d6f1372cc8ffb7de0332e208cc1
+--- /dev/null
++++ b/tests/unit/output_colour_tests.cpp
+@@ -0,0 +1,32 @@
++#include "CppUTest/TestHarness.h"
++
++#include "model/output_colour.h"
++
++TEST_GROUP(OutputColourTests){};
++
++TEST(OutputColourTests, stepsWithinTheVisibleHueRange) {
++	LONGS_EQUAL(24, deluge::output_colour::step(23, 1));
++	LONGS_EQUAL(22, deluge::output_colour::step(23, -1));
++}
++
++TEST(OutputColourTests, wrapsWithoutReturningTheUnsetSentinel) {
++	LONGS_EQUAL(1, deluge::output_colour::step(191, 1));
++	LONGS_EQUAL(191, deluge::output_colour::step(1, -1));
++}
++
++TEST(OutputColourTests, coarseStepsAlsoSkipTheUnsetSentinel) {
++	LONGS_EQUAL(1, deluge::output_colour::step(170, 22));
++	LONGS_EQUAL(191, deluge::output_colour::step(23, -23));
++}
++
++TEST(OutputColourTests, normalizesAcceleratedSteps) {
++	LONGS_EQUAL(19, deluge::output_colour::step(191, 20));
++	LONGS_EQUAL(173, deluge::output_colour::step(1, -20));
++}
++
++TEST(OutputColourTests, audioClipStepDoesNotDependOnEncoderBatching) {
++	int32_t twoSingleSteps =
++	    deluge::output_colour::audioClipHueOffset(1) + deluge::output_colour::audioClipHueOffset(1);
++	LONGS_EQUAL(twoSingleSteps, deluge::output_colour::audioClipHueOffset(2));
++	LONGS_EQUAL(-6, twoSingleSteps);
++}

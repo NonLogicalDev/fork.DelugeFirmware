@@ -1,0 +1,267 @@
+diff --git a/DEVIATIONS.md b/DEVIATIONS.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..99eb35aa149aa248c8ed1d37915cc773f1961670
+--- /dev/null
++++ b/DEVIATIONS.md
+@@ -0,0 +1,108 @@
++# Local deviations from upstream Deluge Community Firmware
++
++## Purpose and baseline
++
++This document defines the complete local deviation stack for an agent beginning with a fresh checkout of upstream `main`. Recreate every contract below before considering that checkout equivalent to this local build. The entries describe outcomes, boundaries, and verification only. They intentionally do not prescribe source-level design, algorithms, or code.
++
++The local stack currently contains four deviations:
++
++1. Normalize the Korg MIDI-definition directory casing.
++2. Provide a reproducible Apple Silicon Nix build environment.
++3. Identify held chords in Keyboard View.
++4. Show the latest physical held note under a recognized OLED chord label.
++
++No entry authorizes firmware flashing, device installation, release publication, or upstream submission. Those actions remain manual and human-controlled.
++
++## 1. Normalize Korg MIDI-definition directory casing
++
++### Intent
++
++Make the checked-out MIDI-definition tree consistent on case-sensitive and case-insensitive filesystems without changing any device definition.
++
++### Required behavior
++
++- The Korg manufacturer folders at `contrib/sd_card/MIDI` and `contrib/sd_card/MIDI_DEVICES/DEFINITION` use the spelling `Korg`.
++- The former all-uppercase `KORG` folders are absent from the checkout.
++- Every affected XML definition retains the same name, location below its manufacturer folder, and content apart from the parent directory's casing.
++
++### Compatibility and verification
++
++- MIDI device definitions, generated SD-card content, and firmware behavior are unchanged.
++- A clean checkout contains exactly one Korg directory at each of the two affected locations.
++- The working copy remains a full checkout. Do not use a sparse checkout as a workaround for the case collision.
++
++## 2. Reproducible local Apple Silicon build environment
++
++### Intent
++
++Allow an Apple Silicon macOS developer to build this firmware locally from a pinned Nix environment rather than relying on an unmanaged cross-compiler installation.
++
++### Required behavior
++
++- The repository includes a locked Nix development environment under `.nix`, with brief human-readable setup guidance beside it.
++- Entering that environment supplies the project build driver, Git support, formatting and pre-commit tools, Python helpers, and an official ARM GCC v22 cross-toolchain compatible with the Deluge's hard-float target.
++- The environment selects that toolchain for firmware builds without requiring a global toolchain installation.
++- A local Release build completes and produces the normal firmware binary at `build/Release/deluge.bin`.
++
++### Compatibility and verification
++
++- The environment is developer tooling only. It does not change firmware behavior or package a flashing workflow.
++- The toolchain version and all Nix inputs are locked so a later agent can reproduce the same environment from a fresh upstream checkout.
++- A Release build using the local environment passes with synchronizing disabled for the local build and does not publish or install an artifact.
++
++## 3. Keyboard View exact chord recognition
++
++### Intent
++
++Give a player immediate feedback about a recognizable harmony while they hold notes in a melodic Keyboard View layout.
++
++### Required behavior
++
++- In a melodic Keyboard View layout, evaluate the currently held distinct pitch classes whenever the held-note set changes.
++- Display a chord label only when the complete held pitch-class set exactly matches one non-empty chord shape already available in the firmware's chord vocabulary. Extra or missing pitch classes prevent a match; duplicate octaves do not change a match.
++- Require at least three distinct pitch classes.
++- Prefer the lowest held note as the root when it produces a valid chord name. When that is not valid, name a single unambiguous inversion. If multiple non-bass roots are equally valid, do not show a chord label.
++- Format the label as the selected root plus the existing chord suffix, using the firmware's current sharp or flat naming preference.
++- Show the label as a temporary OLED popup on OLED devices and as the existing concise scrolling chord label on seven-segment devices.
++- Remove or restore the normal pre-existing note feedback when the player releases notes into a single note, an unrecognized set, or no held notes.
++
++### Compatibility and boundaries
++
++- Do not alter the chord vocabulary, chord-entry tools, note sound, note-on and note-off behavior, MIDI output, recording, or keyboard layout behavior.
++- Do not add this recognition path to Kit/Drum output, the Chord layout, or the Chord Library layout. Those contexts have their own existing behavior and labels.
++- Recognition is descriptive only. It must not create, transpose, quantize, record, or modify notes.
++
++### Verification contract
++
++- Automated tests cover a major chord across inversion and duplicate octaves, bass-root preference, a valid augmented chord, incomplete and unknown note sets, and an ambiguous naming case.
++- The host unit-test suite and a local Release build pass.
++
++## 4. Keyboard View chord and latest physical note display
++
++### Intent
++
++When exact chord recognition is active on an OLED, show both the harmony and the player's most recently pressed still-held note without changing how the instrument plays.
++
++### Required behavior
++
++- For a recognized chord on an OLED, show the existing chord label on the first line of its temporary popup.
++- Show the most recently pressed physical note that remains held on the second line.
++- Choose the second-line note by physical press order. Do not substitute the chord root, the lowest held note, a grid position, or a generated note.
++- If the latest physical note is released while a recognized chord remains held, show the newest remaining physical note instead.
++- Use the existing sharp or flat naming preference for the second-line note.
++- If a recognized chord contains no physical held note, retain the one-line chord label rather than showing an invented or stale note.
++
++### Compatibility and boundaries
++
++- Seven-segment displays retain the one-line chord label introduced by the chord-recognition deviation. They do not gain a second-line representation.
++- Recognition itself, unrecognized-set behavior, single-note feedback, sound generation, note-on and note-off behavior, MIDI output, recording, and layout behavior remain unchanged.
++- The feature applies only where the chord-recognition deviation already applies.
++
++### Verification contract
++
++- Automated tests demonstrate that press order chooses the latest physical held note, that a release promotes the latest remaining physical note, and that a generated note cannot take precedence.
++- The host unit-test suite and a local Release build pass.
++
++## Maintaining this document
++
++Each new local deviation adds or updates a contract in this file in the newest local feature revision. A completed document must remain understandable without local patch history, owner plans, or conversation context. It must identify the affected surface, exact required outcome, behavior that must remain stable, meaningful edge cases, and the evidence needed to verify the deviation. Do not add code, pseudocode, or implementation recipes.
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+index e0ea5cb2acb6338574f5f8aa9fd26db82b56bd66..0d52a8da49708ad2f68d03a3a1c96212d628acd9 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+@@ -160,6 +160,7 @@ ActionResult KeyboardScreen::padAction(int32_t x, int32_t y, int32_t velocity) {
+ 	}
+ 
+ 	evaluateActiveNotes();
++	updatePhysicalNotePressOrder();
+ 
+ 	if (markDead != -1) {
+ 		pressedPads[markDead].dead = true;
+@@ -206,6 +207,26 @@ void KeyboardScreen::evaluateActiveNotes() {
+ 	currentNotesState = layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->getNotesState();
+ }
+ 
++void KeyboardScreen::updatePhysicalNotePressOrder() {
++	for (const NoteState& currentNote : currentNotesState) {
++		if (currentNote.generatedNote) {
++			continue;
++		}
++
++		const NoteState* lastNote = nullptr;
++		for (const NoteState& previousNote : lastNotesState) {
++			if (previousNote.note == currentNote.note) {
++				lastNote = &previousNote;
++				break;
++			}
++		}
++
++		if (lastNote == nullptr || currentNote.activationCount > lastNote->activationCount) {
++			physicalNotePressOrder[currentNote.note] = ++nextPhysicalNotePressOrder;
++		}
++	}
++}
++
+ void KeyboardScreen::updateActiveNotes() {
+ 	Instrument* activeInstrument = getCurrentInstrument();
+ 	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+@@ -426,7 +447,18 @@ void KeyboardScreen::displayHeldChord() {
+ 	char chordName[16];
+ 	snprintf(chordName, sizeof(chordName), "%s%s", rootName, match.suffix);
+ 	if (display->haveOLED()) {
+-		display->popupTextTemporary(chordName);
++		uint8_t lastPressedNote = currentNotesState.latestPhysicalNote(physicalNotePressOrder);
++		if (lastPressedNote == kHighestKeyboardNote) {
++			display->popupTextTemporary(chordName);
++		}
++		else {
++			char lastPressedName[3] = {0};
++			noteCodeToString(lastPressedNote, lastPressedName, &isNatural, false);
++
++			char chordPopup[20];
++			snprintf(chordPopup, sizeof(chordPopup), "%s\n%s", chordName, lastPressedName);
++			display->popupTextTemporary(chordPopup);
++		}
+ 	}
+ 	else {
+ 		display->setScrollingText(chordName, 0);
+@@ -814,6 +846,8 @@ void KeyboardScreen::selectEncoderAction(int8_t offset) {
+ 
+ void KeyboardScreen::exitAuditionMode() {
+ 	memset(&pressedPads, 0, sizeof(pressedPads));
++	physicalNotePressOrder.fill(0);
++	nextPhysicalNotePressOrder = 0;
+ 	evaluateActiveNotes();
+ 	updateActiveNotes();
+ 
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.h b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+index 39d0ca283c762ed4816cd0b7985eeef5c16fb193..06c1c0aebddc7ff4819c048c46983885c129a710 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.h
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+@@ -71,6 +71,7 @@ private:
+ 	void displayOrLanguageChanged() final;
+ 
+ 	void evaluateActiveNotes();
++	void updatePhysicalNotePressOrder();
+ 	void updateActiveNotes();
+ 	void displayHeldChord();
+ 
+@@ -95,6 +96,8 @@ private:
+ 	PressedPad pressedPads[kMaxNumKeyboardPadPresses];
+ 	NotesState lastNotesState;
+ 	NotesState currentNotesState;
++	NotesState::NotePressOrder physicalNotePressOrder = {};
++	uint32_t nextPhysicalNotePressOrder = 0;
+ 	bool chordNameDisplayed = false;
+ 
+ 	bool keyboardButtonActive = false;
+diff --git a/src/deluge/gui/ui/keyboard/notes_state.h b/src/deluge/gui/ui/keyboard/notes_state.h
+index a8663f3fb38477b7607f0ef4d65ce9d938f06d0f..bc3c2f31650ae756d948e96e6233afc4054bc7c0 100644
+--- a/src/deluge/gui/ui/keyboard/notes_state.h
++++ b/src/deluge/gui/ui/keyboard/notes_state.h
+@@ -57,6 +57,7 @@ constexpr uint8_t kLowestKeyboardNote = 0;
+ constexpr uint8_t kHighestKeyboardNote = kOctaveSize * 12;
+ struct NotesState {
+ 	using NoteArray = std::array<NoteState, kMaxNumActiveNotes>;
++	using NotePressOrder = std::array<uint32_t, kHighestKeyboardNote>;
+ 
+ 	std::bitset<kHighestKeyboardNote> states;
+ 	NoteArray notes;
+@@ -121,6 +122,18 @@ struct NotesState {
+ 		}
+ 		return lowest;
+ 	}
++
++	[[nodiscard]] uint8_t latestPhysicalNote(const NotePressOrder& pressOrder) const {
++		uint8_t latest = kHighestKeyboardNote;
++		uint32_t latestOrder = 0;
++		for (const NoteState& state : *this) {
++			if (!state.generatedNote && pressOrder[state.note] > latestOrder) {
++				latest = state.note;
++				latestOrder = pressOrder[state.note];
++			}
++		}
++		return latest;
++	}
+ };
+ 
+ }; // namespace deluge::gui::ui::keyboard
+diff --git a/tests/unit/chord_tests.cpp b/tests/unit/chord_tests.cpp
+index 054efc24f579b5348c6e5c0584cc9cf8661ae830..35a7bbf34f0e3e258411c3fe65dab52fa841172a 100644
+--- a/tests/unit/chord_tests.cpp
++++ b/tests/unit/chord_tests.cpp
+@@ -133,6 +133,28 @@ TEST(ChordTests, findsStandardAugmentedChord) {
+ 	STRCMP_EQUAL("AUG", match.suffix);
+ }
+ 
++TEST(ChordTests, findsLatestPhysicalHeldNoteByPressOrder) {
++	NotesState notes;
++	notes.enableNote(60, 64);       // C
++	notes.enableNote(64, 64);       // E
++	notes.enableNote(67, 64);       // G
++	notes.enableNote(72, 64, true); // Generated C
++
++	NotesState::NotePressOrder pressOrder = {};
++	pressOrder[60] = 1;
++	pressOrder[64] = 3;
++	pressOrder[67] = 2;
++	pressOrder[72] = 4;
++
++	CHECK_EQUAL(64, notes.latestPhysicalNote(pressOrder));
++
++	NotesState releasedNotes;
++	releasedNotes.enableNote(60, 64);       // C remains held
++	releasedNotes.enableNote(67, 64);       // G remains held
++	releasedNotes.enableNote(72, 64, true); // Generated C remains held
++	CHECK_EQUAL(67, releasedNotes.latestPhysicalNote(pressOrder));
++}
++
+ TEST(ChordTests, rejectsIncompleteAndUnknownChordSets) {
+ 	CHECK_FALSE(findExactChord(NoteSet({0, 4}), 0).found());
+ 	CHECK_FALSE(findExactChord(NoteSet({0, 1, 7}), 0).found());

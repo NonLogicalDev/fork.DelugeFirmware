@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0001-base"]
+
 [vcs]
-commit-msg = "consolidate Korg directory casing\n"
+commit-msg = """
+consolidate Korg directory casing
+"""
 
 [[operation]]
 [operation.patch]

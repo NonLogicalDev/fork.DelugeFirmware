@@ -6,7 +6,7 @@ This repository defines a Git-backed layerctl composition of the Deluge Firmware
 
 ## Layer graph
 
-Dashed arrows show the order in which layers are applied. Regenerate this diagram with `layerctl graph --format mermaid` after changing the layers.
+Arrows point from prerequisites to dependent layers. The manifests declare both feature prerequisites and dependencies needed for the patches to apply; shared changes to `DEVIATIONS.md` account for some of the latter. Regenerate this diagram with `layerctl graph --format mermaid` after changing dependencies.
 
 ```mermaid
 flowchart LR
@@ -45,40 +45,46 @@ flowchart LR
   n32["0033-catalog-firmware-keybindings"]
   n33["0034-add-shared-song-scale-menu"]
   n34["0035-add-precise-envelope-time-controls"]
-  n0 -. order .-> n1
-  n1 -. order .-> n2
-  n2 -. order .-> n3
-  n3 -. order .-> n4
-  n4 -. order .-> n5
-  n5 -. order .-> n6
-  n6 -. order .-> n7
-  n7 -. order .-> n8
-  n8 -. order .-> n9
-  n9 -. order .-> n10
-  n10 -. order .-> n11
-  n11 -. order .-> n12
-  n12 -. order .-> n13
-  n13 -. order .-> n14
-  n14 -. order .-> n15
-  n15 -. order .-> n16
-  n16 -. order .-> n17
-  n17 -. order .-> n18
-  n18 -. order .-> n19
-  n19 -. order .-> n20
-  n20 -. order .-> n21
-  n21 -. order .-> n22
-  n22 -. order .-> n23
-  n23 -. order .-> n24
-  n24 -. order .-> n25
-  n25 -. order .-> n26
-  n26 -. order .-> n27
-  n27 -. order .-> n28
-  n28 -. order .-> n29
-  n29 -. order .-> n30
-  n30 -. order .-> n31
-  n31 -. order .-> n32
-  n32 -. order .-> n33
-  n33 -. order .-> n34
+  n0 --> n1
+  n0 --> n2
+  n0 --> n3
+  n3 --> n4
+  n4 --> n5
+  n5 --> n6
+  n6 --> n7
+  n7 --> n8
+  n8 --> n9
+  n7 --> n10
+  n8 --> n11
+  n9 --> n12
+  n10 --> n12
+  n0 --> n13
+  n12 --> n14
+  n14 --> n15
+  n15 --> n16
+  n16 --> n17
+  n0 --> n18
+  n18 --> n19
+  n17 --> n20
+  n18 --> n20
+  n20 --> n21
+  n21 --> n22
+  n21 --> n23
+  n22 --> n24
+  n24 --> n25
+  n0 --> n26
+  n25 --> n27
+  n26 --> n27
+  n27 --> n28
+  n20 --> n29
+  n23 --> n30
+  n28 --> n30
+  n29 --> n30
+  n30 --> n31
+  n31 --> n32
+  n11 --> n33
+  n32 --> n33
+  n33 --> n34
 ```
 
 ## Rebuild

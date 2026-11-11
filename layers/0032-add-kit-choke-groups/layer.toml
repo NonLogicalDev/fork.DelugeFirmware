@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0031-improve-waveform-playhead-visibility"]
+
 [vcs]
-commit-msg = "add Kit choke groups\n"
+commit-msg = """
+add Kit choke groups
+"""
 
 [[operation]]
 [operation.patch]

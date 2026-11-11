@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0010-copy-and-paste-kit-rows", "0011-reuse-a-kit-from-manual-slice"]
+
 [vcs]
-commit-msg = "make Kit row reordering undoable\n"
+commit-msg = """
+make Kit row reordering undoable
+"""
 
 [[operation]]
 [operation.patch]

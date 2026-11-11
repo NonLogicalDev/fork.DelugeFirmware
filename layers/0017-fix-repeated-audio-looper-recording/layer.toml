@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0016-add-song-grid-track-column-glow"]
+
 [vcs]
-commit-msg = "fix repeated Audio Looper recording\n"
+commit-msg = """
+fix repeated Audio Looper recording
+"""
 
 [[operation]]
 [operation.patch]

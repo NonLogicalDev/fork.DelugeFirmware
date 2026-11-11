@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0008-stop-preview-when-opening-manual-slice"]
+
 [vcs]
-commit-msg = "reuse a Kit from Manual Slice\n"
+commit-msg = """
+reuse a Kit from Manual Slice
+"""
 
 [[operation]]
 [operation.patch]

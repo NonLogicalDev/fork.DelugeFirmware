@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0013-make-kit-row-reordering-undoable"]
+
 [vcs]
-commit-msg = "add MIDI sustain pedal feature flag\n"
+commit-msg = """
+add MIDI sustain pedal feature flag
+"""
 
 [[operation]]
 [operation.patch]

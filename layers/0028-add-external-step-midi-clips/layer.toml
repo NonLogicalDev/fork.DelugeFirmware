@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0026-add-velocity-drums-velocity-profiles", "0027-reject-unsupported-song-compatibility-versions"]
+
 [vcs]
-commit-msg = "add external step MIDI Clips\n"
+commit-msg = """
+add external step MIDI Clips
+"""
 
 [[operation]]
 [operation.patch]

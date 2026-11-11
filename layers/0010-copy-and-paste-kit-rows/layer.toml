@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0009-add-panic-action"]
+
 [vcs]
-commit-msg = "copy and paste Kit rows\n"
+commit-msg = """
+copy and paste Kit rows
+"""
 
 [[operation]]
 [operation.patch]

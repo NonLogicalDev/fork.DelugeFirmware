@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0024-add-recoverable-audio-clip-start-editing", "0029-make-preview-only-note-input-release-order-safe", "0030-correct-slicer-playhead-source"]
+
 [vcs]
-commit-msg = "improve waveform playhead visibility\n"
+commit-msg = """
+improve waveform playhead visibility
+"""
 
 [[operation]]
 [operation.patch]

@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0022-add-compact-oled-clip-progress-ruler"]
+
 [vcs]
-commit-msg = "audition current Waveform Editor Kit row\n"
+commit-msg = """
+audition current Waveform Editor Kit row
+"""
 
 [[operation]]
 [operation.patch]

@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0008-stop-preview-when-opening-manual-slice"]
+
 [vcs]
-commit-msg = "add Panic action\n"
+commit-msg = """
+add Panic action
+"""
 
 [[operation]]
 [operation.patch]

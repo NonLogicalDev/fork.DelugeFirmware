@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0006-add-manual-slicer-kit-creation-option"]
+
 [vcs]
-commit-msg = "improve manual slicer controls\n"
+commit-msg = """
+improve manual slicer controls
+"""
 
 [[operation]]
 [operation.patch]

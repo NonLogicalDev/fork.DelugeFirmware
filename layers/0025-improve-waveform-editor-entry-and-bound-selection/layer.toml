@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0023-audition-current-waveform-editor-kit-row"]
+
 [vcs]
-commit-msg = "improve waveform editor entry and bound selection\n"
+commit-msg = """
+improve waveform editor entry and bound selection
+"""
 
 [[operation]]
 [operation.patch]

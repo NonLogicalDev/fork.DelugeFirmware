@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0005-show-chord-and-latest-pressed-note"]
+
 [vcs]
-commit-msg = "add manual slicer kit creation option\n"
+commit-msg = """
+add manual slicer kit creation option
+"""
 
 [[operation]]
 [operation.patch]

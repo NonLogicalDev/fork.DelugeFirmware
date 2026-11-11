@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0009-add-panic-action"]
+
 [vcs]
-commit-msg = "add Shift five-tap panic gesture\n"
+commit-msg = """
+add Shift five-tap panic gesture
+"""
 
 [[operation]]
 [operation.patch]

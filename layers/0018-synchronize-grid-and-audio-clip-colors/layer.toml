@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0017-fix-repeated-audio-looper-recording"]
+
 [vcs]
-commit-msg = "synchronize Grid and Audio Clip colors\n"
+commit-msg = """
+synchronize Grid and Audio Clip colors
+"""
 
 [[operation]]
 [operation.patch]

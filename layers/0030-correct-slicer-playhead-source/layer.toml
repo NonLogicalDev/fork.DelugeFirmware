@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0021-add-efficient-oled-waveform-displays"]
+
 [vcs]
-commit-msg = "correct Slicer playhead source\n"
+commit-msg = """
+correct Slicer playhead source
+"""
 
 [[operation]]
 [operation.patch]

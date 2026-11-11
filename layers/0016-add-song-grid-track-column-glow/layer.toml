@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0015-add-midi-sustain-pedal-feature-flag"]
+
 [vcs]
-commit-msg = "add Song Grid track column glow\n"
+commit-msg = """
+add Song Grid track column glow
+"""
 
 [[operation]]
 [operation.patch]

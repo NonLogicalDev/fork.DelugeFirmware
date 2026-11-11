@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0025-improve-waveform-editor-entry-and-bound-selection"]
+
 [vcs]
-commit-msg = "add Velocity Drums velocity profiles\n"
+commit-msg = """
+add Velocity Drums velocity profiles
+"""
 
 [[operation]]
 [operation.patch]

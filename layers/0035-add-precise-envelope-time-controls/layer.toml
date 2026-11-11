@@ -1,5 +1,10 @@
+[layer]
+depends-on = ["0034-add-shared-song-scale-menu"]
+
 [vcs]
-commit-msg = "add precise envelope time controls\n"
+commit-msg = """
+add precise envelope time controls
+"""
 
 [[operation]]
 [operation.patch]

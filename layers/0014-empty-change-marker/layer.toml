@@ -1,2 +1,7 @@
+[layer]
+depends-on = ["0001-base"]
+
 [vcs]
-commit-msg = "Preserve empty JJ change marker\n"
+commit-msg = """
+Preserve empty JJ change marker
+"""

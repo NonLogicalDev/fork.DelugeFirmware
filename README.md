@@ -4,6 +4,83 @@ This repository defines a Git-backed layerctl composition of the Deluge Firmware
 
 `provenance.json` records the original source commits, trees, authors, commit headers including JJ change IDs, messages, and remote branch tips. The empty original change at `711d48340ddb9c42d65db6088434b4b9c2ba5e58` is retained as a no-op marker with a descriptive layer commit message; its original message was empty. The original branches and history remain available at the source remote. Layerctl creates new workspace commits, so those commit IDs and JJ headers differ from the originals.
 
+## Layer graph
+
+Dashed arrows show the order in which layers are applied. Regenerate this diagram with `layerctl graph --format mermaid` after changing the layers.
+
+```mermaid
+flowchart LR
+  n0["0001-base"]
+  n1["0002-consolidate-korg-directory-casing"]
+  n2["0003-add-local-nix-build-environment"]
+  n3["0004-add-keyboard-view-chord-detection"]
+  n4["0005-show-chord-and-latest-pressed-note"]
+  n5["0006-add-manual-slicer-kit-creation-option"]
+  n6["0007-improve-manual-slicer-controls"]
+  n7["0008-stop-preview-when-opening-manual-slice"]
+  n8["0009-add-panic-action"]
+  n9["0010-copy-and-paste-kit-rows"]
+  n10["0011-reuse-a-kit-from-manual-slice"]
+  n11["0012-add-shift-five-tap-panic-gesture"]
+  n12["0013-make-kit-row-reordering-undoable"]
+  n13["0014-empty-change-marker"]
+  n14["0015-add-midi-sustain-pedal-feature-flag"]
+  n15["0016-add-song-grid-track-column-glow"]
+  n16["0017-fix-repeated-audio-looper-recording"]
+  n17["0018-synchronize-grid-and-audio-clip-colors"]
+  n18["0019-keep-waveform-rendering-valid-for-long-samples"]
+  n19["0020-correct-reversed-waveform-row-ranges"]
+  n20["0021-add-efficient-oled-waveform-displays"]
+  n21["0022-add-compact-oled-clip-progress-ruler"]
+  n22["0023-audition-current-waveform-editor-kit-row"]
+  n23["0024-add-recoverable-audio-clip-start-editing"]
+  n24["0025-improve-waveform-editor-entry-and-bound-selection"]
+  n25["0026-add-velocity-drums-velocity-profiles"]
+  n26["0027-reject-unsupported-song-compatibility-versions"]
+  n27["0028-add-external-step-midi-clips"]
+  n28["0029-make-preview-only-note-input-release-order-safe"]
+  n29["0030-correct-slicer-playhead-source"]
+  n30["0031-improve-waveform-playhead-visibility"]
+  n31["0032-add-kit-choke-groups"]
+  n32["0033-catalog-firmware-keybindings"]
+  n33["0034-add-shared-song-scale-menu"]
+  n34["0035-add-precise-envelope-time-controls"]
+  n0 -. order .-> n1
+  n1 -. order .-> n2
+  n2 -. order .-> n3
+  n3 -. order .-> n4
+  n4 -. order .-> n5
+  n5 -. order .-> n6
+  n6 -. order .-> n7
+  n7 -. order .-> n8
+  n8 -. order .-> n9
+  n9 -. order .-> n10
+  n10 -. order .-> n11
+  n11 -. order .-> n12
+  n12 -. order .-> n13
+  n13 -. order .-> n14
+  n14 -. order .-> n15
+  n15 -. order .-> n16
+  n16 -. order .-> n17
+  n17 -. order .-> n18
+  n18 -. order .-> n19
+  n19 -. order .-> n20
+  n20 -. order .-> n21
+  n21 -. order .-> n22
+  n22 -. order .-> n23
+  n23 -. order .-> n24
+  n24 -. order .-> n25
+  n25 -. order .-> n26
+  n26 -. order .-> n27
+  n27 -. order .-> n28
+  n28 -. order .-> n29
+  n29 -. order .-> n30
+  n30 -. order .-> n31
+  n31 -. order .-> n32
+  n32 -. order .-> n33
+  n33 -. order .-> n34
+```
+
 ## Rebuild
 
 Install `layerctl` from [misc.experiments/utils/layerctl](https://github.com/NonLogicalDev/misc.experiments/tree/main/utils/layerctl), configure Git author and committer identity, and ensure SSH access to the source fork. Then run from this definition repository:

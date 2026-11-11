@@ -3,7 +3,11 @@ depends-on = []
 
 [vcs]
 commit-msg = """
-Import Deluge firmware base
+Import the Deluge firmware base
+
+Fetch the firmware tree into the workspace root at the pinned source commit. This supplies the common starting point for the following local layers and keeps the imported Git commit as a parent of the generated layer commit.
+
+Pinning the commit makes the starting tree reproducible while retaining its source history for inspection.
 """
 
 [[operation]]

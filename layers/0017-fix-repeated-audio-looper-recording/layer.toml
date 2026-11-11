@@ -4,6 +4,10 @@ depends-on = ["0016-add-song-grid-track-column-glow"]
 [vcs]
 commit-msg = """
 fix repeated Audio Looper recording
+
+Keep a populated Looper/FX Audio Clip on the clocked recording path instead of treating another pass as a tempo-setting first take. Retain the prior sample until a usable replacement is ready, so a cancelled or empty pass does not unnecessarily clear the clip.
+
+Make recorder attachment and detachment respect the owning Output and recorder, preventing a rejected or stale recorder from detaching another one. The change aims to keep the same clip and its monitoring usable across repeated takes while preserving the empty-clip first-take flow.
 """
 
 [[operation]]

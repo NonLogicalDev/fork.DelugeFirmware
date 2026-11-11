@@ -4,6 +4,10 @@ depends-on = ["0021-add-efficient-oled-waveform-displays"]
 [vcs]
 commit-msg = """
 add compact OLED clip progress ruler
+
+Add a three-row ruler to normal Instrument and Audio Clip views, Keyboard View, and non-Arranger Clip Automation. It maps the complete clip loop, shows musical marks and the current pad viewport in timeline views, and draws playback progress when the clip is active. The ruler also handles reverse and ping-pong playback, overdubs, and growing or tempoless recordings.
+
+Keep titles and popups authoritative, suppress the ruler on unrelated screens, and limit moving updates to changed visible results at no more than 20 Hz. Focused tests cover timeline mapping, viewport clipping, playback states, recording, and redraw behavior.
 """
 
 [[operation]]

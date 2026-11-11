@@ -4,6 +4,10 @@ depends-on = ["0001-base"]
 [vcs]
 commit-msg = """
 reject unsupported Song compatibility versions
+
+Preflight a Song's XML or JSON firmware compatibility before changing the current Song, playback state, interface, or Undo history. Close the preflight reader and reopen a compatible file for the normal load; report an incompatibility or reopen failure before starting destructive load work.
+
+Scan root fields even when the compatibility requirement follows other payload, while allowing legacy files with no requirement. Improve JSON skipping of nested values, escaped strings, and primitives so the preflight can safely reach those fields, and preserve the specific firmware error from storage. Add host coverage for compatible, unsupported, reordered, malformed, and failed-reopen cases.
 """
 
 [[operation]]

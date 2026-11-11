@@ -4,6 +4,10 @@ depends-on = ["0022-add-compact-oled-clip-progress-ruler"]
 [vcs]
 commit-msg = """
 add recoverable audio clip start editing
+
+Extend Audio Clip View’s existing End controls with playback-relative Start selection and movement when the trim-from-start feature is enabled. Players can scroll into real source audio before Start and move the boundary back to recover trimmed material without modifying the source file. Forward and reversed Clips use the same playback-relative controls; shared Start and End columns remain selectable.
+
+Keep source bounds and musical Clip length coupled during each encoder gesture, with edge clamping that responds immediately to a turn in the opposite direction. Save the original boundary and length together for Undo and Redo, guard against edits while recording or storage is busy, and restore legal scroll positions when leaving Audio Clip View. Add focused tests for boundary arithmetic and signed timeline navigation.
 """
 
 [[operation]]

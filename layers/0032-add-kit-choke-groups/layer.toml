@@ -4,6 +4,10 @@ depends-on = ["0031-improve-waveform-playhead-visibility"]
 [vcs]
 commit-msg = """
 add Kit choke groups
+
+Add 16 independent choke groups for audio Sound Drums within a Kit. Polyphony CHOKE enables participation, and a new group selector chooses which CHOKE rows release one another when a sound starts; non-CHOKE rows keep their assigned group without participating. Group 1 is the default for missing or invalid values.
+
+Apply choking at a resolved immediate start, including self-retriggers, and release only the matching rows' tracked sound and MIDI state. Preserve group identity through Sound Drum copy, reorder, presets, and Song save/load. Non-default groups require local save schema 2 so older firmware cannot silently discard the grouping. Add menu, group behavior, persistence, and compatibility tests.
 """
 
 [[operation]]

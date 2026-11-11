@@ -4,6 +4,10 @@ depends-on = ["0025-improve-waveform-editor-entry-and-bound-selection"]
 [vcs]
 commit-msg = """
 add Velocity Drums velocity profiles
+
+Add per-Clip Velocity Drums profiles FULL, 4, 2, and FIXED so a player can choose fewer velocity targets without changing drum placement. FULL preserves the existing mapping; the other profiles divide each drum area into velocity regions or use a fixed value, with pad brightness reflecting the emitted velocity.
+
+Use Scale+Horizontal to choose a profile and Scale+Vertical to adjust the fixed velocity and select FIXED. Save the profile and fixed value in the existing Keyboard state, validate each field independently, and default older or invalid data to FULL and velocity 64. Add tests for profile mapping, small and irregular pad areas, brightness, and saved-value defaults.
 """
 
 [[operation]]

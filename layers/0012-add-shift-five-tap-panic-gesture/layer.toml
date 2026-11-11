@@ -4,6 +4,10 @@ depends-on = ["0009-add-panic-action"]
 [vcs]
 commit-msg = """
 add Shift five-tap panic gesture
+
+Invoke the existing Panic action after five consecutive Shift presses within the short-press interval. Reset the sequence when another button or a grid pad is pressed, and defer the action until outside a card routine when necessary.
+
+Clear sticky Shift and suppress the triggering release so the emergency gesture does not leave Shift latched. Display the existing stopped feedback after Panic runs.
 """
 
 [[operation]]

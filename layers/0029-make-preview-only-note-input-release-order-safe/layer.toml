@@ -4,6 +4,10 @@ depends-on = ["0028-add-external-step-midi-clips"]
 [vcs]
 commit-msg = """
 make preview-only note input release-order safe
+
+Treat notes started while Horizontal is held as preview-only in Instrument Clip audition rows and Keyboard View. The notes follow the usual sound, MIDI, CV, and audition paths, but their note-on, retrigger, and note-off are excluded from Clip recording.
+
+Remember the recording decision for each note gesture until its matching release. Releasing Horizontal before the pad therefore cannot record an unmatched note-off, and pressing Horizontal after an ordinary note begins cannot suppress that note's release. Handle overlapping notes, chord notes, retriggers, and cleanup on view or playback changes; add focused lifecycle tests.
 """
 
 [[operation]]

@@ -1,13 +1,15 @@
 [layer]
-depends-on = ["0005-show-chord-and-latest-pressed-note"]
+depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
 add manual slicer kit creation option
 
-Add a Manual slice choice to the sample-browser menu used to create a Kit. It requests Manual mode before opening the slicer, so the player can place boundaries immediately instead of entering Region mode and switching modes afterward.
+Add a Manual slice choice to the sample-browser menu used to create a Kit. It requests Manual mode before opening the
+slicer, so the player can place boundaries immediately instead of entering Region mode and switching modes afterward.
 
-Reset the requested mode after entry so a later ordinary Slice still starts in Region mode, request the initial display redraw, and add localized menu text and a local behavior contract.
+Reset the requested mode after entry so a later ordinary Slice still starts in Region mode, request the initial display
+redraw, and add localized menu text for the new action.
 """
 
 [[operation]]

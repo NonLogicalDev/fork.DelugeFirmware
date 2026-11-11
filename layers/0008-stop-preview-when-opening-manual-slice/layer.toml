@@ -1,11 +1,12 @@
 [layer]
-depends-on = ["0007-improve-manual-slicer-controls"]
+depends-on = ["0006-add-manual-slicer-kit-creation-option"]
 
 [vcs]
 commit-msg = """
 stop preview when opening manual slice
 
-Stop the sample browser's current preview before opening its direct Manual Slice option. This prevents the browser audition from continuing underneath manual boundary placement without changing the existing normal Slice entry.
+Stop the sample browser's current preview before opening its direct Manual Slice option. This prevents the browser
+audition from continuing underneath manual boundary placement without changing the existing normal Slice entry.
 """
 
 [[operation]]

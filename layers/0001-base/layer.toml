@@ -3,16 +3,20 @@ depends-on = []
 
 [vcs]
 commit-msg = """
-Import the Deluge firmware base
+Import and normalize the Deluge firmware base
 
-Fetch the firmware tree into the workspace root at the pinned source commit. This supplies the common starting point for the following local layers and keeps the imported Git commit as a parent of the generated layer commit.
+Fetch the firmware tree at the pinned source commit and apply a case-normalization patch to its Git index before writing
+files. Merge the KORG directory names into Korg without changing the preset contents, so a workspace can be created on
+case-insensitive filesystems.
 
-Pinning the commit makes the starting tree reproducible while retaining its source history for inspection.
+The original imported commit remains the layer commit’s parent, preserving its source history. One minilogue xd preset
+still refers to an uppercase KORG path; that historical reference may not resolve on a case-sensitive filesystem.
 """
 
 [[operation]]
 [operation.git-clone]
 url = "git@github.com:NonLogicalDev/fork.DelugeFirmware.git"
 dir = ""
+pre-checkout-patch = "normalize-casing.patch"
 ref = "refs/heads/nl/latest"
 commit = "9e3132dc17070695b40f69bada5565a33ce428b4"

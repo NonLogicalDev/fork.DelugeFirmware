@@ -1,13 +1,18 @@
 [layer]
-depends-on = ["0008-stop-preview-when-opening-manual-slice"]
+depends-on = ["0007-improve-manual-slicer-controls", "0008-stop-preview-when-opening-manual-slice"]
 
 [vcs]
 commit-msg = """
 reuse a Kit from Manual Slice
 
-Allow sample-browser Kit creation to use an existing Kit when the selected Sound Drum has no assigned rows above it. The selected drum becomes the first row and additional folder samples or slices are added above it, preserving lower rows. Bind the selected sample to the anchor before opening the slicer so its waveform and audition use the chosen file.
+Allow sample-browser Kit creation to use an existing Kit when the selected Sound Drum has no assigned rows above it. The
+selected drum becomes the first row and additional folder samples or slices are added above it, preserving lower rows.
+Bind the selected sample to the anchor before opening the slicer so its waveform and audition use the chosen file.
 
-Extend both Manual and Region slicing with per-batch Default, All Cut and All Once playback choices and assign generated slices series names such as A-01 and A-02. Restore the anchor's prior playback mode when a manual preview is cancelled, and prevent changing slicer mode during an existing-Kit session. Add unit coverage for generated names and batch playback modes.
+Extend both Manual and Region slicing with per-batch Default, All Cut and All Once playback choices and assign generated
+slices series names such as A-01 and A-02. Restore the anchor's prior playback mode when a manual preview is cancelled,
+and prevent changing slicer mode during an existing-Kit session. Add unit coverage for generated names and batch
+playback modes.
 """
 
 [[operation]]

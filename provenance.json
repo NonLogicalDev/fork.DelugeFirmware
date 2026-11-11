@@ -10,7 +10,8 @@
       "original_tree": "e3c03ddf67df0a623a442ee28e3a70cd2ab8c308",
       "original_headers": "tree e3c03ddf67df0a623a442ee28e3a70cd2ab8c308\nparent 9e3132dc17070695b40f69bada5565a33ce428b4\nauthor Oleg Utkin <hello@nonlogical.net> 1787362518 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330574 -0700\nchange-id wqoquorrvppvnqqpxmunqozqllyyosrv",
       "original_message": "consolidate Korg directory casing\n",
-      "empty_message_replaced": false
+      "empty_message_replaced": false,
+      "integrated_into": "0001-base"
     },
     {
       "layer": "0003-add-local-nix-build-environment",
@@ -346,5 +347,14 @@
     "origin/ns/bug-song-load-01": "65557a0845ee83bec468242e639c255b0636fc5d",
     "origin/ns/bug-waveform-01": "37f31692eb66b548bb40f7e7ed5e5ac094b14333",
     "origin/ns/bug-waveform-02": "3312eab8093c5e569d5fece9ff675b117356cde5"
+  },
+  "conversion": {
+    "expected_initial_tree": "e184389511a711f129d12b6064c2d29f760babaf",
+    "omitted_source_paths": [
+      "DEVIATIONS.md"
+    ],
+    "source_adjustments": [
+      "Removed the firmware README section linking to DEVIATIONS.md."
+    ]
   }
 }

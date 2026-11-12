@@ -18,6 +18,8 @@ Keep the official community firmware source locally available and add requested 
 
 ## Current State
 
+- Completed: [compare upstream base candidates](completed/plan-51%20Compare%20upstream%20base%20candidates.md); see the [v1.3.0 layer audit](artifacts/v1.3.0-layer-audit.md). The base remains unchanged pending a port.
+
 - Latest local build [[2026-09-14]]: [modulation shortcut fix](active/plan-50%20fix%20modulation%20source%20shortcut%20dispatch.md), `ns/bug-modulation-01` at `d08ed27906ed13691a04c1730924fc6fed590f4c`. Successful modulation no longer falls through to Randomizer. Integrated tip `b37869fdc41f89f6b79ef079cb3ca00ae86c8a4a`; clean empty child `1f2d2a`. Regression check, 12 catalog tests, 23 host suites and 47-second Release pass. BIN SHA-256 `b5f19e676d53dab7f2d0096dc3bbf95c74bedf081875513b8bfa113dd3e022d0`. /root and /root/modulation_review finished. Hardware check pending; not pushed or flashed. Supersedes older local tip/build identities below; recovery tag unchanged.
 
 - Latest envelope graph repair: `nl/patch-envelopes-01` now `33ceddc0b8e703435afc6fa43e96554d687bb4a0`, clean child `2dfe22`. Corrected hundredths/whole-unit mismatch in graphical overview, preserving sound and Sustain. All 23 host suites, 12 catalog tests and Release pass; 50-second build, BIN SHA-256 `266d1cfd9226d09a345f7e4936800925864430f9bd7054df4b7734bd5d43b41f`. Recovery tag unchanged. [Plan48](active/plan-48%20add%20fine%20envelope%20timing%20controls.md) contains cause and evidence; hardware check pending. Supersedes feature-tip and binary identities below.

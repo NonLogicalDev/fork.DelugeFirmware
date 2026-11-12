@@ -11,3 +11,5 @@ The base layer includes the original local Nix environment as an overlay; see th
 Layer commit messages use conventional subjects and a 90-character wrap target. The base casing hook is Perl; see the [message format](theme-002-deluge-conversion/completed/plan-06%20Format%20layer%20commit%20messages.md) and [hook conversion](theme-002-deluge-conversion/completed/plan-07%20Convert%20casing%20hook%20to%20Perl.md) plans.
 
 The [firmware workstream](theme-001-community-firmware/EXEC_STATE.md) contains the Deluge feature plans moved from the learning owner, preserving their ownership and history.
+
+The [v1.3.0 layer audit](theme-001-community-firmware/artifacts/v1.3.0-layer-audit.md) compares all 32 layers against the release and records partial overlaps and trial conflicts. The pinned base has not been changed.

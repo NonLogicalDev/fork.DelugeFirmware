@@ -1,8 +1,10 @@
 # Deluge Firmware layers
 
-This repository defines a Git-backed layerctl composition of the Deluge Firmware fork. `layers/0001-base` imports the fork's original `main` base at a pinned commit and applies the casing fix to Git's index before checking out files. The following layers reproduce the remaining firmware changes in order. Their commit messages explain the changes and their purpose; the original messages remain in `provenance.json`. The layer directories are ordered by their four-digit prefixes.
+This repository defines a Git-backed layerctl composition of the Deluge Firmware fork. `layers/0001-base` imports the official upstream `main` base at a pinned commit and runs [a casing-normalization script](layers/0001-base/git_normalize_casing.py) against Git's index before checking out files. The following layers reproduce the remaining firmware changes in order. Their commit messages explain the changes and their purpose; the original messages remain in `provenance.json`. The layer directories are ordered by their four-digit prefixes.
 
 `provenance.json` records the original source commits, trees, authors, commit headers including JJ change IDs, messages, and remote branch tips. The empty original change at `711d48340ddb9c42d65db6088434b4b9c2ba5e58` is retained as a no-op marker with a descriptive layer commit message; its original message was empty. The original branches and history remain available at the source remote. Layerctl creates new workspace commits, so those commit IDs and JJ headers differ from the originals. The original casing-fix layer is recorded in provenance as integrated into the base clone.
+
+[Project plans](docs/plans/README.md) include the conversion history and current work.
 
 [DEVIATIONS.md](DEVIATIONS.md) preserves the fork’s feature and compatibility notes outside the composed firmware source. It is copied from the original tip without edits; paths in that document refer to the firmware workspace, and its maintenance instructions describe the original source layout. The original firmware README link to that file is omitted from the composition.
 
@@ -100,7 +102,7 @@ flowchart LR
 
 ## Rebuild
 
-Install `layerctl` from [misc.experiments/utils/layerctl](https://github.com/NonLogicalDev/misc.experiments/tree/main/utils/layerctl), configure Git author and committer identity, and ensure SSH access to the source fork. Then run from this definition repository:
+Install Python 3 and install `layerctl` from [misc.experiments/utils/layerctl](https://github.com/NonLogicalDev/misc.experiments/tree/main/utils/layerctl), configure Git author and committer identity, and ensure SSH access to the upstream repository. Then run from this definition repository:
 
 ```sh
 layerctl graph --format mermaid

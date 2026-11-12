@@ -355,6 +355,8 @@
     ],
     "source_adjustments": [
       "Removed the firmware README section linking to DEVIATIONS.md."
-    ]
+    ],
+    "base_source": "git@github.com:SynthstromAudible/DelugeFirmware.git",
+    "base_ref": "refs/heads/main"
   }
 }

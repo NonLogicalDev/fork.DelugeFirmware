@@ -5,9 +5,9 @@ depends-on = []
 commit-msg = """
 Import and normalize the Deluge firmware base
 
-Fetch the firmware tree at the pinned source commit and apply a case-normalization patch to its Git index before writing
-files. Merge the KORG directory names into Korg without changing the preset contents, so a workspace can be created on
-case-insensitive filesystems.
+Fetch the firmware tree at the pinned source commit and run a case-normalization script against its Git index before
+writing files. Merge the KORG directory names into Korg without changing the preset contents, so a workspace can be
+created on case-insensitive filesystems.
 
 The original imported commit remains the layer commit’s parent, preserving its source history. One minilogue xd preset
 still refers to an uppercase KORG path; that historical reference may not resolve on a case-sensitive filesystem.
@@ -15,8 +15,7 @@ still refers to an uppercase KORG path; that historical reference may not resolv
 
 [[operation]]
 [operation.git-clone]
-url = "git@github.com:NonLogicalDev/fork.DelugeFirmware.git"
-dir = ""
-pre-checkout-patch = "normalize-casing.patch"
-ref = "refs/heads/nl/latest"
+url = "git@github.com:SynthstromAudible/DelugeFirmware.git"
+pre-checkout-script = "git_normalize_casing.py"
+ref = "refs/heads/main"
 commit = "9e3132dc17070695b40f69bada5565a33ce428b4"

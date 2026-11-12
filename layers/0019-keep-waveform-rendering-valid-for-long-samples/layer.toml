@@ -3,15 +3,15 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-keep waveform rendering valid for long samples
+fix: keep waveform rendering valid for long samples
 
-Use wider, checked sample, byte, and cluster position arithmetic in waveform peak lookup and viewport navigation. Reject
-invalid or overflowing positions before narrowing or indexing, and account for the valid length of both loaded samples
-and live recordings.
+Use wider, checked sample, byte, and cluster position arithmetic in waveform peak lookup
+and viewport navigation. Reject invalid or overflowing positions before narrowing or
+indexing, and account for the valid length of both loaded samples and live recordings.
 
-Handle zero-length samples and only persist viewport coordinates that fit the existing saved fields. These changes
-prevent long recordings and large file offsets from wrapping into missing waveforms or unrelated data; focused tests
-cover boundary and overflow cases.
+Handle zero-length samples and only persist viewport coordinates that fit the existing
+saved fields. These changes prevent long recordings and large file offsets from wrapping
+into missing waveforms or unrelated data; focused tests cover boundary and overflow cases.
 """
 
 [[operation]]

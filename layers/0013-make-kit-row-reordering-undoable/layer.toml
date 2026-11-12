@@ -3,14 +3,15 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-Add Kit row reorder undo infrastructure
+feat: add Kit row reorder undo infrastructure
 
-Add a note-row reorder action type and a consequence that stores the original and destination indices. When invoked for
-undo, the consequence reverses those indices; redo moves the row forward again. Reject out-of-range indices before
-changing the clip's row array.
+Add a note-row reorder action type and a consequence that stores the original and
+destination indices. When invoked for undo, the consequence reverses those indices; redo
+moves the row forward again. Reject out-of-range indices before changing the clip's row
+array.
 
-This layer does not connect the consequence to the reorder gesture, so its presence alone does not establish that the
-gesture records an undo action.
+This layer does not connect the consequence to the reorder gesture, so its presence alone
+does not establish that the gesture records an undo action.
 """
 
 [[operation]]

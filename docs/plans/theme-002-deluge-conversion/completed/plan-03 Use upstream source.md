@@ -30,3 +30,5 @@ The definition worktree is on `layerctl-conversion`. The base fetches upstream `
 - Following the script placement convention, the hook lives in `layers/0001-base/scripts/` and the manifest uses a layer-relative `scripts/` path. Replayed the full projection and `check` with that path on a case-insensitive filesystem; the expected final tree was unchanged. The hook runs in the temporary bare repository.
 
 - Subsequent layerctl changes run the hook from the composed workspace root while preserving its bare-repository Git context. A case-insensitive full projection and `check` replay reproduced the same expected firmware tree.
+
+- The later [Perl conversion](../completed/plan-07%20Convert%20casing%20hook%20to%20Perl.md) replaced the Python prerequisite with Perl.

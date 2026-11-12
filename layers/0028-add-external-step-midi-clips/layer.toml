@@ -7,21 +7,24 @@ depends-on = [
 
 [vcs]
 commit-msg = """
-add external step MIDI Clips
+feat: add external step MIDI Clips
 
-Add an opt-in External Step clock mode for forward Session MIDI-Out Clips. Each Clip can learn separate Step and Reset
-inputs using exact MIDI device, physical channel, message type, and number; Note and CC inputs trigger on rising edges,
-while each matching Program Change is an edge. Independent Clips can share or use different controls, and Reset is
+Add an opt-in External Step clock mode for forward Session MIDI-Out Clips. Each Clip can
+learn separate Step and Reset inputs using exact MIDI device, physical channel, message
+type, and number; Note and CC inputs trigger on rising edges, while each matching Program
+Change is an edge. Independent Clips can share or use different controls, and Reset is
 handled before Step when one event matches both.
 
-The first step after launch or reset emits position zero; later pulses advance by the selected quarter, eighth,
-sixteenth, or thirty-second note. Notes and MIDI automation are emitted at pulse boundaries without rewriting stored
-events. Unsupported timing and conflicting input mappings leave the affected control or Clip inactive; a qualified clock
+The first step after launch or reset emits position zero; later pulses advance by the
+selected quarter, eighth, sixteenth, or thirty-second note. Notes and MIDI automation are
+emitted at pulse boundaries without rewriting stored events. Unsupported timing and
+conflicting input mappings leave the affected control or Clip inactive; a qualified clock
 loss cuts owned notes while retaining phase for the next pulse.
 
-Persist the mode, step size, and bindings while keeping transient pulse state separate. Mark Songs containing External
-Step Clips with local save schema 1 so unsupported firmware refuses them instead of silently using Song timing. Add
-menu, input, runtime, and compatibility tests.
+Persist the mode, step size, and bindings while keeping transient pulse state separate.
+Mark Songs containing External Step Clips with local save schema 1 so unsupported firmware
+refuses them instead of silently using Song timing. Add menu, input, runtime, and
+compatibility tests.
 """
 
 [[operation]]

@@ -3,16 +3,17 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-add Keyboard View chord detection
+feat: add Keyboard View chord detection
 
-Identify held pitch classes against the firmware's existing chord shapes and display an exact match in Keyboard View.
-Prefer the bass as the root when it matches, accept a unique inversion otherwise, and avoid naming incomplete note sets
-or ambiguous inversions without a matching bass root. Repeated octaves do not change the result. This gives players
-chord feedback while leaving genuinely ambiguous inversions unnamed.
+Identify held pitch classes against the firmware's existing chord shapes and display an
+exact match in Keyboard View. Prefer the bass as the root when it matches, accept a unique
+inversion otherwise, and avoid naming incomplete note sets or ambiguous inversions without
+a matching bass root. Repeated octaves do not change the result. This gives players chord
+feedback while leaving genuinely ambiguous inversions unnamed.
 
-Show the name in an OLED popup or on the seven-segment display, while excluding Kit and chord-entry layouts. Correct the
-augmented chord's third to a major third and add unit coverage for inversions, bass preference, augmented chords and
-unmatched notes.
+Show the name in an OLED popup or on the seven-segment display, while excluding Kit and
+chord-entry layouts. Correct the augmented chord's third to a major third and add unit
+coverage for inversions, bass preference, augmented chords and unmatched notes.
 """
 
 [[operation]]

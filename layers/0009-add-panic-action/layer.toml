@@ -3,15 +3,16 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-add Panic action
+feat: add Panic action
 
-Add a Panic entry at the start of the global Settings menu and implement a shared audio-engine action for emergency
-silence. It stops playback, notes and auditions, the browser preview, active recording and stem export, and clears
-runtime effects including delay, stutter and reverb tails.
+Add a Panic entry at the start of the global Settings menu and implement a shared
+audio-engine action for emergency silence. It stops playback, notes and auditions, the
+browser preview, active recording and stem export, and clears runtime effects including
+delay, stutter and reverb tails.
 
-Reset the affected effect and monitoring state so feedback or a pending recording does not continue sounding after the
-action. An unfinished recording or export is aborted; the action is intended to affect live state rather than saved
-project content.
+Reset the affected effect and monitoring state so feedback or a pending recording does not
+continue sounding after the action. An unfinished recording or export is aborted; the
+action is intended to affect live state rather than saved project content.
 """
 
 [[operation]]

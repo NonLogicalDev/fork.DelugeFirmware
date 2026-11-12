@@ -3,15 +3,17 @@ depends-on = ["0011-reuse-a-kit-from-manual-slice", "0019-keep-waveform-renderin
 
 [vcs]
 commit-msg = """
-add efficient OLED waveform displays
+feat: add efficient OLED waveform displays
 
-Show an outline of the visible sample with marker positions in the Sample Marker Editor, and give Region and Manual
-Slicer modes their own OLED waveform pages with region or slice boundaries. Keep the display aligned with the existing
-pad viewport, including zoom, scroll, and reversed samples.
+Show an outline of the visible sample with marker positions in the Sample Marker Editor,
+and give Region and Manual Slicer modes their own OLED waveform pages with region or slice
+boundaries. Keep the display aligned with the existing pad viewport, including zoom,
+scroll, and reversed samples.
 
-Collect and reuse bounded peak ranges, including shared ranges at close zoom, and draw the available data without
-initiating storage access or sample analysis during OLED rendering. Invalidate the display when relevant editing state
-changes instead of repeatedly refreshing a static waveform. Add focused tests for range mapping, cached peaks, partial
+Collect and reuse bounded peak ranges, including shared ranges at close zoom, and draw the
+available data without initiating storage access or sample analysis during OLED rendering.
+Invalidate the display when relevant editing state changes instead of repeatedly
+refreshing a static waveform. Add focused tests for range mapping, cached peaks, partial
 availability, and drawing bounds.
 """
 

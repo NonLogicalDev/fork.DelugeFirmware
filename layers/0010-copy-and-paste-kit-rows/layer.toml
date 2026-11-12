@@ -3,16 +3,18 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-copy and paste Kit rows
+feat: copy and paste Kit rows
 
-Add a local clipboard for Sound Drum rows in Kit Clip View. While holding a source audition pad, one Learn press copies
-its sound; a quick second press includes the row's notes and playback settings. Shift + Learn while holding a target
-pastes to a new or existing Sound Drum row in the same Kit and song.
+Add a local clipboard for Sound Drum rows in Kit Clip View. While holding a source
+audition pad, one Learn press copies its sound; a quick second press includes the row's
+notes and playback settings. Shift + Learn while holding a target pastes to a new or
+existing Sound Drum row in the same Kit and song.
 
-Clone the sound, sample source and parameter data independently, prepare the replacement before changing the target, and
-give localized feedback for copying, pasting and unavailable targets. MIDI and Gate drums are not supported as targets,
-and a successful paste clears undo history rather than offering partial undo. The existing note-clipboard gesture
-remains available.
+Clone the sound, sample source and parameter data independently, prepare the replacement
+before changing the target, and give localized feedback for copying, pasting and
+unavailable targets. MIDI and Gate drums are not supported as targets, and a successful
+paste clears undo history rather than offering partial undo. The existing note-clipboard
+gesture remains available.
 """
 
 [[operation]]

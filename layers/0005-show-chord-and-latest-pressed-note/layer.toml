@@ -3,14 +3,16 @@ depends-on = ["0004-add-keyboard-view-chord-detection"]
 
 [vcs]
 commit-msg = """
-show chord and latest pressed note
+feat: show chord and latest pressed note
 
-Track the press order of physical Keyboard View notes and show the most recently pressed note that remains held under a
-recognized chord on OLED displays. When a note is released, select the newest remaining physical note; if none exists,
-retain the chord-only display. Generated notes do not supply the second line, and seven-segment displays keep their
+Track the press order of physical Keyboard View notes and show the most recently pressed
+note that remains held under a recognized chord on OLED displays. When a note is released,
+select the newest remaining physical note; if none exists, retain the chord-only display.
+Generated notes do not supply the second line, and seven-segment displays keep their
 existing chord label.
 
-This preserves both the harmonic context and the player's latest held note. Add unit coverage for note ordering.
+This preserves both the harmonic context and the player's latest held note. Add unit
+coverage for note ordering.
 """
 
 [[operation]]

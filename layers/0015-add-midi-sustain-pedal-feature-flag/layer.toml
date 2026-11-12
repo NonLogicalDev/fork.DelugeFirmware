@@ -3,16 +3,18 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-add MIDI sustain pedal feature flag
+feat: add MIDI sustain pedal feature flag
 
-Add a persisted Community Features setting for incoming MIDI sustain, defaulting to off. When enabled for an internal
-Synth, CC64 holds note releases while the pedal is down and releases deferred notes when the pedal rises. Notes still
-physically held and pitches retriggered during sustain are tracked separately so pedal release does not stop the wrong
+Add a persisted Community Features setting for incoming MIDI sustain, defaulting to off.
+When enabled for an internal Synth, CC64 holds note releases while the pedal is down and
+releases deferred notes when the pedal rises. Notes still physically held and pitches
+retriggered during sustain are tracked separately so pedal release does not stop the wrong
 note.
 
-Keep MIDI Learn and ordinary CC handling in the input path, and clear held state when the setting is disabled or
-auditioning stops. Add focused deferred-note tests. The feature applies to live external MIDI input, including DX7
-sounds, without recording pedal events or changing external MIDI-output tracks.
+Keep MIDI Learn and ordinary CC handling in the input path, and clear held state when the
+setting is disabled or auditioning stops. Add focused deferred-note tests. The feature
+applies to live external MIDI input, including DX7 sounds, without recording pedal events
+or changing external MIDI-output tracks.
 """
 
 [[operation]]

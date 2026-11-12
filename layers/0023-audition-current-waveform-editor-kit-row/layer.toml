@@ -3,16 +3,18 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-audition current Waveform Editor Kit row
+feat: audition current Waveform Editor Kit row
 
-Allow holding Select in a Kit Sound Drum's Waveform Editor to audition the drum being edited and releasing it to end the
-held audition. Play through that drum's normal sound path and sample settings while bypassing the clip-level Kit
-arpeggiator, so the audition remains tied to the edited sound rather than a screen row number.
+Allow holding Select in a Kit Sound Drum's Waveform Editor to audition the drum being
+edited and releasing it to end the held audition. Play through that drum's normal sound
+path and sample settings while bypassing the clip-level Kit arpeggiator, so the audition
+remains tied to the edited sound rather than a screen row number.
 
-Track and clear preview ownership when the active clip changes, another audition replaces it, the editor closes, or
-playback is stopped. Avoid starting a competing preview over an already sounding drum, protect the held preview from
-choking, and preserve normal row audition and marker controls. This lets a player hear bounds while editing without a
-stale release cutting a later note.
+Track and clear preview ownership when the active clip changes, another audition replaces
+it, the editor closes, or playback is stopped. Avoid starting a competing preview over an
+already sounding drum, protect the held preview from choking, and preserve normal row
+audition and marker controls. This lets a player hear bounds while editing without a stale
+release cutting a later note.
 """
 
 [[operation]]

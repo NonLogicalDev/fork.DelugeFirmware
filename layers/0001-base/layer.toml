@@ -3,24 +3,27 @@ depends-on = []
 
 [vcs]
 commit-msg = """
-Import and normalize the Deluge firmware base
+build: import and normalize the Deluge firmware base
 
-Fetch the firmware tree at the pinned source commit and run a case-normalization script against its Git index before
-writing files. Merge the KORG directory names into Korg without changing the preset contents, so a workspace can be
-created on case-insensitive filesystems.
+Fetch the firmware tree at the pinned source commit and run a case-normalization script
+against its Git index before writing files. Merge the KORG directory names into Korg
+without changing the preset contents, so a workspace can be created on case-insensitive
+filesystems.
 
-Add a pinned Nix development shell for Apple Silicon macOS using the upstream v22 ARM toolchain, Python helpers, Git,
-pre-commit and a checkout-local compiler cache. Document how to enter the shell and build a local Release firmware
-binary, providing a repeatable development environment.
+Add a pinned Nix development shell for Apple Silicon macOS using the upstream v22 ARM
+toolchain, Python helpers, Git, pre-commit and a checkout-local compiler cache. Document
+how to enter the shell and build a local Release firmware binary, providing a repeatable
+development environment.
 
-The original imported commit remains the layer commit’s parent, preserving its source history. One minilogue xd preset
-still refers to an uppercase KORG path; that historical reference may not resolve on a case-sensitive filesystem.
+The original imported commit remains the layer commit’s parent, preserving its source
+history. One minilogue xd preset still refers to an uppercase KORG path; that historical
+reference may not resolve on a case-sensitive filesystem.
 """
 
 [[operation]]
 [operation.git-clone]
 url = "git@github.com:SynthstromAudible/DelugeFirmware.git"
-pre-checkout-script = "scripts/git_normalize_casing.py"
+pre-checkout-script = "scripts/git_normalize_casing.pl"
 ref = "refs/heads/main"
 commit = "9e3132dc17070695b40f69bada5565a33ce428b4"
 

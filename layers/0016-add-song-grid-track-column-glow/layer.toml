@@ -3,14 +3,15 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-add Song Grid track column glow
+feat: add Song Grid track column glow
 
-Give empty main-grid cells in existing track columns a faint neutral-white base, while leaving columns without an
-existing track black. Draw clip colors and state feedback over that base so the established active, selected, recording,
-and other visual states remain recognizable.
+Give empty main-grid cells in existing track columns a faint neutral-white base, while
+leaving columns without an existing track black. Draw clip colors and state feedback over
+that base so the established active, selected, recording, and other visual states remain
+recognizable.
 
-This makes available track columns visible before a clip is launched or selected without adding a setting or changing
-track and clip behavior.
+This makes available track columns visible before a clip is launched or selected without
+adding a setting or changing track and clip behavior.
 """
 
 [[operation]]

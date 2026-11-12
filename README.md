@@ -1,16 +1,51 @@
 # Deluge Firmware layers
 
-This repository defines a Git-backed layerctl composition of the Deluge Firmware fork. `layers/0001-base` imports the official upstream `main` base at a pinned commit, runs [a casing-normalization script](layers/0001-base/scripts/git_normalize_casing.pl) against Git's index before checking out files, and adds the local Nix build environment. The following layers reproduce the remaining firmware changes in order. Their commit messages use conventional subjects and explain the changes and their purpose; the original messages remain in `provenance.json`. The layer directories are ordered by their four-digit prefixes.
+**Upstream base:** [9e3132dc](https://github.com/SynthstromAudible/DelugeFirmware/commit/9e3132dc17070695b40f69bada5565a33ce428b4) · September 13, 2026 · [1.3.0-dev](https://github.com/SynthstromAudible/DelugeFirmware/blob/9e3132dc17070695b40f69bada5565a33ce428b4/CMakeLists.txt#L6-L18) (default development version)
 
-`provenance.json` records the original source commits, trees, authors, commit headers including JJ change IDs, messages, and remote branch tips. The empty original change at `711d48340ddb9c42d65db6088434b4b9c2ba5e58` remains in provenance but has no layer. The original branches and history remain available at the source remote. Layerctl creates new workspace commits, so those commit IDs and JJ headers differ from the originals. The original casing-fix and Nix environment layers are recorded in provenance as integrated into the base layer.
+This repository defines a customized Deluge Community Firmware using ordered [layerctl](https://github.com/NonLogicalDev/misc.experiments/tree/main/utils/layerctl) layers. The base layer imports the pinned upstream source, normalizes Korg directory casing, and adds a local Nix build environment. Other layers add firmware features and fixes.
 
-[Project plans](docs/plans/README.md) include the conversion history and current work.
+## Feature highlights
 
-[DEVIATIONS.md](DEVIATIONS.md) preserves the fork’s feature and compatibility notes outside the composed firmware source. It is copied from the original tip without edits; paths in that document refer to the firmware workspace, and its maintenance instructions describe the original source layout. The original firmware README link to that file is omitted from the composition.
+- [Keyboard chords](DEVIATIONS.md#3-keyboard-view-exact-chord-recognition) and [the latest held note](DEVIATIONS.md#4-keyboard-view-chord-and-latest-physical-note-display) in Keyboard View.
+- [Kit creation and reuse](DEVIATIONS.md#5-kit-sample-creation-entry-and-reuse), with improved [Manual Slicer controls](DEVIATIONS.md#6-manual-slicer-positioning-and-preview-stop).
+- An emergency [Panic action](DEVIATIONS.md#9-panic-action) and [copy and paste for Kit rows](DEVIATIONS.md#10-copy-paste-and-reorder-a-kit-sound-drum-row).
+- [MIDI sustain pedal support](DEVIATIONS.md#11-optional-incoming-midi-sustain-pedal) and [externally stepped MIDI clips](DEVIATIONS.md#23-externally-stepped-midi-clips).
+- [OLED waveform displays](DEVIATIONS.md#17-oled-sample-editing-waveform-companions), a [clip progress ruler](DEVIATIONS.md#18-oled-clip-timeline-ruler), and [recoverable Audio Clip start editing](DEVIATIONS.md#20-recoverable-audio-clip-start-editing).
+- [Velocity Drums profiles](DEVIATIONS.md#22-velocity-drums-velocity-profiles), [Kit choke groups](DEVIATIONS.md#27-kit-sound-drum-choke-groups), and [fine envelope time controls](DEVIATIONS.md#30-fine-envelope-time-controls).
+
+See [DEVIATIONS.md](DEVIATIONS.md) for the full feature and compatibility notes.
+
+## Create a firmware workspace
+
+Install Perl and [layerctl](https://github.com/NonLogicalDev/misc.experiments/tree/main/utils/layerctl), configure your Git author and committer identity, and ensure SSH access to GitHub. From this repository, run:
+
+```sh
+layerctl projection create firmware --worktree /path/to/new-firmware-workspace
+layerctl check
+```
+
+The workspace path must not already exist. The base clone prepares the casing fix in Git before writing files, so the workspace can be created on a case-insensitive filesystem.
+
+## Build locally
+
+The included Nix environment targets Apple Silicon macOS. From the firmware workspace, run:
+
+```sh
+nix develop path:./.nix
+DBT_NO_SYNC=1 ./dbt build Release
+```
+
+The build produces `build/Release/deluge.bin`. The workspace’s `.nix/README.md` describes the toolchain, compiler cache, and build configuration.
+
+## Work with layers
+
+Each directory in `layers/` contains a `layer.toml` defining its dependencies, commit message, and operations. Layerctl applies enabled layers in numbered order. Use a conventional commit subject and wrap message bodies to a 90-character target.
+
+To make a change, create a projection through the relevant layer, commit the edit in that workspace, and use `layerctl layer add` or `layerctl layer refresh`. The [layerctl authoring walkthrough](https://github.com/NonLogicalDev/misc.experiments/tree/main/utils/layerctl/skills/layerctl) covers editing, refresh, conflict recovery, and cleanup. `provenance.json` records source commit metadata, and [project plans](docs/plans/README.md) track repository work.
 
 ## Layer graph
 
-Arrows point from prerequisites to dependent layers. The manifests declare both feature prerequisites and dependencies needed for patches to apply. Regenerate this diagram with `layerctl graph --format mermaid` after changing dependencies.
+Arrows point from prerequisites to dependent layers. Regenerate the diagram with `layerctl graph --format mermaid` after changing dependencies.
 
 ```mermaid
 flowchart LR
@@ -96,18 +131,6 @@ flowchart LR
   n30 --> n31
 ```
 
-## Rebuild
+## License
 
-Install Perl and `layerctl` from [misc.experiments/utils/layerctl](https://github.com/NonLogicalDev/misc.experiments/tree/main/utils/layerctl), configure Git author and committer identity, and ensure SSH access to the upstream repository. Then run from this definition repository:
-
-```sh
-layerctl graph --format mermaid
-layerctl projection create firmware --worktree /path/to/new-firmware-workspace
-layerctl check
-```
-
-The workspace path must not already exist. The base clone prepares the casing fix before files are written, so it can run on a case-insensitive filesystem. The resulting firmware tree omits `DEVIATIONS.md` and the original README link to it; those intentional differences mean its tree ID differs from the original recorded in `provenance.json`. For the initial converted stack, compare `git -C /path/to/new-firmware-workspace rev-parse HEAD^{tree}` with `conversion.expected_initial_tree` in `provenance.json`.
-
-For changes, create a separate projection through the relevant layer, commit the edit there, and use `layerctl layer add` or `layerctl layer refresh` from this repository. Write each layer commit message with a conventional commit subject and a body that explains what changed and why it matters. Wrap body text to a 90-character target. The [layerctl skill walkthrough](https://github.com/NonLogicalDev/misc.experiments/tree/main/utils/layerctl/skills/layerctl) covers editing, refresh, conflict recovery, and cleanup. Preserve `provenance.json` as the record of the initial conversion when later changes are made.
-
-The included LICENSE is copied from the original firmware fork. The patches are derived from that project and retain its license and original attribution recorded in `provenance.json`.
+The firmware patches and included [LICENSE](LICENSE) retain their source license and attribution recorded in `provenance.json`.

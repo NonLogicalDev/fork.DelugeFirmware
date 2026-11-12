@@ -13,7 +13,7 @@ This repository defines a customized Deluge Community Firmware using ordered [la
 - [OLED waveform displays](DEVIATIONS.md#17-oled-sample-editing-waveform-companions), a [clip progress ruler](DEVIATIONS.md#18-oled-clip-timeline-ruler), and [recoverable Audio Clip start editing](DEVIATIONS.md#20-recoverable-audio-clip-start-editing).
 - [Velocity Drums profiles](DEVIATIONS.md#22-velocity-drums-velocity-profiles), [Kit choke groups](DEVIATIONS.md#27-kit-sound-drum-choke-groups), and [fine envelope time controls](DEVIATIONS.md#30-fine-envelope-time-controls).
 
-See [DEVIATIONS.md](DEVIATIONS.md) for the full feature and compatibility notes and the [keybinding catalog](keybindings/README.md) for the control reference.
+See [CHANGELOG.md](CHANGELOG.md) for fork changes, [DEVIATIONS.md](DEVIATIONS.md) for detailed behavior, and the [keybinding catalog](keybindings/README.md) for the control reference.
 
 ## Create a firmware workspace
 
@@ -45,7 +45,7 @@ To make a change, create a projection through the relevant layer, commit the edi
 
 ## Layer graph
 
-Arrows point from prerequisites to dependent layers. Regenerate the diagram with `layerctl graph --format mermaid` after changing dependencies.
+Arrows point from prerequisites to dependent layers; colors identify the main firmware area each layer changes. After changing dependencies, regenerate the diagram with `layerctl graph --format mermaid | python3 scripts/graph_layers_color.py --write`. Assign an area in the script when adding a layer.
 
 ```mermaid
 flowchart LR
@@ -119,6 +119,29 @@ flowchart LR
   n23 --> n25
   n24 --> n25
   n25 --> n26
+  subgraph legend["Firmware areas"]
+    legend_foundation["Foundation"]
+    legend_keyboard["Keyboard and scales"]
+    legend_slicer["Slicer and Kit"]
+    legend_waveform["Audio and waveforms"]
+    legend_song["Song and arrangement"]
+    legend_control["Playback and MIDI"]
+    legend_sound["Sound and expression"]
+  end
+  classDef foundation fill:#e5e7eb,stroke:#4b5563,color:#111827
+  class n0,n19,legend_foundation foundation
+  classDef keyboard fill:#ede9fe,stroke:#6d28d9,color:#111827
+  class n1,n21,n25,legend_keyboard keyboard
+  classDef slicer fill:#ffedd5,stroke:#c2410c,color:#111827
+  class n2,n3,n5,n6,n7,n24,legend_slicer slicer
+  classDef waveform fill:#ccfbf1,stroke:#0f766e,color:#111827
+  class n10,n12,n13,n14,n15,n16,n17,n22,n23,legend_waveform waveform
+  classDef song fill:#dbeafe,stroke:#1d4ed8,color:#111827
+  class n9,n11,legend_song song
+  classDef control fill:#dcfce7,stroke:#15803d,color:#111827
+  class n4,n8,n20,legend_control control
+  classDef sound fill:#fce7f3,stroke:#be185d,color:#111827
+  class n18,n26,legend_sound sound
 ```
 
 ## License

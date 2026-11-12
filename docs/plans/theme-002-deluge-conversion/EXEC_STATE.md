@@ -1,6 +1,6 @@
 # DelugeFirmware conversion
 
-Status: complete locally. Detailed layer messages use conventional subjects and a 90-character wrap target; `DEVIATIONS.md` lives in the definition repository; and the base clone prepares the casing fix before checkout. The current worktree is `/Users/nonlogical/Projects/remote/github.com/NonLogicalDev/fork.DelugeFirmware-layerctl`, local branch `layerctl-conversion` (see `git log` for the latest checkpoint). The original checkout and remote are unchanged. [Original conversion](completed/plan-01%20Convert%20JJ%20layers.md) · [follow-up](completed/plan-02%20Explain%20layer%20changes.md) · [owners](../OWNERS.md).
+Status: complete locally. Detailed layer messages use conventional subjects and a 90-character wrap target; `DEVIATIONS.md` lives in the definition repository; and the base clone prepares the casing fix before checkout. The current worktree is `/Users/nonlogical/Projects/remote/github.com/NonLogicalDev/fork.DelugeFirmware-layerctl`, local branch `main` (see `git log` for the latest checkpoint). The original checkout and remote are unchanged. [Original conversion](completed/plan-01%20Convert%20JJ%20layers.md) · [follow-up](completed/plan-02%20Explain%20layer%20changes.md) · [owners](../OWNERS.md).
 
 Completed: [use the upstream Deluge repository and normalize casing with a script](completed/plan-03%20Use%20upstream%20source.md).
 
@@ -13,3 +13,5 @@ Completed: [remove the empty change marker](completed/plan-05%20Remove%20empty%2
 Completed: [format layer commit messages](completed/plan-06%20Format%20layer%20commit%20messages.md).
 
 Completed: [convert the casing hook to Perl](completed/plan-07%20Convert%20casing%20hook%20to%20Perl.md).
+
+Completed: [integrate firmware plans into the repository themes](completed/plan-08%20Move%20firmware%20plans%20into%20repository.md).

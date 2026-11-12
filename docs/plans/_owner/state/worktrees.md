@@ -17,3 +17,5 @@ These entries were retained from the shared layerctl owner record when the user 
 - Layerctl pre-checkout script implementation checkpoint: `fecb2a018fab93d295a64aaddc68cf74aa9ceefa` on misc.experiments `main`. Deluge plan relocation was checkpointed at `ad01b534ceb97e13e2cf3779e392a4fafdbc1bb7`; see `git log` for later definition checkpoints. Neither is published.
 
 - Layerctl script working-directory and clone environment follow-up: local checkpoint `65c933091f74a19f3080cb99cb9f7dc50d0ec03f` on misc.experiments `main`. See `git log` for the latest Deluge definition checkpoint. Neither is published.
+
+- Current definition checkout: branch `main` tracking `origin/main`; `layerctl-conversion` was removed locally and remotely after main was updated. The original `nl/latest` checkout remains separate. Consult `git status` and `git log` for the current checkpoint.

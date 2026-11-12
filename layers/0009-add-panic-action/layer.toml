@@ -3,7 +3,7 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-feat: add Panic action
+feat: add Panic action and five-Shift gesture
 
 Add a Panic entry at the start of the global Settings menu and implement a shared
 audio-engine action for emergency silence. It stops playback, notes and auditions, the
@@ -13,6 +13,13 @@ delay, stutter and reverb tails.
 Reset the affected effect and monitoring state so feedback or a pending recording does not
 continue sounding after the action. An unfinished recording or export is aborted; the
 action is intended to affect live state rather than saved project content.
+
+Invoke the existing Panic action after five consecutive Shift presses within the
+short-press interval. Reset the sequence when another button or a grid pad is pressed, and
+defer the action until outside a card routine when necessary.
+
+Clear sticky Shift and suppress the triggering release so the emergency gesture does not
+leave Shift latched. Display the existing stopped feedback after Panic runs.
 """
 
 [[operation]]

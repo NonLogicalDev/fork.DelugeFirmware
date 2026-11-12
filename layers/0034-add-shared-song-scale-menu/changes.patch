@@ -223,7 +223,7 @@ index 0bb5214b2c4aefb37b21dc7c20070877b387e314..b641889b8e1ca17d41254f6b985be43f
      "src/deluge/model/song/song.cpp": "883ee593e8d0ca5f40c880bf9ed31335bc4df108e3993f50f631a3fbe7d8b312",
      "src/deluge/playback/playback_handler.cpp": "ef52042627f9844e228f710ae4075680b48476fb35218ea3eedc2e73ebb5d776",
 diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
-index 304d865737311def2c748e7179c41a5f7a6453cb..6ca842a4785e2ad9c4e8868a622488f1178979c3 100644
+index 04fe2d7bfb968410b55ff3f664630c43d6e5afde..3b9015bda2c4f7ec0906fb4255409b502f4f4044 100644
 --- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
 +++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
 @@ -957,12 +957,24 @@ void KeyboardScreen::displayOrLanguageChanged() {
@@ -596,7 +596,7 @@ index 0000000000000000000000000000000000000000..2e53a6bd5f417eadf0b2717f901bdffb
 +	return static_cast<Scale>(candidate);
 +}
 diff --git a/src/deluge/gui/views/clip_view.h b/src/deluge/gui/views/clip_view.h
-index 7cfdb08ab2b174ae125b5364af8595ac48201381..5a54d02505e81132750ca75d9f019a824c06dcde 100644
+index 3c1667ea4683b299461bef53512f48ca7a2f960f..bb59c97a2a8ec2a6fd53dc4412a939f553d309cc 100644
 --- a/src/deluge/gui/views/clip_view.h
 +++ b/src/deluge/gui/views/clip_view.h
 @@ -28,6 +28,7 @@ class UI;
@@ -605,9 +605,9 @@ index 7cfdb08ab2b174ae125b5364af8595ac48201381..5a54d02505e81132750ca75d9f019a82
  	ClipView() = default;
 +	void stopShortcutOverview();
  
+ 	bool getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) override;
  	uint32_t getMaxZoom() override;
- 	uint32_t getMaxLength() override;
-@@ -55,7 +56,6 @@ protected:
+@@ -56,7 +57,6 @@ protected:
  	uint32_t changeClipLength(int32_t offset, uint32_t oldLength, Action*& action);
  
  	void maybeStartShortcutOverview(deluge::hid::Button b, bool on);
@@ -648,7 +648,7 @@ index 0c2456e36693563d842458a42c3b3b743cae653f..92b93f79dbc5026971a8b8476c01f19a
  	// See if it was one of the mod buttons
  	for (int32_t i = 0; i < kNumModButtons; i++) {
 diff --git a/src/deluge/model/action/action_logger.cpp b/src/deluge/model/action/action_logger.cpp
-index b7caaa848beef1079589ddfee64b453fdbf56774..5c3ec720b4cda254659b1631b5dabf0348a7e198 100644
+index 54e3616a89573b054bb6f6d30667abafe2bae159..1da9f0bd671e4fe53d8b894651c87cbac27ddaf9 100644
 --- a/src/deluge/model/action/action_logger.cpp
 +++ b/src/deluge/model/action/action_logger.cpp
 @@ -19,6 +19,7 @@
@@ -696,7 +696,7 @@ index b7caaa848beef1079589ddfee64b453fdbf56774..5c3ec720b4cda254659b1631b5dabf03
  		actionNeedsCommit = true;
  	}
 diff --git a/src/deluge/model/song/song.h b/src/deluge/model/song/song.h
-index 78ad67ce7c38f515793cc61cef3d33c580201297..e51aebf991790ceb32e89b40e1e5eba8c49e11aa 100644
+index 539fc922faea6a9454efc4d8aa20173310ceb9d9..98f5410f06bf615435feaea6b4cdd16394c6e8b4 100644
 --- a/src/deluge/model/song/song.h
 +++ b/src/deluge/model/song/song.h
 @@ -147,6 +147,8 @@ public:

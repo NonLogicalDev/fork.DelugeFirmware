@@ -1,11 +1,5 @@
 [layer]
-depends-on = [
-  "0012-add-shift-five-tap-panic-gesture",
-  "0016-add-song-grid-track-column-glow",
-  "0029-make-preview-only-note-input-release-order-safe",
-  "0031-improve-waveform-playhead-visibility",
-  "0032-add-kit-choke-groups",
-]
+depends-on = ["0009-add-panic-action", "0016-add-song-grid-track-column-glow", "0029-make-preview-only-note-input-release-order-safe", "0031-improve-waveform-playhead-visibility", "0032-add-kit-choke-groups"]
 
 [vcs]
 commit-msg = """

@@ -1,8 +1,8 @@
 diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
-index 53040fdd10ccfe8737892014baca5f56a8b94b78..7b04aca3e0c5df4bf314d0f9b69d6c794947f571 100644
+index d235e64d70ded2c0b3d4012dd1dbdbd459f1abe2..c959ee2cb8ae8552e9255a2c1df29ae72328abc6 100644
 --- a/src/deluge/gui/l10n/english.json
 +++ b/src/deluge/gui/l10n/english.json
-@@ -828,6 +828,8 @@
+@@ -836,6 +836,8 @@
      "STRING_FOR_MONOPHONIC": "Monophonic",
      "STRING_FOR_LEGATO": "Legato",
      "STRING_FOR_CHOKE": "Choke",
@@ -12,10 +12,10 @@ index 53040fdd10ccfe8737892014baca5f56a8b94b78..7b04aca3e0c5df4bf314d0f9b69d6c79
      "STRING_FOR_MODULATE_DEPTH": "Modulate depth",
      "STRING_FOR_FORWARD": "Forward",
 diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
-index 1924db299b7c55359c13c05947e0b9023fe52153..dbb68ebe71d8c5135b4a5b077c75f53c94c89cf6 100644
+index 110760f2de43a13e446cafc6802c7950b3167c11..c9dc034a074710cdeab19761902b101b86fb4886 100644
 --- a/src/deluge/gui/l10n/g_english.cpp
 +++ b/src/deluge/gui/l10n/g_english.cpp
-@@ -841,6 +841,8 @@ PLACE_SDRAM_DATA Language english{
+@@ -849,6 +849,8 @@ PLACE_SDRAM_DATA Language english{
          {STRING_FOR_MONOPHONIC, "Monophonic"},
          {STRING_FOR_LEGATO, "Legato"},
          {STRING_FOR_CHOKE, "Choke"},
@@ -25,10 +25,10 @@ index 1924db299b7c55359c13c05947e0b9023fe52153..dbb68ebe71d8c5135b4a5b077c75f53c
          {STRING_FOR_MODULATE_DEPTH, "Modulate depth"},
          {STRING_FOR_FORWARD, "Forward"},
 diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
-index 63b080773de4ffea9d52a237cd13239c24551fd0..29378af3387e734b8c7ab435b0d6c7740335f327 100644
+index 393de3a71520c8e63f28dba4baac8651a509a753..548927ac75935de57f21ee2f9d0c66f457065208 100644
 --- a/src/deluge/gui/l10n/strings.h
 +++ b/src/deluge/gui/l10n/strings.h
-@@ -904,6 +904,8 @@ enum class String : size_t {
+@@ -912,6 +912,8 @@ enum class String : size_t {
  	STRING_FOR_MONOPHONIC,
  	STRING_FOR_LEGATO,
  	STRING_FOR_CHOKE,
@@ -152,7 +152,7 @@ index 0000000000000000000000000000000000000000..d4af819d08739c4b77718bff26014f74
 +
 +} // namespace deluge::gui::menu_item::voice::polyphony_policy
 diff --git a/src/deluge/gui/ui/menus.cpp b/src/deluge/gui/ui/menus.cpp
-index 221c0f60021af6882e9a839dfc38ae997401a407..b82497c26b1b38ba5cb539e5a76c9ecbd73b6b96 100644
+index 3adfe593725dc397922e2f2e89d90c02d27129ab..f63a3a8b6eb755673ad9a1df4418f3bd78c904e6 100644
 --- a/src/deluge/gui/ui/menus.cpp
 +++ b/src/deluge/gui/ui/menus.cpp
 @@ -454,6 +454,7 @@ PLACE_SDRAM_BSS Submenu kitArpMenu{
@@ -177,7 +177,7 @@ index 50708ba359c4e30232a4ed3b07cbb2d59a1b8879..59e2baf36fdbd118bf2811a7cc3c83ae
  	void writeDrumTagsToFile(Serializer& writer);
  	bool readDrumTagFromFile(Deserializer& reader, char const* tagName);
 diff --git a/src/deluge/model/instrument/kit.cpp b/src/deluge/model/instrument/kit.cpp
-index 34e7791f0d053ba90802d10a8bcbee587315f09b..8a5f7172ceaa2fc7626447a9cedad838d5f4eb1c 100644
+index 83cc5bdb43f3c40a6dde6d53674f5fa7583ec4a2..486f0ba788a85c48f9caa0c6dbbe190d1610fc61 100644
 --- a/src/deluge/model/instrument/kit.cpp
 +++ b/src/deluge/model/instrument/kit.cpp
 @@ -250,6 +250,17 @@ moveOn:
@@ -198,7 +198,7 @@ index 34e7791f0d053ba90802d10a8bcbee587315f09b..8a5f7172ceaa2fc7626447a9cedad838
  void Kit::writeDrumToFile(Serializer& writer, Drum* thisDrum, ParamManager* paramManagerForDrum, bool savingSong,
                            int32_t* selectedDrumIndex, int32_t* drumIndex, Song* song) {
  	if (thisDrum == selectedDrum) {
-@@ -905,12 +916,6 @@ bool Kit::offerReceivedPitchBendToLearnedParams(MIDICable& cable, uint8_t channe
+@@ -912,12 +923,6 @@ bool Kit::offerReceivedPitchBendToLearnedParams(MIDICable& cable, uint8_t channe
  	return messageUsed;
  }
  
@@ -208,10 +208,10 @@ index 34e7791f0d053ba90802d10a8bcbee587315f09b..8a5f7172ceaa2fc7626447a9cedad838
 -	}
 -}
 -
- void Kit::resyncLFOs() {
+ void Kit::resyncLFOs(bool reset_state) {
  	for (Drum* thisDrum = firstDrum; thisDrum; thisDrum = thisDrum->next) {
  		if (thisDrum && thisDrum->type == DrumType::SOUND) {
-@@ -1296,20 +1301,35 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
+@@ -1303,20 +1308,35 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
  		endDirectSoundDrumAudition(modelStack->song, static_cast<SoundDrum*>(drum));
  	}
  
@@ -250,7 +250,7 @@ index 34e7791f0d053ba90802d10a8bcbee587315f09b..8a5f7172ceaa2fc7626447a9cedad838
  			return;
  		}
  		else if (thisNoteRow->drum->type == DrumType::SOUND) {
-@@ -1317,25 +1337,73 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
+@@ -1324,8 +1344,10 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
  			if (!((SoundDrum*)thisNoteRow->drum)->allowNoteTails(modelStackWithSoundFlags, true)) {
  				// If sound doesn't allow note tails, it cannot be included in the kit arp, as it doesn't produce note
  				// offs and will get us stuck notes
@@ -263,8 +263,9 @@ index 34e7791f0d053ba90802d10a8bcbee587315f09b..8a5f7172ceaa2fc7626447a9cedad838
  				return;
  			}
  		}
- 
+@@ -1333,17 +1355,63 @@ void Kit::noteOnPreKitArp(ModelStackWithThreeMainThings* modelStack, Drum* drum,
  		// If kit arp not bypassed, execute instruction
+ 		kitInstruction.sampleSyncLengthOn = sampleSyncLength;
  		arpeggiator.noteOn(arpSettings, drumIndex, velocity, &kitInstruction, fromMIDIChannel, mpeValues);
 -		if (kitInstruction.arpNoteOn != nullptr && kitInstruction.arpNoteOn->noteCodeOnPostArp[0] != ARP_NOTE_NONE) {
 -			// Set the invertReverse flag for the drum arpeggiator
@@ -333,7 +334,7 @@ index 34e7791f0d053ba90802d10a8bcbee587315f09b..8a5f7172ceaa2fc7626447a9cedad838
  	ArpeggiatorSettings* arpSettings = getArpSettings();
  	ArpReturnInstruction kitInstruction;
 diff --git a/src/deluge/model/instrument/kit.h b/src/deluge/model/instrument/kit.h
-index 7e56142d755dab2ca8481c72c017242f2cb0e765..1ea5a5a6b6f3fbe82799d6a8e3e956980593937a 100644
+index 33db2414e0a378aed517c6c270024272f9a3f47a..e606cfdac67b11cdd756b1150c7e7934a6e2536e 100644
 --- a/src/deluge/model/instrument/kit.h
 +++ b/src/deluge/model/instrument/kit.h
 @@ -21,6 +21,7 @@
@@ -357,7 +358,7 @@ index 7e56142d755dab2ca8481c72c017242f2cb0e765..1ea5a5a6b6f3fbe82799d6a8e3e95698
  
  	void beenEdited(bool shouldMoveToEmptySlot = true) override;
 -	void choke();
- 	void resyncLFOs() override;
+ 	void resyncLFOs(bool reset_state = false) override;
  	void removeDrumFromKitArpeggiator(int32_t drumIndex);
  	void removeDrum(Drum* drum);
 @@ -183,6 +184,7 @@ private:
@@ -369,7 +370,7 @@ index 7e56142d755dab2ca8481c72c017242f2cb0e765..1ea5a5a6b6f3fbe82799d6a8e3e95698
  	// Kit Arp
  	void setupAndRenderArpPreOutput(ModelStackWithTimelineCounter* modelStackWithTimelineCounter,
 diff --git a/src/deluge/model/output.cpp b/src/deluge/model/output.cpp
-index e3c491e1cddac9cebf2b7d81cefa296623d21113..60fab648698285cd3960e071ba6dafa73bf46d34 100644
+index dc451295851a652e3a8bc7da5907a3dd95efc300..08fe278a1ea0109ff901ff3e27a484686092e489 100644
 --- a/src/deluge/model/output.cpp
 +++ b/src/deluge/model/output.cpp
 @@ -23,9 +23,11 @@
@@ -384,7 +385,7 @@ index e3c491e1cddac9cebf2b7d81cefa296623d21113..60fab648698285cd3960e071ba6dafa7
  #include "model/song/song.h"
  #include "processing/engines/audio_engine.h"
  #include "storage/storage_manager.h"
-@@ -254,7 +256,9 @@ void Output::writeToFile(Clip* clipForSavingOutputOnly, Song* song) {
+@@ -268,7 +270,9 @@ void Output::writeToFile(Clip* clipForSavingOutputOnly, Song* song) {
  
  	if (clipForSavingOutputOnly) {
  		writer.writeFirmwareVersion();
@@ -454,10 +455,10 @@ index bb662d863d5c563f76b251c91ff9278bc05f8867..3637041c4246d3b13137ed60c919a76a
 +
  } // namespace deluge::project_compatibility
 diff --git a/src/deluge/model/song/song.cpp b/src/deluge/model/song/song.cpp
-index 3f272a29d46503739f04991c3cf7e5ce586af88d..bb99008f8254a085da7fffff14cdc01b13371958 100644
+index 648a7df82fe7ea2e454081a9985c5be9f9d866c3..50560d60d493b7d9679ac73d1384a6c3ce2d754f 100644
 --- a/src/deluge/model/song/song.cpp
 +++ b/src/deluge/model/song/song.cpp
-@@ -1153,14 +1153,16 @@ void Song::writeToFile() {
+@@ -1168,14 +1168,16 @@ void Song::writeToFile() {
  	writer.writeOpeningTagBeginning("song", true, false);
  
  	writer.writeFirmwareVersion();
@@ -713,10 +714,10 @@ index 3261011dc0bd280428d18cc5005031b181e35c36..e10f1a2cb214d4ac02d5733dfd7e926e
  [[nodiscard]] inline Error evaluateEarliestCompatibleFirmware(std::string_view requirement,
                                                                FirmwareVersion currentFirmware,
 diff --git a/tests/spec/CMakeLists.txt b/tests/spec/CMakeLists.txt
-index 8e019b3a892920dce78c3c28afe06888e116e12e..45709a423f3cddee280b94a50ab1d903adf11139 100644
+index 534849ccf3f58148aa41c2ce7ca906804ff47b36..38801dc05aa26311fd0881a9be379d8b4a01b6b4 100644
 --- a/tests/spec/CMakeLists.txt
 +++ b/tests/spec/CMakeLists.txt
-@@ -49,10 +49,18 @@ endfunction()
+@@ -69,10 +69,18 @@ endfunction()
  create_specs_driver(all_specs ${CMAKE_CURRENT_LIST_DIR})
  target_link_libraries(all_specs PUBLIC deluge_spec)
  target_sources(all_specs PRIVATE

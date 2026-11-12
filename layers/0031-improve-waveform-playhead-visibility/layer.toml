@@ -1,9 +1,5 @@
 [layer]
-depends-on = [
-  "0024-add-recoverable-audio-clip-start-editing",
-  "0025-improve-waveform-editor-entry-and-bound-selection",
-  "0030-correct-slicer-playhead-source",
-]
+depends-on = ["0024-add-recoverable-audio-clip-start-editing", "0025-improve-waveform-editor-entry-and-bound-selection", "0030-correct-slicer-playhead-source"]
 
 [vcs]
 commit-msg = """

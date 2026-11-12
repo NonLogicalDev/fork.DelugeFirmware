@@ -1,8 +1,16 @@
 diff --git a/src/deluge/gui/context_menu/sample_browser/kit.cpp b/src/deluge/gui/context_menu/sample_browser/kit.cpp
-index 6e1ae220e9018e5833064c4c4b21f8a0d14f364d..81bf4e0d35a0d3b2383ea627a80b3d96ee12460c 100644
+index 6e1ae220e9018e5833064c4c4b21f8a0d14f364d..5c013a18cd90b9bf0881db48a5b03b9332c460f9 100644
 --- a/src/deluge/gui/context_menu/sample_browser/kit.cpp
 +++ b/src/deluge/gui/context_menu/sample_browser/kit.cpp
-@@ -35,10 +35,11 @@ char const* Kit::getTitle() {
+@@ -21,6 +21,7 @@
+ #include "gui/ui/browser/sample_browser.h"
+ #include "gui/ui/slicer.h"
+ #include "hid/display/display.h"
++#include "processing/engines/audio_engine.h"
+ #include "storage/file_item.h"
+ #include "util/functions.h"
+ 
+@@ -35,10 +36,11 @@ char const* Kit::getTitle() {
  std::span<char const*> Kit::getOptions() {
  	using enum l10n::String;
  	static char const* options[] = {
@@ -17,7 +25,7 @@ index 6e1ae220e9018e5833064c4c4b21f8a0d14f364d..81bf4e0d35a0d3b2383ea627a80b3d96
  }
  
  bool Kit::isCurrentOptionAvailable() {
-@@ -54,10 +55,17 @@ bool Kit::acceptCurrentOption() {
+@@ -54,10 +56,18 @@ bool Kit::acceptCurrentOption() {
  	switch (currentOption) {
  	case 0: // Import whole folder
  		return sampleBrowser.importFolderAsKit();
@@ -27,6 +35,7 @@ index 6e1ae220e9018e5833064c4c4b21f8a0d14f364d..81bf4e0d35a0d3b2383ea627a80b3d96
  		openUI(&slicer);
  		return true;
 +	case 2: // Manual slicer
++		AudioEngine::stopAnyPreviewing();
 +		slicer.requestInitialMode(SLICER_MODE_MANUAL);
 +		display->setNextTransitionDirection(1);
 +		openUI(&slicer);
@@ -37,7 +46,7 @@ index 6e1ae220e9018e5833064c4c4b21f8a0d14f364d..81bf4e0d35a0d3b2383ea627a80b3d96
  }
  
 diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
-index c6c373fbff576e29ae9d0f6c04739f9650c9b97b..2a4fe459069f415be28ec183fcb38345071c813b 100644
+index 683a266488695a08987cdd4a0e203114acb517a6..61b4dc4f8e1f588b14fe54914eb8537268aefca8 100644
 --- a/src/deluge/gui/l10n/english.json
 +++ b/src/deluge/gui/l10n/english.json
 @@ -155,6 +155,7 @@
@@ -49,7 +58,7 @@ index c6c373fbff576e29ae9d0f6c04739f9650c9b97b..2a4fe459069f415be28ec183fcb38345
      "STRING_FOR_BASIC": "Basic",
      "STRING_FOR_SINGLE_CYCLE": "Single-cycle",
 diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
-index 578659d2f6c8da11caa94d99fe573767c1dfdded..4ea0207006cad6e6733296eb231aba0d07016bd6 100644
+index 0032e81ac6a46001f8e3bff24a6224b50a06696e..7c97e5d0fad76ffdc2483daf86737500091aa272 100644
 --- a/src/deluge/gui/l10n/g_english.cpp
 +++ b/src/deluge/gui/l10n/g_english.cpp
 @@ -168,6 +168,7 @@ PLACE_SDRAM_DATA Language english{
@@ -61,7 +70,7 @@ index 578659d2f6c8da11caa94d99fe573767c1dfdded..4ea0207006cad6e6733296eb231aba0d
          {STRING_FOR_BASIC, "Basic"},
          {STRING_FOR_SINGLE_CYCLE, "Single-cycle"},
 diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
-index 99d48d8fa9afd332664bb12185f1ea586c6fb347..9fe413435cb395f493bbced262102d0561d96189 100644
+index 2024bd2f7ab400570ca6b707234f68de959be6cb..6e6514318045f9e7a02b9396ba341725af9e91a0 100644
 --- a/src/deluge/gui/l10n/g_seven_segment.cpp
 +++ b/src/deluge/gui/l10n/g_seven_segment.cpp
 @@ -75,6 +75,7 @@ PLACE_SDRAM_DATA Language seven_segment{
@@ -73,7 +82,7 @@ index 99d48d8fa9afd332664bb12185f1ea586c6fb347..9fe413435cb395f493bbced262102d05
          {STRING_FOR_BASIC, "BASIC"},
          {STRING_FOR_SINGLE_CYCLE, "SINGLE-CYCLE"},
 diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
-index fae846423c7bdfee80e0e489e984cb6634bb616d..bcc4425973ed50c34cbecdb1eb8f5539c122107a 100644
+index bc5dd6c8cfbfaf8eb0f3d86fe34dafaa2a0684f5..806f020ae312ece7a20c2222680607fa140da53c 100644
 --- a/src/deluge/gui/l10n/seven_segment.json
 +++ b/src/deluge/gui/l10n/seven_segment.json
 @@ -69,6 +69,7 @@
@@ -85,7 +94,7 @@ index fae846423c7bdfee80e0e489e984cb6634bb616d..bcc4425973ed50c34cbecdb1eb8f5539
          "STRING_FOR_MULTISAMPLES": "MULTI",
          "STRING_FOR_BASIC": "BASIC",
 diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
-index 41d19c15e40f422f848696bb199db5288b63c9f3..139af3260eec0cf32c4b70a4175b0ae06a68ca25 100644
+index 2039f041fbf4428c095004bffcaff279fa6e0e6d..2ddffdb7a312c087a48e8e689d22b05c07d64105 100644
 --- a/src/deluge/gui/l10n/strings.h
 +++ b/src/deluge/gui/l10n/strings.h
 @@ -145,6 +145,7 @@ enum class String : size_t {
@@ -97,7 +106,7 @@ index 41d19c15e40f422f848696bb199db5288b63c9f3..139af3260eec0cf32c4b70a4175b0ae0
  	// gui/context_menu/sample_browser/synth.cpp
  	STRING_FOR_MULTISAMPLES,
 diff --git a/src/deluge/gui/ui/slicer.cpp b/src/deluge/gui/ui/slicer.cpp
-index 5e8c6de202f67576f75690dcc86a677e6ece450f..c1527491c27ada2223fa59b5366ae27ebe984daa 100644
+index 5599c3995427a7cc69d6924befd29bccb29052ac..218ee249df6747e5b633f3147cb1d728e1d7e955 100644
 --- a/src/deluge/gui/ui/slicer.cpp
 +++ b/src/deluge/gui/ui/slicer.cpp
 @@ -62,7 +62,8 @@ void Slicer::focusRegained() {

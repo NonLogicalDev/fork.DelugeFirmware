@@ -1,8 +1,8 @@
 diff --git a/src/deluge/gui/views/session_view.cpp b/src/deluge/gui/views/session_view.cpp
-index 6ff2f4d0a3a81834e7d1638eb37088b49a7d0e9d..2d02ffaf3395725fe3e299ef176581825788a770 100644
+index d571c07f235f509bb184c20ddcebf5c18e4f81d0..8fcd8827f19b265fb85ea72adf5c42ef496c1df1 100644
 --- a/src/deluge/gui/views/session_view.cpp
 +++ b/src/deluge/gui/views/session_view.cpp
-@@ -3315,17 +3315,19 @@ void SessionView::gridRenderActionModes(int32_t y, RGB image[][kDisplayWidth + k
+@@ -3369,17 +3369,19 @@ void SessionView::gridRenderActionModes(int32_t y, RGB image[][kDisplayWidth + k
  bool SessionView::gridRenderMainPads(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
                                       uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea) {
  

@@ -1,10 +1,5 @@
 [layer]
-depends-on = [
-  "0010-copy-and-paste-kit-rows",
-  "0018-synchronize-grid-and-audio-clip-colors",
-  "0023-audition-current-waveform-editor-kit-row",
-  "0028-add-external-step-midi-clips",
-]
+depends-on = ["0010-copy-and-paste-kit-rows", "0018-synchronize-grid-and-audio-clip-colors", "0023-audition-current-waveform-editor-kit-row", "0028-add-external-step-midi-clips"]
 
 [vcs]
 commit-msg = """

@@ -1,5 +1,5 @@
 [layer]
-depends-on = ["0007-improve-manual-slicer-controls", "0008-stop-preview-when-opening-manual-slice"]
+depends-on = ["0007-improve-manual-slicer-controls", "0006-add-manual-slicer-kit-creation-option"]
 
 [vcs]
 commit-msg = """

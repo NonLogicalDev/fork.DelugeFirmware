@@ -1,5 +1,5 @@
 diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
-index 6cb2511b2d578d43865e526021a4c4dfaabbf594..e1581faef67658e110f1761507cbaffdde4518ea 100644
+index a923d8f058cd247870b8ff17a22f77121aa77465..8fcdb7183b8aa59e819726fbffcc6634c88bc394 100644
 --- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
 +++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
 @@ -81,6 +81,17 @@ KeyboardScreen::KeyboardScreen() {
@@ -484,10 +484,10 @@ index d9835ce266fc911c9f76a04f3212ddda841d1268..2751ca883acb774e693b148accb1e211
  
  constexpr int32_t kDefaultInKeyRowInterval = 3;
 diff --git a/src/deluge/model/clip/instrument_clip.cpp b/src/deluge/model/clip/instrument_clip.cpp
-index 4efa5456b460b584b6544c4bfaec4f5ee604666a..fffb805cd295ca1bfba7de337a7033c9ec9886f0 100644
+index f667824ce0010a1efae282ebfd55834e83d4a599..f0b1b665d29951dfed109b45233da69dbd6b2a9e 100644
 --- a/src/deluge/model/clip/instrument_clip.cpp
 +++ b/src/deluge/model/clip/instrument_clip.cpp
-@@ -2392,6 +2392,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
+@@ -2393,6 +2393,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
  	writer.writeAttribute("keyboardRowInterval", keyboardState.isomorphic.rowInterval);
  	writer.writeAttribute("drumsScrollOffset", keyboardState.drums.scroll_offset);
  	writer.writeAttribute("drumsZoomLevel", keyboardState.drums.zoom_level);
@@ -496,7 +496,7 @@ index 4efa5456b460b584b6544c4bfaec4f5ee604666a..fffb805cd295ca1bfba7de337a7033c9
  	writer.writeAttribute("inKeyScrollOffset", keyboardState.inKey.scrollOffset);
  	writer.writeAttribute("inKeyRowInterval", keyboardState.inKey.rowInterval);
  
-@@ -2587,6 +2589,17 @@ someError:
+@@ -2588,6 +2590,17 @@ someError:
  			keyboardState.drums.zoom_level = reader.readTagOrAttributeValueInt();
  		}
  

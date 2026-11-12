@@ -3,7 +3,7 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-feat: add Keyboard View chord detection
+feat: recognize held chords and show the latest note
 
 Identify held pitch classes against the firmware's existing chord shapes and display an
 exact match in Keyboard View. Prefer the bass as the root when it matches, accept a unique
@@ -14,6 +14,15 @@ feedback while leaving genuinely ambiguous inversions unnamed.
 Show the name in an OLED popup or on the seven-segment display, while excluding Kit and
 chord-entry layouts. Correct the augmented chord's third to a major third and add unit
 coverage for inversions, bass preference, augmented chords and unmatched notes.
+
+Track the press order of physical Keyboard View notes and show the most recently pressed
+note that remains held under a recognized chord on OLED displays. When a note is released,
+select the newest remaining physical note; if none exists, retain the chord-only display.
+Generated notes do not supply the second line, and seven-segment displays keep their
+existing chord label.
+
+This preserves both the harmonic context and the player's latest held note. Add unit
+coverage for note ordering.
 """
 
 [[operation]]

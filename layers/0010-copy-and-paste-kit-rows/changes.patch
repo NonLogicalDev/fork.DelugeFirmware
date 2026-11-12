@@ -1,5 +1,5 @@
 diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
-index 7c07a74b7992e4c25cc7f0212d3a23f77969c824..04e78549d68d559879eb5ce8a5bbb1c80482c67e 100644
+index 0b31a4bf910b004d53c6a2562999c8c54cb96855..6d087ef697e9cad1d258b92829dcb1d68ef55197 100644
 --- a/src/deluge/gui/l10n/english.json
 +++ b/src/deluge/gui/l10n/english.json
 @@ -303,6 +303,11 @@
@@ -15,7 +15,7 @@ index 7c07a74b7992e4c25cc7f0212d3a23f77969c824..04e78549d68d559879eb5ce8a5bbb1c8
      "STRING_FOR_AUTOMATION_PASTED": "Automation pasted",
      "STRING_FOR_CANT_PASTE_AUTOMATION": "Can't paste automation",
 diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
-index 7f7eb8d0707bfc83c432689f6630eaa7d5910767..d43b0366e216d663489f2c015ab658e779d7daa6 100644
+index 172301457116f3a84b6cff6cd2fac1f109832e2b..c55e945b70df53315fc9841deac4640db314b4e3 100644
 --- a/src/deluge/gui/l10n/g_english.cpp
 +++ b/src/deluge/gui/l10n/g_english.cpp
 @@ -316,6 +316,11 @@ PLACE_SDRAM_DATA Language english{
@@ -31,7 +31,7 @@ index 7f7eb8d0707bfc83c432689f6630eaa7d5910767..d43b0366e216d663489f2c015ab658e7
          {STRING_FOR_AUTOMATION_PASTED, "Automation pasted"},
          {STRING_FOR_CANT_PASTE_AUTOMATION, "Can't paste automation"},
 diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
-index d025e0013f0b048fdcce69f5cc9e8c76da0bdb76..dd2a135da46fbffeab2bc9344a3f4b582a1977c1 100644
+index 9c1da409ad0421af7f59504f4f96850b4959dee0..94b816699101541450c8e299eb5878f6d876ef6a 100644
 --- a/src/deluge/gui/l10n/g_seven_segment.cpp
 +++ b/src/deluge/gui/l10n/g_seven_segment.cpp
 @@ -207,6 +207,11 @@ PLACE_SDRAM_DATA Language seven_segment{
@@ -47,7 +47,7 @@ index d025e0013f0b048fdcce69f5cc9e8c76da0bdb76..dd2a135da46fbffeab2bc9344a3f4b58
          {STRING_FOR_AUTOMATION_PASTED, "PASTE"},
          {STRING_FOR_CANT_PASTE_AUTOMATION, "CANT"},
 diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
-index baf31f0a594b8f6033c393d74408c06bc574d35c..08a08f44fe040b0d0dc47f90afcaca71dadf4c2e 100644
+index b06ddbbe1828f2ad7c96294f2055387234d5f72a..559d013e1c1046bade6bf52e1f531b37b025bd22 100644
 --- a/src/deluge/gui/l10n/seven_segment.json
 +++ b/src/deluge/gui/l10n/seven_segment.json
 @@ -217,6 +217,11 @@
@@ -63,7 +63,7 @@ index baf31f0a594b8f6033c393d74408c06bc574d35c..08a08f44fe040b0d0dc47f90afcaca71
          "STRING_FOR_AUTOMATION_PASTED": "PASTE",
          "STRING_FOR_CANT_PASTE_AUTOMATION": "CANT",
 diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
-index 903d79c5b2a785cb6bf06649256e377a2753754e..61e86c768f07bedbefde794fd6f5de2e4b8115ae 100644
+index 8f5d5054f33ad3e5b10caa678ae01284cfcceef3..1f6ebe3792b750a7bfbcad74393c9f20132e52ed 100644
 --- a/src/deluge/gui/l10n/strings.h
 +++ b/src/deluge/gui/l10n/strings.h
 @@ -336,6 +336,11 @@ enum class String : size_t {
@@ -79,11 +79,11 @@ index 903d79c5b2a785cb6bf06649256e377a2753754e..61e86c768f07bedbefde794fd6f5de2e
  	STRING_FOR_AUTOMATION_PASTED,
  	STRING_FOR_CANT_PASTE_AUTOMATION,
 diff --git a/src/deluge/gui/views/instrument_clip_view.cpp b/src/deluge/gui/views/instrument_clip_view.cpp
-index 14d2df3e3dc678d8ba3d1ad2e7c926f621cf2f52..1c92b1f3b6ba96cc8a493670f3d0c8a6e4307851 100644
+index 75e1a7340e63c25e38321b4c348cbccf6be74056..95e002fb15d9526a64870af2abff7b104856d07b 100644
 --- a/src/deluge/gui/views/instrument_clip_view.cpp
 +++ b/src/deluge/gui/views/instrument_clip_view.cpp
-@@ -127,6 +127,10 @@ InstrumentClipView::InstrumentClipView() : numEditPadPresses(0) {
- 	lastSelectedNoteYDisplay = kNoSelection;
+@@ -125,6 +125,10 @@ InstrumentClipView::InstrumentClipView() : numEditPadPresses(0) {
+ 	noteRowFlashOn = false;
  }
  
 +InstrumentClipView::~InstrumentClipView() {
@@ -93,7 +93,7 @@ index 14d2df3e3dc678d8ba3d1ad2e7c926f621cf2f52..1c92b1f3b6ba96cc8a493670f3d0c8a6
  bool InstrumentClipView::opened() {
  
  	openedInBackground();
-@@ -708,7 +712,58 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
+@@ -709,7 +713,58 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
  		}
  	}
  
@@ -153,7 +153,7 @@ index 14d2df3e3dc678d8ba3d1ad2e7c926f621cf2f52..1c92b1f3b6ba96cc8a493670f3d0c8a6
  	else if (b == X_ENC && on && Buttons::isButtonPressed(deluge::hid::button::LEARN)) {
  		if (inCardRoutine) {
  			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
-@@ -1309,6 +1364,216 @@ void InstrumentClipView::deleteCopiedNoteRows() {
+@@ -1310,6 +1365,216 @@ void InstrumentClipView::deleteCopiedNoteRows() {
  	}
  }
  
@@ -371,7 +371,7 @@ index 14d2df3e3dc678d8ba3d1ad2e7c926f621cf2f52..1c92b1f3b6ba96cc8a493670f3d0c8a6
  	int32_t xScroll = currentSong->xScroll[navSysId];
  	int32_t xZoom = currentSong->xZoom[navSysId];
 diff --git a/src/deluge/gui/views/instrument_clip_view.h b/src/deluge/gui/views/instrument_clip_view.h
-index 6ba7801c2b918f39ced7c8f9ae3019dcc7d6837f..e4a2fc01b009c7af82d3691cb39b35f5fb920626 100644
+index 091c51b577e91bb204d1133adc282afea5feaa4a..3e59ca0a5dc257fb7558179a0e9966927ff60f23 100644
 --- a/src/deluge/gui/views/instrument_clip_view.h
 +++ b/src/deluge/gui/views/instrument_clip_view.h
 @@ -23,6 +23,7 @@
@@ -382,7 +382,7 @@ index 6ba7801c2b918f39ced7c8f9ae3019dcc7d6837f..e4a2fc01b009c7af82d3691cb39b35f5
  #include "modulation/automation/copied_param_automation.h"
  #include "modulation/params/param_node.h"
  #include "util/d_string.h"
-@@ -71,6 +72,7 @@ enum class NudgeMode { QUANTIZE, QUANTIZE_ALL };
+@@ -72,6 +73,7 @@ enum class NudgeMode { QUANTIZE, QUANTIZE_ALL };
  class InstrumentClipView final : public ClipView, public InstrumentClipMinder {
  public:
  	InstrumentClipView();
@@ -390,7 +390,7 @@ index 6ba7801c2b918f39ced7c8f9ae3019dcc7d6837f..e4a2fc01b009c7af82d3691cb39b35f5
  	bool opened() override;
  	void focusRegained() override;
  	void displayOrLanguageChanged() override;
-@@ -387,10 +389,28 @@ private:
+@@ -399,10 +401,28 @@ private:
  	void pasteNotes(bool overwriteExisting = true, bool pasteFromFile = false, bool noScaling = false,
  	                bool previewOnly = false, bool selectedDrumOnly = false);
  	void deleteCopiedNoteRows();
@@ -420,10 +420,10 @@ index 6ba7801c2b918f39ced7c8f9ae3019dcc7d6837f..e4a2fc01b009c7af82d3691cb39b35f5
  	void rotateNoteRowHorizontally(ModelStackWithNoteRow* modelStack, int32_t offset, int32_t yDisplay,
  	                               bool shouldDisplayDirectionEvenIfNoNoteRow = false);
 diff --git a/src/deluge/processing/sound/sound.cpp b/src/deluge/processing/sound/sound.cpp
-index c50f5deb2b1e759837216b7847182b9f1b04552f..951fd856bf496f9e16ae831cd15735d8b6c10787 100644
+index 5f4a82450005dea3eef5aba6334c5568b0b667db..96bc616bfb04a3e93728693cf6643613580593e1 100644
 --- a/src/deluge/processing/sound/sound.cpp
 +++ b/src/deluge/processing/sound/sound.cpp
-@@ -220,6 +220,56 @@ void Sound::setupAsSample(ParamManagerForTimeline* paramManager) {
+@@ -221,6 +221,56 @@ void Sound::setupAsSample(ParamManagerForTimeline* paramManager) {
  	doneReadingFromFile();
  }
  
@@ -481,17 +481,17 @@ index c50f5deb2b1e759837216b7847182b9f1b04552f..951fd856bf496f9e16ae831cd15735d8
  
  	PatchedParamSet* patchedParams = paramManager->getPatchedParamSet();
 diff --git a/src/deluge/processing/sound/sound.h b/src/deluge/processing/sound/sound.h
-index 1ecb89ec847e25c38d3f9b1d190421f65cf02f71..f3a392755d2727f203579e9986c6aed1f2e90277 100644
+index 504b075f127f73459169b0f789093f5d4509ccdb..f622a96b131fb7b90274b553e46633c66a4fe4b7 100644
 --- a/src/deluge/processing/sound/sound.h
 +++ b/src/deluge/processing/sound/sound.h
-@@ -230,6 +230,7 @@ public:
+@@ -237,6 +237,7 @@ public:
  
  	virtual bool isDrum() { return false; }
  	void setupAsSample(ParamManagerForTimeline* paramManager);
 +	Error clonePersistentStateFrom(Sound& other);
  	void recalculateAllVoicePhaseIncrements(ModelStackWithSoundFlags* modelStack);
+ 	void set_cents(int8_t new_cents);
  	Error loadAllAudioFiles(bool mayActuallyReadFiles);
- 	bool envelopeHasSustainCurrently(int32_t e, ParamManagerForTimeline* paramManager);
 diff --git a/src/deluge/processing/sound/sound_drum.cpp b/src/deluge/processing/sound/sound_drum.cpp
 index 0c1d77deb77eb61f6081c2a77be19fbe6e2a96fe..4d048d9745b7c83807c36f8d6a936ae04b3736fc 100644
 --- a/src/deluge/processing/sound/sound_drum.cpp
@@ -532,7 +532,7 @@ index c6decafd3accb3e3dedb0a675274c6b0223d47f1..33434f2d1305ca9e8094f637eb8ea52d
  	bool isDrum() override { return true; }
  	void noteOn(ModelStackWithThreeMainThings* modelStack, uint8_t velocity, int16_t const* mpeValues,
 diff --git a/src/deluge/processing/source.cpp b/src/deluge/processing/source.cpp
-index 381c2589bd7e901b3c0b929f0af35c5d00f69a8c..0bc81449c73b48e4d43127530722582a684331c1 100644
+index 10cfe866fc49f4e95e643b81178fcf6b708a35b9..daa360b0f5fa905aeb01bd75f31c882b57500409 100644
 --- a/src/deluge/processing/source.cpp
 +++ b/src/deluge/processing/source.cpp
 @@ -197,6 +197,75 @@ bool Source::hasAtLeastOneAudioFileLoaded() {

@@ -177,7 +177,7 @@ index 0000000000000000000000000000000000000000..92c723d081c44d9154580cccac32e6e8
 +
 +} // namespace deluge::gui::context_menu
 diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
-index 04e78549d68d559879eb5ce8a5bbb1c80482c67e..c66112cbdb770cad8fe16073e47e5d33463cf6e0 100644
+index 6d087ef697e9cad1d258b92829dcb1d68ef55197..4b260c02eff5825caa83f5a4486a267bfae18594 100644
 --- a/src/deluge/gui/l10n/english.json
 +++ b/src/deluge/gui/l10n/english.json
 @@ -267,6 +267,7 @@
@@ -189,7 +189,7 @@ index 04e78549d68d559879eb5ce8a5bbb1c80482c67e..c66112cbdb770cad8fe16073e47e5d33
      "STRING_FOR_UNLOADED_PARTS": "Can't return to current song, as parts have been unloaded",
      "STRING_FOR_SD_CARD_ERROR": "SD card error",
 diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
-index d43b0366e216d663489f2c015ab658e779d7daa6..b981d3c92d5e11a915685e5c633708bbbb56a401 100644
+index c55e945b70df53315fc9841deac4640db314b4e3..7a0557d802a91511e35e4dfc48be7bfbd997bdb1 100644
 --- a/src/deluge/gui/l10n/g_english.cpp
 +++ b/src/deluge/gui/l10n/g_english.cpp
 @@ -280,6 +280,7 @@ PLACE_SDRAM_DATA Language english{
@@ -201,7 +201,7 @@ index d43b0366e216d663489f2c015ab658e779d7daa6..b981d3c92d5e11a915685e5c633708bb
          {STRING_FOR_UNLOADED_PARTS, "Can't return to current song, as parts have been unloaded"},
          {STRING_FOR_SD_CARD_ERROR, "SD card error"},
 diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
-index dd2a135da46fbffeab2bc9344a3f4b582a1977c1..79c1fead1446383d8bf6630d89a8c12e29dfc647 100644
+index 94b816699101541450c8e299eb5878f6d876ef6a..3c3f563c1851e6fa2001ff5e2617a11db0ae246d 100644
 --- a/src/deluge/gui/l10n/g_seven_segment.cpp
 +++ b/src/deluge/gui/l10n/g_seven_segment.cpp
 @@ -178,6 +178,7 @@ PLACE_SDRAM_DATA Language seven_segment{
@@ -213,7 +213,7 @@ index dd2a135da46fbffeab2bc9344a3f4b582a1977c1..79c1fead1446383d8bf6630d89a8c12e
          {STRING_FOR_UNLOADED_PARTS, "CANT"},
          {STRING_FOR_SD_CARD_ERROR, "CARD"},
 diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
-index 08a08f44fe040b0d0dc47f90afcaca71dadf4c2e..550d63d70361e58cc9c9b43e9a83d0adaa5d2811 100644
+index 559d013e1c1046bade6bf52e1f531b37b025bd22..f16d8eb5056e3256010e4c700e2c597a2a29f1d6 100644
 --- a/src/deluge/gui/l10n/seven_segment.json
 +++ b/src/deluge/gui/l10n/seven_segment.json
 @@ -188,6 +188,7 @@
@@ -225,7 +225,7 @@ index 08a08f44fe040b0d0dc47f90afcaca71dadf4c2e..550d63d70361e58cc9c9b43e9a83d0ad
          "STRING_FOR_UNLOADED_PARTS": "CANT",
          "STRING_FOR_SD_CARD_ERROR": "CARD",
 diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
-index 61e86c768f07bedbefde794fd6f5de2e4b8115ae..b1ac759265eeb920cd6853c0f5f1498a5f62f958 100644
+index 1f6ebe3792b750a7bfbcad74393c9f20132e52ed..6f21d2a9db41c6debedea025d16c5ed508e99c31 100644
 --- a/src/deluge/gui/l10n/strings.h
 +++ b/src/deluge/gui/l10n/strings.h
 @@ -300,6 +300,7 @@ enum class String : size_t {
@@ -237,10 +237,10 @@ index 61e86c768f07bedbefde794fd6f5de2e4b8115ae..b1ac759265eeb920cd6853c0f5f1498a
  	STRING_FOR_UNLOADED_PARTS,
  	STRING_FOR_SD_CARD_ERROR,
 diff --git a/src/deluge/gui/ui/browser/sample_browser.cpp b/src/deluge/gui/ui/browser/sample_browser.cpp
-index a28992fe3a0f540f261b85c196695fbce6cfa2ee..e8857a4dcae440737eed33564a1b0643112614c4 100644
+index 6469ff2155984dcba7381e465e897cd69acd8331..cd8f74034f98b1861ff333590d28ba84dcb41848 100644
 --- a/src/deluge/gui/ui/browser/sample_browser.cpp
 +++ b/src/deluge/gui/ui/browser/sample_browser.cpp
-@@ -300,13 +300,13 @@ ActionResult SampleBrowser::timerCallback() {
+@@ -308,13 +308,13 @@ ActionResult SampleBrowser::timerCallback() {
  			// Kit
  			else if (soundEditor.editingKit()) {
  
@@ -257,7 +257,7 @@ index a28992fe3a0f540f261b85c196695fbce6cfa2ee..e8857a4dcae440737eed33564a1b0643
  				}
  			}
  
-@@ -382,13 +382,13 @@ void SampleBrowser::enterKeyPress() {
+@@ -390,13 +390,13 @@ void SampleBrowser::enterKeyPress() {
  
  			// Can only do this for Kit Clips, and for source 0, not 1, AND there has to be only one drum present, which
  			// is assigned to the first NoteRow
@@ -274,7 +274,7 @@ index a28992fe3a0f540f261b85c196695fbce6cfa2ee..e8857a4dcae440737eed33564a1b0643
  			}
  		}
  
-@@ -506,6 +506,33 @@ bool SampleBrowser::canImportWholeKit() {
+@@ -514,6 +514,33 @@ bool SampleBrowser::canImportWholeKit() {
  	        && (!getCurrentKit()->firstDrum->next));
  }
  
@@ -308,7 +308,7 @@ index a28992fe3a0f540f261b85c196695fbce6cfa2ee..e8857a4dcae440737eed33564a1b0643
  Error SampleBrowser::getCurrentFilePath(String* path) {
  	Error error;
  
-@@ -755,6 +782,37 @@ Error SampleBrowser::claimAudioFileForInstrument(bool makeWaveTableWorkAtAllCost
+@@ -838,6 +865,37 @@ Error SampleBrowser::claimAudioFileForInstrument(bool makeWaveTableWorkAtAllCost
  	                        CLUSTER_ENQUEUE, nullptr, makeWaveTableWorkAtAllCosts);
  }
  
@@ -346,7 +346,7 @@ index a28992fe3a0f540f261b85c196695fbce6cfa2ee..e8857a4dcae440737eed33564a1b0643
  Error SampleBrowser::claimAudioFileForAudioClip() {
  	soundEditor.cutSound();
  
-@@ -1902,10 +1960,18 @@ doReturnFalse:
+@@ -1987,10 +2045,18 @@ doReturnFalse:
  
  	Kit* kit = getCurrentKit();
  	SoundDrum* firstDrum = (SoundDrum*)soundEditor.currentSound;
@@ -365,7 +365,7 @@ index a28992fe3a0f540f261b85c196695fbce6cfa2ee..e8857a4dcae440737eed33564a1b0643
  
  		for (int32_t s = 0; s < numSamples; s++) {
  
-@@ -1980,10 +2046,30 @@ getOut:
+@@ -2065,10 +2131,30 @@ getOut:
  
  				Sound::initParams(&paramManager);
  
@@ -398,7 +398,7 @@ index a28992fe3a0f540f261b85c196695fbce6cfa2ee..e8857a4dcae440737eed33564a1b0643
  			}
  
  			AudioFileHolder* holder = range->getAudioFileHolder();
-@@ -2029,11 +2115,13 @@ skipNameStuff:
+@@ -2114,11 +2200,13 @@ skipNameStuff:
  		delugeDealloc(sortArea);
  	}
  
@@ -448,7 +448,7 @@ index 039e1203c8465784fbcec32a6b4ce4694d2b0a82..cb0c5b7fef25d8a2cbce054f921585dd
  
  extern SampleBrowser sampleBrowser;
 diff --git a/src/deluge/gui/ui/slicer.cpp b/src/deluge/gui/ui/slicer.cpp
-index 69f0c5ddfdab031dd69754596d456e5d11397b62..696c52730f01f80e0e9d87a6e37a087fd0be6342 100644
+index a003eb76ac774768fa6be1ab2db8498cccf80833..696c52730f01f80e0e9d87a6e37a087fd0be6342 100644
 --- a/src/deluge/gui/ui/slicer.cpp
 +++ b/src/deluge/gui/ui/slicer.cpp
 @@ -18,6 +18,7 @@
@@ -847,7 +847,7 @@ index 69f0c5ddfdab031dd69754596d456e5d11397b62..696c52730f01f80e0e9d87a6e37a087f
  
  		uint32_t lengthInSamples = sample->lengthInSamples;
  
-@@ -674,18 +821,10 @@ getOut:
+@@ -674,16 +821,10 @@ getOut:
  		uint32_t nextDrumStart = lengthInSamples / numClips;
  		firstRange->sampleHolder.endPos = nextDrumStart;
  
@@ -858,16 +858,14 @@ index 69f0c5ddfdab031dd69754596d456e5d11397b62..696c52730f01f80e0e9d87a6e37a087f
  		firstDrum->sources[0].sampleControls.reversed = false;
  		firstDrum->sources[0].sampleControls.invertReversed = false;
 -
--#if 1 || ALPHA_OR_BETA_VERSION
 -		if (!firstRange->sampleHolder.audioFile) {
 -			FREEZE_WITH_ERROR("i032"); // Trying to narrow down E368 that Kevin F got
 -		}
--#endif
 -
  		firstRange->sampleHolder.claimClusterReasons(firstDrum->sources[0].sampleControls.isCurrentlyReversed(),
  		                                             CLUSTER_ENQUEUE);
  		if (doEnvelopes) {
-@@ -698,7 +837,14 @@ getOut:
+@@ -696,7 +837,14 @@ getOut:
  			    modelStackWithAutoParam, getParamFromUserValue(params::LOCAL_ENV_0_RELEASE, 1));
  		}
  
@@ -883,7 +881,7 @@ index 69f0c5ddfdab031dd69754596d456e5d11397b62..696c52730f01f80e0e9d87a6e37a087f
  		for (int32_t i = 1; i < numClips; i++) {
  
  			// Make the Drum and its ParamManager
-@@ -725,19 +871,17 @@ ramError2:
+@@ -723,19 +871,17 @@ ramError2:
  				goto ramError;
  			}
  
@@ -905,7 +903,7 @@ index 69f0c5ddfdab031dd69754596d456e5d11397b62..696c52730f01f80e0e9d87a6e37a087f
  
  			range->sampleHolder.filePath.set(&sample->filePath);
  			range->sampleHolder.loadFile(false, false, true);
-@@ -751,18 +895,43 @@ ramError2:
+@@ -749,18 +895,43 @@ ramError2:
  				}
  			}
  
@@ -956,7 +954,7 @@ index 69f0c5ddfdab031dd69754596d456e5d11397b62..696c52730f01f80e0e9d87a6e37a087f
  
  	// New NoteRows have probably been created, whose colours haven't been grabbed yet.
  	instrumentClipView.recalculateColours();
-@@ -770,4 +939,5 @@ ramError2:
+@@ -768,4 +939,5 @@ ramError2:
  	display->setNextTransitionDirection(-1);
  	sampleBrowser.exitAndNeverDeleteDrum();
  	uiNeedsRendering(&instrumentClipView);
@@ -1103,10 +1101,10 @@ index 0000000000000000000000000000000000000000..415bad9cd925848fdab5507157c2b130
 +
 +} // namespace deluge::gui::slicer_playback
 diff --git a/src/deluge/gui/views/instrument_clip_view.cpp b/src/deluge/gui/views/instrument_clip_view.cpp
-index 1c92b1f3b6ba96cc8a493670f3d0c8a6e4307851..e0770a26c008ca4b2f4a46635ee7414b60ecc28f 100644
+index 95e002fb15d9526a64870af2abff7b104856d07b..95e67a5440a85536977c29a3943d25917dc67f57 100644
 --- a/src/deluge/gui/views/instrument_clip_view.cpp
 +++ b/src/deluge/gui/views/instrument_clip_view.cpp
-@@ -464,7 +464,8 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
+@@ -462,7 +462,8 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
  				return ActionResult::DEALT_WITH;
  			}
  
@@ -1117,7 +1115,7 @@ index 1c92b1f3b6ba96cc8a493670f3d0c8a6e4307851..e0770a26c008ca4b2f4a46635ee7414b
  			enterDrumCreator(modelStackWithNoteRow, false);
  
 diff --git a/src/deluge/model/clip/instrument_clip.cpp b/src/deluge/model/clip/instrument_clip.cpp
-index 569462c5aabf61f72431509ed651cfeb1fc0b129..4efa5456b460b584b6544c4bfaec4f5ee604666a 100644
+index babfd85411a4568ded162df82ea4bcca4d5f1a0c..f667824ce0010a1efae282ebfd55834e83d4a599 100644
 --- a/src/deluge/model/clip/instrument_clip.cpp
 +++ b/src/deluge/model/clip/instrument_clip.cpp
 @@ -33,6 +33,7 @@
@@ -1128,7 +1126,7 @@ index 569462c5aabf61f72431509ed651cfeb1fc0b129..4efa5456b460b584b6544c4bfaec4f5e
  #include "model/instrument/cv_instrument.h"
  #include "model/instrument/midi_instrument.h"
  #include "model/iterance/iterance.h"
-@@ -1979,7 +1980,9 @@ bool InstrumentClip::possiblyDeleteEmptyNoteRow(NoteRow* noteRow, bool onlyIfNoD
+@@ -1980,7 +1981,9 @@ bool InstrumentClip::possiblyDeleteEmptyNoteRow(NoteRow* noteRow, bool onlyIfNoD
  			return false;
  		}
  
@@ -1283,7 +1281,7 @@ index 0000000000000000000000000000000000000000..fadb96ec8887d7123bf8a5e3a1bb0bdf
 +
 +} // namespace deluge::generated_slice_name
 diff --git a/src/deluge/model/note/note_row.cpp b/src/deluge/model/note/note_row.cpp
-index c58d8164f924a4503f82b6a4be0fb0a51e85dd05..1a692acc70bbc07694553e45b5432bf02041de3c 100644
+index accabdcf2dc5a33654842ef2010e6a51fb0056db..756349b3ca3ea26821de70ff2b287419a9e5a432 100644
 --- a/src/deluge/model/note/note_row.cpp
 +++ b/src/deluge/model/note/note_row.cpp
 @@ -27,6 +27,7 @@
@@ -1293,8 +1291,8 @@ index c58d8164f924a4503f82b6a4be0fb0a51e85dd05..1a692acc70bbc07694553e45b5432bf0
 +#include "model/drum/generated_slice_name.h"
  #include "model/drum/gate_drum.h"
  #include "model/instrument/kit.h"
- #include "model/note/copied_note_row.h"
-@@ -3869,8 +3870,9 @@ void NoteRow::rememberDrumName() {
+ #include "model/iterance/iterance_migration.h"
+@@ -3830,8 +3831,9 @@ void NoteRow::rememberDrumName() {
  
  		SoundDrum* soundDrum = (SoundDrum*)drum;
  
@@ -1307,26 +1305,27 @@ index c58d8164f924a4503f82b6a4be0fb0a51e85dd05..1a692acc70bbc07694553e45b5432bf0
  		}
  
 diff --git a/tests/unit/CMakeLists.txt b/tests/unit/CMakeLists.txt
-index b991a5a5cd5c48faef34993aafae20d2c9368a4d..3109524ef256368d03d8c90b4bada24b596ccf8a 100644
+index bac241e5b329c852ed32b5a608b27ffb87ae8fc0..2e05ffe362d36e049db7d606dd0b2f0eb30c4bb9 100644
 --- a/tests/unit/CMakeLists.txt
 +++ b/tests/unit/CMakeLists.txt
-@@ -64,6 +64,8 @@ file(GLOB_RECURSE deluge_SOURCES
-         # For name comparison / default naming tests
-         ../../src/deluge/util/name_compare.cpp
-         ../../src/deluge/gui/ui/browser/default_name.cpp
+@@ -74,6 +74,8 @@ file(GLOB_RECURSE deluge_SOURCES
+         ../../src/deluge/io/midi/midi_queue.cpp
+         # For FFT magnitude tests
+         ../../src/deluge/util/fast_pythag.cpp
 +        # For generated slice-name tests
 +        ../../src/deluge/model/drum/generated_slice_name.cpp
  )
  
  add_executable(UnitTests
-@@ -80,12 +82,14 @@ add_executable(UnitTests
-         clock_output_scheduler_tests.cpp
+@@ -93,6 +95,7 @@ add_executable(UnitTests
          name_compare_tests.cpp
          default_name_tests.cpp
+         encoder_acceleration_tests.cpp
 +        generated_slice_name_tests.cpp
          rgb_tests.cpp
          notes_state_tests.cpp
- )
+         iterance_migration_tests.cpp
+@@ -104,6 +107,7 @@ add_executable(UnitTests
  add_test(NAME UnitTests
          COMMAND UnitTests)
  target_sources(UnitTests PRIVATE ${deluge_SOURCES})

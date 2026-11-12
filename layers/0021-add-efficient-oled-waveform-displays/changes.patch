@@ -629,7 +629,7 @@ index 4c033a7dd9831adcb17c9fb57116d0b04cd25268..b563f79cfdd64f9cd3ce1df36acef102
  	void focusRegained() override;
 diff --git a/src/deluge/gui/waveform/oled_waveform_render_data.h b/src/deluge/gui/waveform/oled_waveform_render_data.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..d0c868bbad584d9895e9912d3f93a0462bd49306
+index 0000000000000000000000000000000000000000..ff298c40ec5babe13e7faafc234b8d8ef1bce7e4
 --- /dev/null
 +++ b/src/deluge/gui/waveform/oled_waveform_render_data.h
 @@ -0,0 +1,180 @@
@@ -683,7 +683,7 @@ index 0000000000000000000000000000000000000000..d0c868bbad584d9895e9912d3f93a046
 +	int64_t xZoom;
 +	int32_t maxPerCol[kOledWaveformBucketCount];
 +	int32_t minPerCol[kOledWaveformBucketCount];
-+	uint8_t colStatus[kOledWaveformBucketCount];
++	ColumnStatus colStatus[kOledWaveformBucketCount];
 +};
 +
 +struct OledWaveformPrepareResult {
@@ -709,7 +709,7 @@ index 0000000000000000000000000000000000000000..d0c868bbad584d9895e9912d3f93a046
 +	data.xScroll = xScroll;
 +	data.xZoom = xZoom;
 +	for (size_t bucket = 0; bucket < kOledWaveformBucketCount; bucket++) {
-+		data.colStatus[bucket] = 0;
++		data.colStatus[bucket] = ColumnStatus::NOT_INVESTIGATED;
 +	}
 +	return true;
 +}
@@ -717,7 +717,7 @@ index 0000000000000000000000000000000000000000..d0c868bbad584d9895e9912d3f93a046
 +[[nodiscard]] inline size_t oledWaveformPendingBucketCount(OledWaveformRenderData const& data) {
 +	size_t pending = 0;
 +	for (size_t bucket = 0; bucket < kOledWaveformBucketCount; bucket++) {
-+		pending += data.colStatus[bucket] == 0;
++		pending += data.colStatus[bucket] == ColumnStatus::NOT_INVESTIGATED;
 +	}
 +	return pending;
 +}
@@ -725,7 +725,7 @@ index 0000000000000000000000000000000000000000..d0c868bbad584d9895e9912d3f93a046
 +[[nodiscard]] inline size_t oledWaveformInvestigatedBucketCount(OledWaveformRenderData const& data) {
 +	size_t investigated = 0;
 +	for (size_t bucket = 0; bucket < kOledWaveformBucketCount; bucket++) {
-+		investigated += data.colStatus[bucket] == COL_STATUS_INVESTIGATED;
++		investigated += data.colStatus[bucket] == ColumnStatus::INVESTIGATED;
 +	}
 +	return investigated;
 +}
@@ -783,11 +783,11 @@ index 0000000000000000000000000000000000000000..d0c868bbad584d9895e9912d3f93a046
 +		int32_t minimum = std::numeric_limits<int32_t>::max();
 +		int32_t maximum = std::numeric_limits<int32_t>::min();
 +		for (size_t bucket = firstBucket; bucket < endBucket; bucket++) {
-+			const uint8_t status = source.colStatus[bucket];
-+			if (status == 0) {
++			const ColumnStatus status = source.colStatus[bucket];
++			if (status == ColumnStatus::NOT_INVESTIGATED) {
 +				pending = true;
 +			}
-+			else if (status == COL_STATUS_INVESTIGATED) {
++			else if (status == ColumnStatus::INVESTIGATED) {
 +				investigated = true;
 +				if (source.minPerCol[bucket] < minimum) {
 +					minimum = source.minPerCol[bucket];
@@ -799,15 +799,15 @@ index 0000000000000000000000000000000000000000..d0c868bbad584d9895e9912d3f93a046
 +		}
 +
 +		if (pending) {
-+			destination.colStatus[padColumn] = 0;
++			destination.colStatus[padColumn] = ColumnStatus::NOT_INVESTIGATED;
 +		}
 +		else if (investigated) {
 +			destination.minPerCol[padColumn] = minimum;
 +			destination.maxPerCol[padColumn] = maximum;
-+			destination.colStatus[padColumn] = COL_STATUS_INVESTIGATED;
++			destination.colStatus[padColumn] = ColumnStatus::INVESTIGATED;
 +		}
 +		else {
-+			destination.colStatus[padColumn] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
++			destination.colStatus[padColumn] = ColumnStatus::BEYOND_WAVEFORM;
 +		}
 +	}
 +}
@@ -815,7 +815,7 @@ index 0000000000000000000000000000000000000000..d0c868bbad584d9895e9912d3f93a046
 +} // namespace deluge::gui::waveform
 diff --git a/src/deluge/gui/waveform/oled_waveform_renderer.h b/src/deluge/gui/waveform/oled_waveform_renderer.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..ba9f2ceb9bde2934b2136d48458575e8775c5c31
+index 0000000000000000000000000000000000000000..ea187269d9292f3b5575ef27de4b5e25d2f29a49
 --- /dev/null
 +++ b/src/deluge/gui/waveform/oled_waveform_renderer.h
 @@ -0,0 +1,191 @@
@@ -886,7 +886,7 @@ index 0000000000000000000000000000000000000000..ba9f2ceb9bde2934b2136d48458575e8
 +
 +template <typename Canvas>
 +void renderOledWaveformContourData(Canvas& canvas, int32_t const* minima, int32_t const* maxima,
-+                                   uint8_t const* statuses, size_t bucketCount, int32_t minValue, int32_t maxValue,
++                                   ColumnStatus const* statuses, size_t bucketCount, int32_t minValue, int32_t maxValue,
 +                                   int32_t top, int32_t bottom, bool reversed) {
 +	const int32_t pixelsPerBucket = OLED_MAIN_WIDTH_PIXELS / bucketCount;
 +
@@ -919,7 +919,7 @@ index 0000000000000000000000000000000000000000..ba9f2ceb9bde2934b2136d48458575e8
 +
 +	for (size_t outputBucket = 0; outputBucket < bucketCount; outputBucket++) {
 +		const size_t sourceBucket = reversed ? (bucketCount - 1 - outputBucket) : outputBucket;
-+		if (statuses[sourceBucket] != COL_STATUS_INVESTIGATED) {
++		if (statuses[sourceBucket] != ColumnStatus::INVESTIGATED) {
 +			continue;
 +		}
 +
@@ -1011,7 +1011,7 @@ index 0000000000000000000000000000000000000000..ba9f2ceb9bde2934b2136d48458575e8
 +
 +} // namespace deluge::gui::waveform
 diff --git a/src/deluge/gui/waveform/waveform_basic_navigator.cpp b/src/deluge/gui/waveform/waveform_basic_navigator.cpp
-index 7c9e462d236b8819aeb50437d5d5e2e56f736ba7..954a5f82b27a7b1194d3ccde1152e7df25012da3 100644
+index 7c9e462d236b8819aeb50437d5d5e2e56f736ba7..a3043a35e47dc2ce20237cfb12bb5906fda586f5 100644
 --- a/src/deluge/gui/waveform/waveform_basic_navigator.cpp
 +++ b/src/deluge/gui/waveform/waveform_basic_navigator.cpp
 @@ -35,6 +35,10 @@ void WaveformBasicNavigator::opened(SampleHolder* holder) {
@@ -1049,7 +1049,7 @@ index 7c9e462d236b8819aeb50437d5d5e2e56f736ba7..954a5f82b27a7b1194d3ccde1152e7df
  
  	PadLEDs::zoomingIn = (offset > 0);
  	PadLEDs::zoomMagnitude = PadLEDs::zoomingIn ? offset : -offset;
-@@ -277,3 +287,55 @@ void WaveformBasicNavigator::potentiallyAdjustScrollPosition(bool shouldAllowExt
+@@ -277,3 +287,57 @@ void WaveformBasicNavigator::potentiallyAdjustScrollPosition(bool shouldAllowExt
  		}
  	}
  }
@@ -1058,6 +1058,8 @@ index 7c9e462d236b8819aeb50437d5d5e2e56f736ba7..954a5f82b27a7b1194d3ccde1152e7df
 +	if (isOledWaveformCacheComplete()) {
 +		if (!oledPadRenderDataCurrent) {
 +			deluge::gui::waveform::aggregateOledWaveformToPadColumns(oledRenderData, renderData);
++	renderData.num_samples = static_cast<int64_t>(
++	    std::min<uint64_t>(sample->lengthInSamples, static_cast<uint64_t>(std::numeric_limits<int64_t>::max())));
 +			oledPadRenderDataCurrent = true;
 +		}
 +		return {true, false};
@@ -1095,7 +1097,7 @@ index 7c9e462d236b8819aeb50437d5d5e2e56f736ba7..954a5f82b27a7b1194d3ccde1152e7df
 +		return false;
 +	}
 +	for (size_t bucket = 0; bucket < deluge::gui::waveform::kOledWaveformBucketCount; bucket++) {
-+		if (oledRenderData.colStatus[bucket] == COL_STATUS_INVESTIGATED) {
++		if (oledRenderData.colStatus[bucket] == ColumnStatus::INVESTIGATED) {
 +			return true;
 +		}
 +	}
@@ -1148,18 +1150,18 @@ index 5f4aee4fc0219a10064b5de1db02e68d6c7e6896..3a42cfa424edc56891b45a587dc43a5f
  
  extern WaveformBasicNavigator waveformBasicNavigator;
 diff --git a/src/deluge/gui/waveform/waveform_renderer.cpp b/src/deluge/gui/waveform/waveform_renderer.cpp
-index bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b..818fa2bb4c085481fa7994855a844543727a11e9 100644
+index e12d96d2659cf6fd25030a8977bc544e8363bb0f..383446be671bb6c0aedde0a9c9321896cf9f2b71 100644
 --- a/src/deluge/gui/waveform/waveform_renderer.cpp
 +++ b/src/deluge/gui/waveform/waveform_renderer.cpp
-@@ -18,6 +18,7 @@
- #include "gui/waveform/waveform_renderer.h"
+@@ -19,6 +19,7 @@
  #include "definitions_cxx.hpp"
  #include "gui/colour/colour.h"
+ #include "gui/waveform/waveform_peak_math.h"
 +#include "gui/waveform/oled_waveform_render_data.h"
  #include "gui/waveform/waveform_render_data.h"
  #include "io/debug/log.h"
  #include "model/sample/sample.h"
-@@ -52,6 +53,13 @@ bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64
+@@ -97,6 +98,13 @@ bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64
  	if (!completeSuccess) {
  		return false;
  	}
@@ -1173,7 +1175,7 @@ index bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b..818fa2bb4c085481fa7994855a844543
  
  	// Clear display
  	for (int32_t y = 0; y < kDisplayHeight; y++) {
-@@ -61,8 +69,6 @@ bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64
+@@ -106,8 +114,6 @@ bool WaveformRenderer::renderFullScreen(Sample* sample, uint64_t xScroll, uint64
  	for (int32_t xDisplay = 0; xDisplay < xEnd; xDisplay++) {
  		renderOneCol(sample, xDisplay, thisImage, data, reversed, rgb);
  	}
@@ -1182,8 +1184,8 @@ index bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b..818fa2bb4c085481fa7994855a844543
  }
  
  // Returns false if had trouble loading some (will often not be all) Clusters
-@@ -626,6 +632,69 @@ cantReadData:
- 	return !hadAnyTroubleLoading;
+@@ -724,6 +730,69 @@ void WaveformRenderer::releaseAllLoads() {
+ 	pending_loads_.clear();
  }
  
 +bool WaveformRenderer::findPeaksPerOledBucket(Sample* sample, int64_t xScroll, uint64_t xZoom,
@@ -1201,7 +1203,7 @@ index bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b..818fa2bb4c085481fa7994855a844543
 +	WaveformSampleRange previousRange{};
 +	size_t previousBucket = 0;
 +	for (size_t bucket = 0; bucket < kOledWaveformBucketCount; bucket++) {
-+		if (data->colStatus[bucket] != 0) {
++		if (data->colStatus[bucket] != ColumnStatus::NOT_INVESTIGATED) {
 +			previousRange = oledWaveformBucketSampleRange(xScroll, xZoom, bucket, kOledWaveformBucketCount);
 +			previousBucket = bucket;
 +			continue;
@@ -1210,7 +1212,7 @@ index bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b..818fa2bb4c085481fa7994855a844543
 +		const WaveformSampleRange range =
 +		    oledWaveformBucketSampleRange(xScroll, xZoom, bucket, kOledWaveformBucketCount);
 +		if (!range.valid || range.end <= range.start) {
-+			data->colStatus[bucket] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
++			data->colStatus[bucket] = ColumnStatus::BEYOND_WAVEFORM;
 +			previousRange = range;
 +			previousBucket = bucket;
 +			continue;
@@ -1218,11 +1220,11 @@ index bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b..818fa2bb4c085481fa7994855a844543
 +
 +		if (bucket > 0 && previousRange.valid && range.start == previousRange.start && range.end == previousRange.end) {
 +			data->colStatus[bucket] = data->colStatus[previousBucket];
-+			if (data->colStatus[previousBucket] == COL_STATUS_INVESTIGATED) {
++			if (data->colStatus[previousBucket] == ColumnStatus::INVESTIGATED) {
 +				data->minPerCol[bucket] = data->minPerCol[previousBucket];
 +				data->maxPerCol[bucket] = data->maxPerCol[previousBucket];
 +			}
-+			if (data->colStatus[bucket] == 0) {
++			if (data->colStatus[bucket] == ColumnStatus::NOT_INVESTIGATED) {
 +				complete = false;
 +			}
 +			previousRange = range;
@@ -1234,11 +1236,11 @@ index bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b..818fa2bb4c085481fa7994855a844543
 +		const uint64_t bucketZoom = static_cast<uint64_t>(range.end - range.start);
 +		const bool loaded = findPeaksPerCol(sample, range.start, bucketZoom, &scratch, nullptr, 0, 1);
 +		data->colStatus[bucket] = scratch.colStatus[0];
-+		if (scratch.colStatus[0] == COL_STATUS_INVESTIGATED) {
++		if (scratch.colStatus[0] == ColumnStatus::INVESTIGATED) {
 +			data->minPerCol[bucket] = scratch.minPerCol[0];
 +			data->maxPerCol[bucket] = scratch.maxPerCol[0];
 +		}
-+		if (!loaded || data->colStatus[bucket] == 0) {
++		if (!loaded || data->colStatus[bucket] == ColumnStatus::NOT_INVESTIGATED) {
 +			complete = false;
 +		}
 +
@@ -1253,10 +1255,10 @@ index bd1ab642222ffdaa07dedaed6ca385ba7ebb8c1b..818fa2bb4c085481fa7994855a844543
                                            int32_t valueCentrePoint, int32_t valueSpan) {
  	*min24 = ((int64_t)(data->minPerCol[xDisplay] - valueCentrePoint) << 24) / valueSpan;
 diff --git a/src/deluge/gui/waveform/waveform_renderer.h b/src/deluge/gui/waveform/waveform_renderer.h
-index 994faff13b94de8a89f492522e88520a5b397fa4..9b6989c03a2faf5a7d4bc33447e37e40ed416b43 100644
+index ea6c0a5e845405510cd10da232d02950bdf17d58..d4cd92529a1715ac3e49ea0ea9795ad5c16a14d5 100644
 --- a/src/deluge/gui/waveform/waveform_renderer.h
 +++ b/src/deluge/gui/waveform/waveform_renderer.h
-@@ -26,6 +26,9 @@ class Sample;
+@@ -28,6 +28,9 @@ class Sample;
  class MultisampleRange;
  class SampleRecorder;
  struct WaveformRenderData;
@@ -1266,20 +1268,20 @@ index 994faff13b94de8a89f492522e88520a5b397fa4..9b6989c03a2faf5a7d4bc33447e37e40
  
  struct MarkerColumn {
  	int32_t pos; // Unscrolled
-@@ -42,6 +45,9 @@ public:
+@@ -44,6 +47,9 @@ public:
  	                      RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
  	                      SampleRecorder* recorder = nullptr, std::optional<RGB> rgb = std::nullopt,
  	                      bool reversed = false, int32_t xEnd = kDisplayWidth);
 +	void renderFullScreenFromData(Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth],
 +	                              WaveformRenderData* data, std::optional<RGB> rgb = std::nullopt,
 +	                              bool reversed = false, int32_t xEnd = kDisplayWidth);
- 	bool renderAsSingleRow(Sample* sample, int64_t xScroll, uint64_t xZoom, RGB* thisImage, WaveformRenderData* data,
- 	                       SampleRecorder* recorder, RGB rgb, bool reversed, int32_t xStart, int32_t xEnd);
- 	void renderOneCol(Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth],
-@@ -57,6 +63,8 @@ public:
- 	                                               int32_t valueCentrePoint, int32_t valueSpan);
- 	bool findPeaksPerCol(Sample* sample, int64_t xScroll, uint64_t xZoom, WaveformRenderData* data,
- 	                     SampleRecorder* recorder = nullptr, int32_t xStart = 0, int32_t xEnd = kDisplayWidth);
+ 	/// @brief Renders a Sample's waveform as one row of brightness, as song row view shows it.
+ 	///
+ 	/// Doesn't wait on the SD card unless @p recorder is set: Clusters not in memory are enqueued, and until they've
+@@ -97,6 +103,8 @@ public:
+ 	/// Must be called before deleting Samples without checking their reasons, as
+ 	/// AudioFileManager::deleteAnyTempRecordedSamplesFromMemory() does.
+ 	void releaseAllLoads();
 +	bool findPeaksPerOledBucket(Sample* sample, int64_t xScroll, uint64_t xZoom,
 +	                            deluge::gui::waveform::OledWaveformRenderData* data);
  
@@ -1287,7 +1289,7 @@ index 994faff13b94de8a89f492522e88520a5b397fa4..9b6989c03a2faf5a7d4bc33447e37e40
  
 diff --git a/tests/spec/oled_waveform_renderer_spec.cpp b/tests/spec/oled_waveform_renderer_spec.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a2bdfc0d3
+index 0000000000000000000000000000000000000000..e7bea7136c3b6cdfe32db2f876001876fdd0a5cf
 --- /dev/null
 +++ b/tests/spec/oled_waveform_renderer_spec.cpp
 @@ -0,0 +1,600 @@
@@ -1346,7 +1348,7 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +	for (size_t bucket = 0; bucket < deluge::gui::waveform::kOledWaveformBucketCount; bucket++) {
 +		data.minPerCol[bucket] = minValue;
 +		data.maxPerCol[bucket] = maxValue;
-+		data.colStatus[bucket] = COL_STATUS_INVESTIGATED;
++		data.colStatus[bucket] = ColumnStatus::INVESTIGATED;
 +	}
 +	return data;
 +}
@@ -1550,26 +1552,26 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		source.xScroll = 4321;
 +		source.xZoom = 77;
 +		for (size_t bucket = 0; bucket < kOledWaveformBucketCount; bucket++) {
-+			source.colStatus[bucket] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
++			source.colStatus[bucket] = ColumnStatus::BEYOND_WAVEFORM;
 +		}
 +
-+		source.colStatus[0] = COL_STATUS_INVESTIGATED;
++		source.colStatus[0] = ColumnStatus::INVESTIGATED;
 +		source.minPerCol[0] = -30;
 +		source.maxPerCol[0] = 40;
 +		if constexpr (bucketsPerPadColumn > 1) {
 +			source.minPerCol[0] = -10;
 +			source.maxPerCol[0] = 20;
-+			source.colStatus[1] = COL_STATUS_INVESTIGATED;
++			source.colStatus[1] = ColumnStatus::INVESTIGATED;
 +			source.minPerCol[1] = -30;
 +			source.maxPerCol[1] = 40;
 +
-+			source.colStatus[secondPadStart] = COL_STATUS_INVESTIGATED;
++			source.colStatus[secondPadStart] = ColumnStatus::INVESTIGATED;
 +			source.minPerCol[secondPadStart] = -100;
 +			source.maxPerCol[secondPadStart] = 100;
-+			source.colStatus[secondPadStart + 1] = 0;
++			source.colStatus[secondPadStart + 1] = ColumnStatus::NOT_INVESTIGATED;
 +		}
 +		else {
-+			source.colStatus[secondPadStart] = 0;
++			source.colStatus[secondPadStart] = ColumnStatus::NOT_INVESTIGATED;
 +		}
 +
 +		WaveformRenderData destination{};
@@ -1577,11 +1579,11 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +
 +		expect(destination.xScroll).to_equal(source.xScroll);
 +		expect(destination.xZoom).to_equal(source.xZoom);
-+		expect(destination.colStatus[0]).to_equal(COL_STATUS_INVESTIGATED);
++		expect(destination.colStatus[0]).to_equal(ColumnStatus::INVESTIGATED);
 +		expect(destination.minPerCol[0]).to_equal(-30);
 +		expect(destination.maxPerCol[0]).to_equal(40);
-+		expect(destination.colStatus[1]).to_equal(uint8_t{0});
-+		expect(destination.colStatus[2]).to_equal(COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM);
++		expect(destination.colStatus[1]).to_equal(ColumnStatus::NOT_INVESTIGATED);
++		expect(destination.colStatus[2]).to_equal(ColumnStatus::BEYOND_WAVEFORM);
 +	});
 +
 +	it("keeps a matching cache key and retries only unresolved buckets", _ {
@@ -1589,24 +1591,24 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		data.xScroll = 100;
 +		data.xZoom = 20;
 +		for (size_t bucket = 0; bucket < kOledWaveformBucketCount; bucket++) {
-+			data.colStatus[bucket] = COL_STATUS_INVESTIGATED;
++			data.colStatus[bucket] = ColumnStatus::INVESTIGATED;
 +		}
-+		data.colStatus[5] = 0;
-+		data.colStatus[12] = 0;
-+		data.colStatus[kOledWaveformBucketCount - 1] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
++		data.colStatus[5] = ColumnStatus::NOT_INVESTIGATED;
++		data.colStatus[12] = ColumnStatus::NOT_INVESTIGATED;
++		data.colStatus[kOledWaveformBucketCount - 1] = ColumnStatus::BEYOND_WAVEFORM;
 +
 +		expect(oledWaveformCacheMatches(data, 100, 20)).to_be_true();
 +		expect(updateOledWaveformCacheViewport(data, 100, 20)).to_be_false();
 +		expect(oledWaveformPendingBucketCount(data)).to_equal(size_t{2});
 +		expect(oledWaveformInvestigatedBucketCount(data)).to_equal(kOledWaveformBucketCount - 3);
-+		expect(data.colStatus[0]).to_equal(COL_STATUS_INVESTIGATED);
++		expect(data.colStatus[0]).to_equal(ColumnStatus::INVESTIGATED);
 +		expect(data.colStatus[kOledWaveformBucketCount - 1])
-+		    .to_equal(COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM);
++		    .to_equal(ColumnStatus::BEYOND_WAVEFORM);
 +
-+		data.colStatus[5] = COL_STATUS_INVESTIGATED;
++		data.colStatus[5] = ColumnStatus::INVESTIGATED;
 +		expect(updateOledWaveformCacheViewport(data, 100, 20)).to_be_false();
 +		expect(oledWaveformPendingBucketCount(data)).to_equal(size_t{1});
-+		expect(data.colStatus[5]).to_equal(COL_STATUS_INVESTIGATED);
++		expect(data.colStatus[5]).to_equal(ColumnStatus::INVESTIGATED);
 +	});
 +
 +	it("invalidates all buckets once on a viewport cache miss", _ {
@@ -1677,7 +1679,7 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		OledWaveformRenderData data{};
 +		data.minPerCol[bucket] = -100;
 +		data.maxPerCol[bucket] = 100;
-+		data.colStatus[bucket] = COL_STATUS_INVESTIGATED;
++		data.colStatus[bucket] = ColumnStatus::INVESTIGATED;
 +
 +		renderOledWaveformContour(canvas, data, -100, 100, 5, 47);
 +
@@ -1697,8 +1699,8 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		OledWaveformRenderData data{};
 +		data.minPerCol[2] = -50;
 +		data.maxPerCol[2] = 50;
-+		data.colStatus[2] = COL_STATUS_INVESTIGATED;
-+		data.colStatus[3] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
++		data.colStatus[2] = ColumnStatus::INVESTIGATED;
++		data.colStatus[3] = ColumnStatus::BEYOND_WAVEFORM;
 +
 +		renderOledWaveformContour(canvas, data, -100, 100, 10, 30);
 +
@@ -1719,7 +1721,7 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		OledWaveformRenderData data{};
 +		data.minPerCol[0] = -100;
 +		data.maxPerCol[0] = 100;
-+		data.colStatus[0] = COL_STATUS_INVESTIGATED;
++		data.colStatus[0] = ColumnStatus::INVESTIGATED;
 +
 +		RecordingCanvas forwards;
 +		renderOledWaveformContour(forwards, data, -100, 100, 5, 47);
@@ -1732,7 +1734,7 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		expect(reversed.lit(reversedStartX - 1, 5)).to_be_false();
 +		expect(reversed.lit(reversedStartX, 5)).to_be_true();
 +		expect(reversed.lit(127, 47)).to_be_true();
-+		expect(data.colStatus[0]).to_equal(COL_STATUS_INVESTIGATED);
++		expect(data.colStatus[0]).to_equal(ColumnStatus::INVESTIGATED);
 +	});
 +
 +	it("clips the requested plot to the visible panel", _ {
@@ -1740,7 +1742,7 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		OledWaveformRenderData data{};
 +		data.minPerCol[0] = -100;
 +		data.maxPerCol[0] = 100;
-+		data.colStatus[0] = COL_STATUS_INVESTIGATED;
++		data.colStatus[0] = ColumnStatus::INVESTIGATED;
 +
 +		renderOledWaveformContour(canvas, data, -100, 100, std::numeric_limits<int32_t>::min(),
 +		                          std::numeric_limits<int32_t>::max());
@@ -1767,7 +1769,7 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		OledWaveformRenderData data{};
 +		data.minPerCol[0] = -1;
 +		data.maxPerCol[0] = 1;
-+		data.colStatus[0] = COL_STATUS_INVESTIGATED;
++		data.colStatus[0] = ColumnStatus::INVESTIGATED;
 +
 +		renderOledWaveformContour(canvas, data, -100, 100, 20, 20);
 +
@@ -1781,7 +1783,7 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		OledWaveformRenderData data{};
 +		data.minPerCol[0] = 3;
 +		data.maxPerCol[0] = 3;
-+		data.colStatus[0] = COL_STATUS_INVESTIGATED;
++		data.colStatus[0] = ColumnStatus::INVESTIGATED;
 +
 +		renderOledWaveformContour(canvas, data, 0, 6, 10, 12);
 +
@@ -1795,7 +1797,7 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		OledWaveformRenderData data{};
 +		data.minPerCol[0] = 0;
 +		data.maxPerCol[0] = 0;
-+		data.colStatus[0] = COL_STATUS_INVESTIGATED;
++		data.colStatus[0] = ColumnStatus::INVESTIGATED;
 +
 +		renderOledWaveformContour(canvas, data, std::numeric_limits<int32_t>::min(),
 +		                          std::numeric_limits<int32_t>::max(), 5, 47);
@@ -1811,8 +1813,8 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		OledWaveformRenderData data{};
 +		data.minPerCol[0] = 0;
 +		data.maxPerCol[0] = 0;
-+		data.colStatus[0] = COL_STATUS_INVESTIGATED;
-+		data.colStatus[1] = COL_STATUS_INVESTIGATED_BUT_BEYOND_WAVEFORM;
++		data.colStatus[0] = ColumnStatus::INVESTIGATED;
++		data.colStatus[1] = ColumnStatus::BEYOND_WAVEFORM;
 +
 +		renderOledWaveformContour(canvas, data, 0, 0, 5, 47);
 +
@@ -1830,8 +1832,8 @@ index 0000000000000000000000000000000000000000..7e10fe02e875ffad3ec7843f91b79d8a
 +		data.maxPerCol[0] = 100;
 +		data.minPerCol[1] = 0;
 +		data.maxPerCol[1] = 300;
-+		data.colStatus[0] = COL_STATUS_INVESTIGATED;
-+		data.colStatus[1] = COL_STATUS_INVESTIGATED;
++		data.colStatus[0] = ColumnStatus::INVESTIGATED;
++		data.colStatus[1] = ColumnStatus::INVESTIGATED;
 +
 +		renderOledWaveformContour(canvas, data, -100, 300, 5, 45);
 +

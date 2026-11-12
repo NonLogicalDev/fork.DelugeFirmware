@@ -19,26 +19,10 @@ index 86a27eb5165fb84ffc48443a31faf887f31e02bb..8331ad7b948fe821e513723f7fee0e5f
  	}
  
 diff --git a/src/deluge/dsp/reverb/reverb.hpp b/src/deluge/dsp/reverb/reverb.hpp
-index 1f3a564b7fc092561256e989cd71f95055b2a107..13bae36b0b9cbf372381ac7846de8bd71e09b2bf 100644
+index e779c27793989c1af329aaea62418b06e181b9ae..d79f0927bcff126dc3c2d70ab66ad6120db57de7 100644
 --- a/src/deluge/dsp/reverb/reverb.hpp
 +++ b/src/deluge/dsp/reverb/reverb.hpp
-@@ -30,12 +30,15 @@ public:
- 		switch (m) {
- 		case Model::FREEVERB:
- 			reverb_.emplace<reverb::Freeverb>();
-+			base_ = &std::get<reverb::Freeverb>(reverb_);
- 			break;
- 		case Model::DIGITAL:
- 			reverb_.emplace<reverb::Digital>();
-+			base_ = &std::get<reverb::Digital>(reverb_);
- 			break;
- 		case Model::MUTABLE:
- 			reverb_.emplace<reverb::Mutable>();
-+			base_ = &std::get<reverb::Mutable>(reverb_);
- 			break;
- 		}
- 		base_->setRoomSize(room_size_);
-@@ -67,6 +70,8 @@ public:
+@@ -70,6 +70,8 @@ public:
  		base_->setPanLevels(amplitude_left, amplitude_right);
  	}
  
@@ -48,10 +32,10 @@ index 1f3a564b7fc092561256e989cd71f95055b2a107..13bae36b0b9cbf372381ac7846de8bd7
  		room_size_ = value;
  		base_->setRoomSize(value);
 diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
-index 2a4fe459069f415be28ec183fcb38345071c813b..7c07a74b7992e4c25cc7f0212d3a23f77969c824 100644
+index 61b4dc4f8e1f588b14fe54914eb8537268aefca8..0b31a4bf910b004d53c6a2562999c8c54cb96855 100644
 --- a/src/deluge/gui/l10n/english.json
 +++ b/src/deluge/gui/l10n/english.json
-@@ -720,6 +720,7 @@
+@@ -728,6 +728,7 @@
      "STRING_FOR_AUDIO_CLIP": "Audio clip",
      "STRING_FOR_SONG": "Song",
      "STRING_FOR_SETTINGS": "Settings",
@@ -60,10 +44,10 @@ index 2a4fe459069f415be28ec183fcb38345071c813b..7c07a74b7992e4c25cc7f0212d3a23f7
      "STRING_FOR_ENV_ATTACK_MENU_TITLE": "Env* attack",
      "STRING_FOR_ENV_DECAY_MENU_TITLE": "Env* decay",
 diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
-index 4ea0207006cad6e6733296eb231aba0d07016bd6..7f7eb8d0707bfc83c432689f6630eaa7d5910767 100644
+index 7c97e5d0fad76ffdc2483daf86737500091aa272..172301457116f3a84b6cff6cd2fac1f109832e2b 100644
 --- a/src/deluge/gui/l10n/g_english.cpp
 +++ b/src/deluge/gui/l10n/g_english.cpp
-@@ -733,6 +733,7 @@ PLACE_SDRAM_DATA Language english{
+@@ -741,6 +741,7 @@ PLACE_SDRAM_DATA Language english{
          {STRING_FOR_AUDIO_CLIP, "Audio clip"},
          {STRING_FOR_SONG, "Song"},
          {STRING_FOR_SETTINGS, "Settings"},
@@ -72,10 +56,10 @@ index 4ea0207006cad6e6733296eb231aba0d07016bd6..7f7eb8d0707bfc83c432689f6630eaa7
          {STRING_FOR_ENV_ATTACK_MENU_TITLE, "Env* attack"},
          {STRING_FOR_ENV_DECAY_MENU_TITLE, "Env* decay"},
 diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
-index 9fe413435cb395f493bbced262102d0561d96189..d025e0013f0b048fdcce69f5cc9e8c76da0bdb76 100644
+index 6e6514318045f9e7a02b9396ba341725af9e91a0..9c1da409ad0421af7f59504f4f96850b4959dee0 100644
 --- a/src/deluge/gui/l10n/g_seven_segment.cpp
 +++ b/src/deluge/gui/l10n/g_seven_segment.cpp
-@@ -526,6 +526,7 @@ PLACE_SDRAM_DATA Language seven_segment{
+@@ -534,6 +534,7 @@ PLACE_SDRAM_DATA Language seven_segment{
          {STRING_FOR_SONG_MACRO_KIND_NONE, "NONE"},
          {STRING_FOR_MIDI_LEARN, "MIDI"},
          {STRING_FOR_ACTIONS, "ACT"},
@@ -84,10 +68,10 @@ index 9fe413435cb395f493bbced262102d0561d96189..d025e0013f0b048fdcce69f5cc9e8c76
          {STRING_FOR_RESET_FLASH, "FLSH"},
          {STRING_FOR_RESET_COMMUNITY_FEATURES, "COMM"},
 diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
-index bcc4425973ed50c34cbecdb1eb8f5539c122107a..baf31f0a594b8f6033c393d74408c06bc574d35c 100644
+index 806f020ae312ece7a20c2222680607fa140da53c..b06ddbbe1828f2ad7c96294f2055387234d5f72a 100644
 --- a/src/deluge/gui/l10n/seven_segment.json
 +++ b/src/deluge/gui/l10n/seven_segment.json
-@@ -563,6 +563,7 @@
+@@ -571,6 +571,7 @@
          "STRING_FOR_MIDI_LEARN": "MIDI",
  
          "STRING_FOR_ACTIONS": "ACT",
@@ -96,10 +80,10 @@ index bcc4425973ed50c34cbecdb1eb8f5539c122107a..baf31f0a594b8f6033c393d74408c06b
          "STRING_FOR_RESET_FLASH": "FLSH",
          "STRING_FOR_RESET_COMMUNITY_FEATURES": "COMM",
 diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
-index 139af3260eec0cf32c4b70a4175b0ae06a68ca25..903d79c5b2a785cb6bf06649256e377a2753754e 100644
+index 2ddffdb7a312c087a48e8e689d22b05c07d64105..8f5d5054f33ad3e5b10caa678ae01284cfcceef3 100644
 --- a/src/deluge/gui/l10n/strings.h
 +++ b/src/deluge/gui/l10n/strings.h
-@@ -788,6 +788,7 @@ enum class String : size_t {
+@@ -796,6 +796,7 @@ enum class String : size_t {
  	STRING_FOR_AUDIO_CLIP,
  	STRING_FOR_SONG,
  	STRING_FOR_SETTINGS,
@@ -185,10 +169,10 @@ index 0000000000000000000000000000000000000000..7c0933e3d05c0147b8f5d343410093f9
 +
 +} // namespace deluge::gui::menu_item::panic
 diff --git a/src/deluge/gui/ui/audio_recorder.cpp b/src/deluge/gui/ui/audio_recorder.cpp
-index 6cb4aab5e19c5c6a09a14e38f7924f9e5bf07d0e..9b3ad86615e0f58dffc24b3b4e76d34b06b2cb50 100644
+index 31abbb7f8e41c460d3950391643d0c29b544e141..21359bb216659b1528e603354fb11717c000c497 100644
 --- a/src/deluge/gui/ui/audio_recorder.cpp
 +++ b/src/deluge/gui/ui/audio_recorder.cpp
-@@ -147,6 +147,7 @@ bool AudioRecorder::setupRecordingToFile(AudioInputChannel newMode, int32_t newN
+@@ -151,6 +151,7 @@ bool AudioRecorder::setupRecordingToFile(AudioInputChannel newMode, int32_t newN
  
  	recorder->allowFileAlterationAfter = true;
  	recorder->allowNormalization = shouldNormalize;
@@ -196,7 +180,7 @@ index 6cb4aab5e19c5c6a09a14e38f7924f9e5bf07d0e..9b3ad86615e0f58dffc24b3b4e76d34b
  
  	recordingSource = newMode; // This sets recording to begin happening even as the file is created, below
  
-@@ -178,6 +179,19 @@ void AudioRecorder::endRecordingSoon(int32_t buttonLatency) {
+@@ -182,6 +183,19 @@ void AudioRecorder::endRecordingSoon(int32_t buttonLatency) {
  	}
  }
  
@@ -216,7 +200,7 @@ index 6cb4aab5e19c5c6a09a14e38f7924f9e5bf07d0e..9b3ad86615e0f58dffc24b3b4e76d34b
  void AudioRecorder::slowRoutine() {
  	// finishRecording() frees the SampleRecorder, which discardRecorder() forbids doing from inside the SD card
  	// routine - the recorder may be suspended part-way through its own cardRoutine(), and freeing it there leaves
-@@ -196,7 +210,9 @@ void AudioRecorder::slowRoutine() {
+@@ -200,7 +214,9 @@ void AudioRecorder::slowRoutine() {
  			FREEZE_WITH_ERROR("E250");
  			return;
  		}
@@ -227,7 +211,7 @@ index 6cb4aab5e19c5c6a09a14e38f7924f9e5bf07d0e..9b3ad86615e0f58dffc24b3b4e76d34b
  			indicator_leds::setLedState(IndicatorLED::RECORD, (playbackHandler.recording == RecordingMode::NORMAL));
  			finishRecording();
  		}
-@@ -219,7 +235,9 @@ void AudioRecorder::process() {
+@@ -227,7 +243,9 @@ void AudioRecorder::process() {
  		AudioEngine::slowRoutine();
  
  		// If recording has finished...
@@ -238,7 +222,7 @@ index 6cb4aab5e19c5c6a09a14e38f7924f9e5bf07d0e..9b3ad86615e0f58dffc24b3b4e76d34b
  
  			if (recorder->status == RecorderStatus::ABORTED || recorder->hadCardError) {}
  
-@@ -270,6 +288,7 @@ void AudioRecorder::finishRecording() {
+@@ -275,6 +293,7 @@ void AudioRecorder::finishRecording() {
  
  	recorder = nullptr;
  	recordingSource = AudioInputChannel::NONE;
@@ -268,10 +252,10 @@ index d46e2fb81b8c93ec8b8023f65025e8ef987945ab..915b5bbe0f54d7a67937647c2497de03
  
  extern AudioRecorder audioRecorder;
 diff --git a/src/deluge/gui/ui/menus.cpp b/src/deluge/gui/ui/menus.cpp
-index 032e8daab6aac738b0f4b4fc01fb088c05b905a4..0d18a9382e8aa80ad63534aeecd7d5bc5f90c6bb 100644
+index 7bbd559f6947d3fd065778d03981d47bd42c9085..199f1483fa872fdc446e44b77932969419c1867f 100644
 --- a/src/deluge/gui/ui/menus.cpp
 +++ b/src/deluge/gui/ui/menus.cpp
-@@ -147,6 +147,7 @@
+@@ -148,6 +148,7 @@
  #include "gui/menu_item/osc/source/wave_index.h"
  #include "gui/menu_item/osc/sync.h"
  #include "gui/menu_item/osc/type.h"
@@ -279,7 +263,7 @@ index 032e8daab6aac738b0f4b4fc01fb088c05b905a4..0d18a9382e8aa80ad63534aeecd7d5bc
  #include "gui/menu_item/patch_cable_strength/fixed.h"
  #include "gui/menu_item/patch_cables.h"
  #include "gui/menu_item/patched_param/integer.h"
-@@ -1895,9 +1896,11 @@ PLACE_SDRAM_BSS menu_item::Submenu soundEditorRootMenuKitGlobalFX{
+@@ -1893,9 +1894,11 @@ PLACE_SDRAM_BSS menu_item::Submenu soundEditorRootMenuKitGlobalFX{
  };
  
  // Root Menu
@@ -291,8 +275,121 @@ index 032e8daab6aac738b0f4b4fc01fb088c05b905a4..0d18a9382e8aa80ad63534aeecd7d5bc
          &settingsActionsSubmenu,
          &cvSelectionMenu,
          &gateSelectionMenu,
+diff --git a/src/deluge/hid/buttons.cpp b/src/deluge/hid/buttons.cpp
+index 21f193b96bc47243598d6f800fdac939e7342d69..0c2456e36693563d842458a42c3b3b743cae653f 100644
+--- a/src/deluge/hid/buttons.cpp
++++ b/src/deluge/hid/buttons.cpp
+@@ -17,6 +17,7 @@
+ 
+ #include "hid/buttons.h"
+ #include "definitions_cxx.hpp"
++#include "gui/l10n/l10n.h"
+ #include "gui/ui/audio_recorder.h"
+ #include "gui/ui/load/load_song_ui.h"
+ #include "gui/ui/ui.h"
+@@ -70,8 +71,46 @@ bool considerShiftReleaseForSticky;
+  */
+ bool considerCrossScreenReleaseForCrossScreenMode;
+ 
++constexpr uint8_t kShiftPanicPressCount = 5;
++uint8_t shiftPanicPresses = 0;
++uint32_t timeLastShiftPanicPress;
++bool panicAfterCardRoutine = false;
++bool suppressShiftReleaseAfterPanic = false;
++
+ bool buttonStates[NUM_BUTTON_COLS + 1][NUM_BUTTON_ROWS]; // The extra col is for "fake" buttons
+ 
++void resetShiftPanicGesture() {
++	shiftPanicPresses = 0;
++	timeLastShiftPanicPress = 0;
++}
++
++bool shiftPanicGestureComplete() {
++	uint32_t now = AudioEngine::audioSampleTimer;
++	if (shiftPanicPresses == 0 || static_cast<int32_t>(now - timeLastShiftPanicPress) > kShortPressTime) {
++		shiftPanicPresses = 1;
++	}
++	else {
++		shiftPanicPresses++;
++	}
++	timeLastShiftPanicPress = now;
++
++	if (shiftPanicPresses != kShiftPanicPressCount) {
++		return false;
++	}
++
++	resetShiftPanicGesture();
++	return true;
++}
++
++void triggerShiftPanic() {
++	clearShiftSticky();
++	// The fifth press bypasses commandToggleShift(), so ignore its physical release rather than treating it as a
++	// normal sticky-Shift tap.
++	suppressShiftReleaseAfterPanic = true;
++	AudioEngine::panic();
++	display->displayPopup(deluge::l10n::get(deluge::l10n::String::STRING_FOR_STOPPED));
++}
++
+ ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
+ 	using namespace deluge::hid::button;
+ 
+@@ -86,6 +125,10 @@ ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
+ 	D_PRINT("UI=%s, Button=%s, On=%d", getCurrentUI()->getUIName(), getButtonName(b), on);
+ #endif
+ 	if (on) {
++		if (b != SHIFT) {
++			resetShiftPanicGesture();
++		}
++
+ 		// If the user presses a different button while holding shift, don't consider the shift press for the purposes
+ 		// of toggling sticky shift.
+ 		considerShiftReleaseForSticky = false;
+@@ -94,6 +137,17 @@ ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
+ 		considerCrossScreenReleaseForCrossScreenMode = false;
+ 	}
+ 
++	if (b == SHIFT && !on && suppressShiftReleaseAfterPanic) {
++		suppressShiftReleaseAfterPanic = false;
++		return ActionResult::DEALT_WITH;
++	}
++
++	if (b == SHIFT && on && panicAfterCardRoutine) {
++		panicAfterCardRoutine = false;
++		triggerShiftPanic();
++		return ActionResult::DEALT_WITH;
++	}
++
+ 	ActionResult result;
+ 
+ 	// See if it was one of the mod buttons
+@@ -147,6 +201,16 @@ ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
+ 		goto dealtWith;
+ 	}
+ 
++	if (b == SHIFT && on && shiftPanicGestureComplete()) {
++		if (inCardRoutine) {
++			panicAfterCardRoutine = true;
++			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
++		}
++
++		triggerShiftPanic();
++		return ActionResult::DEALT_WITH;
++	}
++
+ 	// Play button
+ 	if (b == PLAY) {
+ 		if (on) {
+@@ -331,6 +395,7 @@ void noPressesHappening(bool inCardRoutine) {
+ }
+ void ignoreCurrentShiftForSticky() {
+ 	considerShiftReleaseForSticky = false;
++	resetShiftPanicGesture();
+ }
+ 
+ const char* getButtonName(uint8_t button) {
 diff --git a/src/deluge/model/fx/stutterer.cpp b/src/deluge/model/fx/stutterer.cpp
-index e5dd4a57c1526fc7882583dbfe0a55e5961b7c98..9e1ddb40d8c870e160e2bb952d1d95c6c84a66cf 100644
+index 7746d2bd9156a0736ad01660016ffbbf6e46dbee..67640c8baff87b5423cf2f3115ec13173c44ea1e 100644
 --- a/src/deluge/model/fx/stutterer.cpp
 +++ b/src/deluge/model/fx/stutterer.cpp
 @@ -103,6 +103,7 @@ Error Stutterer::beginStutter(void* source, ParamManagerForTimeline* paramManage
@@ -303,7 +400,7 @@ index e5dd4a57c1526fc7882583dbfe0a55e5961b7c98..9e1ddb40d8c870e160e2bb952d1d95c6
  	}
  	return error;
  }
-@@ -234,4 +235,9 @@ void Stutterer::endStutter(ParamManagerForTimeline* paramManager) {
+@@ -219,4 +220,9 @@ void Stutterer::endStutter(ParamManagerForTimeline* paramManager) {
  	lastQuantizedKnobDiff = 0;
  	valueBeforeStuttering = 0;
  	stutterSource = nullptr;
@@ -362,7 +459,7 @@ index 24472813b2fd31f9cfd5d7772c9017eb6be444e4..5f593a4ac1fd61c03aa143ba49ef502d
  	static void initParams(ParamManager* paramManager);
  	static void initParamsForAudioClip(ParamManagerForTimeline* paramManager);
 diff --git a/src/deluge/model/mod_controllable/mod_controllable_audio.cpp b/src/deluge/model/mod_controllable/mod_controllable_audio.cpp
-index 573cf90f808b4481e05f24e6fa07734a14382620..8924a849befb6e73c40a06332b2557260b8ea728 100644
+index fd80ba04f383c5d98a99802ac66d03c756ac3eec..fafd172ab3c3de4749ecf076e000f6625ba3f086 100644
 --- a/src/deluge/model/mod_controllable/mod_controllable_audio.cpp
 +++ b/src/deluge/model/mod_controllable/mod_controllable_audio.cpp
 @@ -1484,8 +1484,36 @@ void ModControllableAudio::wontBeRenderedForAWhile() {
@@ -416,10 +513,10 @@ index 64f25db18d38857d00dc768b1e25a5d85126645d..82adee0ab16faf392658f4fe2db0ec29
  	virtual bool setModFXType(ModFXType newType);
  	bool offerReceivedCCToLearnedParamsForClip(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value,
 diff --git a/src/deluge/processing/engines/audio_engine.cpp b/src/deluge/processing/engines/audio_engine.cpp
-index 7c245516f034fe587e9f0305f7dbc54590a6b164..fdf10b1b98399c3cc860eff8be0a2253833cb84a 100644
+index 818e72233b7fa224ac9d3b11bbbb04c93128494f..eee59b4aa163a152d80a2b31cd7a3f0e5da9df9e 100644
 --- a/src/deluge/processing/engines/audio_engine.cpp
 +++ b/src/deluge/processing/engines/audio_engine.cpp
-@@ -249,6 +249,62 @@ void killAllVoices(bool deletingSong) {
+@@ -258,6 +258,62 @@ void killAllVoices(bool deletingSong) {
  	}
  }
  
@@ -482,7 +579,7 @@ index 7c245516f034fe587e9f0305f7dbc54590a6b164..fdf10b1b98399c3cc860eff8be0a2253
  void songSwapAboutToHappen() {
  	// Otherwise, a timer might get called and try to access Clips that we may have deleted below
  	uiTimerManager.unsetTimer(TimerName::PLAY_ENABLE_FLASH);
-@@ -945,8 +1001,7 @@ void renderSongFX(size_t numSamples) { // LPF and stutter for song (must happen
+@@ -1126,8 +1182,7 @@ void renderSongFX(size_t numSamples) { // LPF and stutter for song (must happen
  }
  void setMonitoringMode() { // Monitoring setup
  	doMonitoring = false;
@@ -493,12 +590,12 @@ index 7c245516f034fe587e9f0305f7dbc54590a6b164..fdf10b1b98399c3cc860eff8be0a2253
  			doMonitoring = (lineInPluggedIn || headphonesPluggedIn);
  		}
 diff --git a/src/deluge/processing/engines/audio_engine.h b/src/deluge/processing/engines/audio_engine.h
-index 86f5d7204085bb15ab2f53067f4d5a9bf300ae2b..b9174852cf02422164e0a1822643fbb4f65621c4 100644
+index 62f5d24c89d9d10af5e53d1aa1f136c4786605a8..c44705b5959e24f23d8ee7bbbb1463cfe9e36d16 100644
 --- a/src/deluge/processing/engines/audio_engine.h
 +++ b/src/deluge/processing/engines/audio_engine.h
-@@ -147,6 +147,7 @@ void runRoutine();
- void init();
- void previewSample(String* path, FilePointer* filePointer, bool shouldActuallySound);
+@@ -163,6 +163,7 @@ struct PreviewVolume {
+ 
+ void previewSample(String* path, FilePointer* filePointer, bool shouldActuallySound, PreviewVolume const& volume);
  void stopAnyPreviewing();
 +void panic();
  

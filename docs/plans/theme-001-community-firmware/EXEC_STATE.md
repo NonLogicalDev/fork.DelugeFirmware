@@ -18,7 +18,9 @@ Keep the official community firmware source locally available and add requested 
 
 ## Current State
 
-- Completed: [compare upstream base candidates](completed/plan-51%20Compare%20upstream%20base%20candidates.md); see the [v1.3.0 layer audit](artifacts/v1.3.0-layer-audit.md). The base remains unchanged pending a port.
+- Completed: [port layers to v1.3.0](completed/plan-52%20Port%20layers%20to%20v1.3.0.md). The 28-layer projection passed layerctl verification, 27 host suites, and a Release firmware build; hardware testing remains outstanding.
+
+- Completed: [compare upstream base candidates](completed/plan-51%20Compare%20upstream%20base%20candidates.md); see the [v1.3.0 layer audit](artifacts/v1.3.0-layer-audit.md). The definitions now use the audited v1.3.0 release.
 
 - Latest local build [[2026-09-14]]: [modulation shortcut fix](active/plan-50%20fix%20modulation%20source%20shortcut%20dispatch.md), `ns/bug-modulation-01` at `d08ed27906ed13691a04c1730924fc6fed590f4c`. Successful modulation no longer falls through to Randomizer. Integrated tip `b37869fdc41f89f6b79ef079cb3ca00ae86c8a4a`; clean empty child `1f2d2a`. Regression check, 12 catalog tests, 23 host suites and 47-second Release pass. BIN SHA-256 `b5f19e676d53dab7f2d0096dc3bbf95c74bedf081875513b8bfa113dd3e022d0`. /root and /root/modulation_review finished. Hardware check pending; not pushed or flashed. Supersedes older local tip/build identities below; recovery tag unchanged.
 

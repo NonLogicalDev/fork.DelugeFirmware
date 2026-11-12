@@ -1,5 +1,5 @@
 diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
-index 0d52a8da49708ad2f68d03a3a1c96212d628acd9..6cb2511b2d578d43865e526021a4c4dfaabbf594 100644
+index 71c3398cb06da5ebaf7552d4b3cfaa9ac0ca7ca0..a923d8f058cd247870b8ff17a22f77121aa77465 100644
 --- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
 +++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
 @@ -81,6 +81,11 @@ KeyboardScreen::KeyboardScreen() {
@@ -59,7 +59,7 @@ index 7f3e5865181efdce01f453d050c4623ad268c494..5d4126cb969ff25e36ea2a70274208fc
  		return;
  	}
 diff --git a/src/deluge/gui/views/automation_view.cpp b/src/deluge/gui/views/automation_view.cpp
-index 0a42de3544b9893300134940925bc2b538928093..269e37c4c19fbea58b30793e52fcda0a595c0634 100644
+index a9c9d56c3fb4a06c59b6de46af0752c71b75008a..2967ceb9620bf30f5f24e0db1b6f177e17032d8a 100644
 --- a/src/deluge/gui/views/automation_view.cpp
 +++ b/src/deluge/gui/views/automation_view.cpp
 @@ -584,12 +584,14 @@ void AutomationView::graphicsRoutine() {
@@ -370,10 +370,10 @@ index 0000000000000000000000000000000000000000..747b197d1f1285837d06e7e718145fff
 +
 +} // namespace deluge::gui::views::clip_progress_ruler
 diff --git a/src/deluge/gui/views/clip_view.cpp b/src/deluge/gui/views/clip_view.cpp
-index d6dee42d3e162f0eec8337367276a1b8662d8360..5c22fbb65d59470f9724c5e248e57dfd893e99c7 100644
+index ab76e213459124544ab17a148afb87c0bc7102ea..400840185e98af9d5618b67129c3058d402f4f58 100644
 --- a/src/deluge/gui/views/clip_view.cpp
 +++ b/src/deluge/gui/views/clip_view.cpp
-@@ -19,18 +19,117 @@
+@@ -19,19 +19,118 @@
  #include "definitions_cxx.hpp"
  #include "extern.h"
  #include "gui/l10n/l10n.h"
@@ -383,6 +383,7 @@ index d6dee42d3e162f0eec8337367276a1b8662d8360..5c22fbb65d59470f9724c5e248e57dfd
  #include "gui/views/view.h"
  #include "hid/buttons.h"
  #include "hid/display/display.h"
+ #include "hid/led/pad_leds.h"
 +#include "hid/display/oled.h"
 +#include "hid/display/screensaver.h"
  #include "memory/general_memory_allocator.h"
@@ -491,10 +492,10 @@ index d6dee42d3e162f0eec8337367276a1b8662d8360..5c22fbb65d59470f9724c5e248e57dfd
  
  uint32_t ClipView::getMaxZoom() {
  	return getCurrentClip()->getMaxZoom();
-@@ -42,6 +141,256 @@ uint32_t ClipView::getMaxLength() {
- 
- void ClipView::focusRegained() {
- 	ClipNavigationTimelineView::focusRegained();
+@@ -47,6 +146,256 @@ void ClipView::focusRegained() {
+ 	exitedShortcutOverview = false;
+ 	// Browsers can draw directly onto the pad image, even without a waveform preview.
+ 	uiNeedsRendering(this);
 +	invalidateClipProgressRuler();
 +}
 +
@@ -749,7 +750,7 @@ index d6dee42d3e162f0eec8337367276a1b8662d8360..5c22fbb65d59470f9724c5e248e57dfd
  
  ActionResult ClipView::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
 diff --git a/src/deluge/gui/views/clip_view.h b/src/deluge/gui/views/clip_view.h
-index 356b1bd9d7ed850659c48dd2881d8961a166194c..7cfdb08ab2b174ae125b5364af8595ac48201381 100644
+index cbf7e910253fd041dbf146f298c7092abfe546f4..3c1667ea4683b299461bef53512f48ca7a2f960f 100644
 --- a/src/deluge/gui/views/clip_view.h
 +++ b/src/deluge/gui/views/clip_view.h
 @@ -18,10 +18,12 @@
@@ -765,7 +766,7 @@ index 356b1bd9d7ed850659c48dd2881d8961a166194c..7cfdb08ab2b174ae125b5364af8595ac
  
  class ClipView : public ClipNavigationTimelineView {
  public:
-@@ -36,8 +38,17 @@ public:
+@@ -37,8 +39,17 @@ public:
  	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
  
  protected:
@@ -783,7 +784,7 @@ index 356b1bd9d7ed850659c48dd2881d8961a166194c..7cfdb08ab2b174ae125b5364af8595ac
  
  	Action* lengthenClip(int32_t newLength);
  	Action* shortenClip(int32_t newLength);
-@@ -50,4 +61,22 @@ protected:
+@@ -51,4 +62,22 @@ protected:
  	                                  uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea);
  	bool renderedShortcutOverview{false};
  	bool exitedShortcutOverview{false};
@@ -807,10 +808,10 @@ index 356b1bd9d7ed850659c48dd2881d8961a166194c..7cfdb08ab2b174ae125b5364af8595ac
 +	static ClipProgressRulerCache clipProgressRulerCache_;
  };
 diff --git a/src/deluge/gui/views/instrument_clip_view.cpp b/src/deluge/gui/views/instrument_clip_view.cpp
-index e0770a26c008ca4b2f4a46635ee7414b60ecc28f..cceb30c280dce002cc9fc58f0f69a95a3a809465 100644
+index 95e67a5440a85536977c29a3943d25917dc67f57..f15215ee18adf42867957abb652c3b5b62a8e862 100644
 --- a/src/deluge/gui/views/instrument_clip_view.cpp
 +++ b/src/deluge/gui/views/instrument_clip_view.cpp
-@@ -103,6 +103,22 @@ using namespace deluge::gui;
+@@ -104,6 +104,22 @@ using namespace deluge::gui;
  
  PLACE_SDRAM_DATA InstrumentClipView instrumentClipView{};
  
@@ -833,7 +834,7 @@ index e0770a26c008ca4b2f4a46635ee7414b60ecc28f..cceb30c280dce002cc9fc58f0f69a95a
  InstrumentClipView::InstrumentClipView() : numEditPadPresses(0) {
  
  	for (auto& edit_pad_pressed : editPadPresses) {
-@@ -717,8 +733,7 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
+@@ -718,8 +734,7 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
  	// with Shift it pastes onto the held target. Shift + Learn before Audition remains the normal MIDI-unlearn route:
  	// once MIDI Learn is active, this handler must leave Learn to it. The first copy is sound-only; a second quick
  	// Learn press on the same row deliberately replaces it with a full row copy.
@@ -843,7 +844,7 @@ index e0770a26c008ca4b2f4a46635ee7414b60ecc28f..cceb30c280dce002cc9fc58f0f69a95a
  	         && (oneNoteAuditioning() || currentUIMode == UI_MODE_ADDING_DRUM_NOTEROW)) {
  		if (inCardRoutine) {
  			return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
-@@ -746,8 +761,7 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
+@@ -747,8 +762,7 @@ ActionResult InstrumentClipView::buttonAction(deluge::hid::Button b, bool on, bo
  				goto passToOthers;
  			}
  
@@ -853,7 +854,7 @@ index e0770a26c008ca4b2f4a46635ee7414b60ecc28f..cceb30c280dce002cc9fc58f0f69a95a
  			                    && (AudioEngine::audioSampleTimer - lastKitRowLearnPressTime) < kShortPressTime;
  			if (includeNotes) {
  				lastKitRowLearnPressTime = 0;
-@@ -7431,6 +7445,7 @@ void InstrumentClipView::graphicsRoutine() {
+@@ -7664,6 +7678,7 @@ void InstrumentClipView::graphicsRoutine() {
  	if (!currentSong) {
  		return; // Briefly, if loading a song fails, during the creation of a new blank one, this could happen.
  	}
@@ -862,10 +863,10 @@ index e0770a26c008ca4b2f4a46635ee7414b60ecc28f..cceb30c280dce002cc9fc58f0f69a95a
  	char modelStackMemory[MODEL_STACK_MAX_SIZE];
  	ModelStackWithTimelineCounter* modelStack = currentSong->setupModelStackWithCurrentClip(modelStackMemory);
 diff --git a/src/deluge/gui/views/instrument_clip_view.h b/src/deluge/gui/views/instrument_clip_view.h
-index e4a2fc01b009c7af82d3691cb39b35f5fb920626..686d6838dad18ebc28ec3c86fd32884050303552 100644
+index 3e59ca0a5dc257fb7558179a0e9966927ff60f23..6dda3acc2926048b55a6659adde016e9ead22016 100644
 --- a/src/deluge/gui/views/instrument_clip_view.h
 +++ b/src/deluge/gui/views/instrument_clip_view.h
-@@ -235,9 +235,9 @@ public:
+@@ -236,9 +236,9 @@ public:
  	void pasteAutomation(int32_t whichModEncoder, int32_t navSysId = NAVIGATION_CLIP);
  	// made these public so they can be accessed by the automation clip view
  
@@ -878,48 +879,6 @@ index e4a2fc01b009c7af82d3691cb39b35f5fb920626..686d6838dad18ebc28ec3c86fd328840
  
  	CopiedParamAutomation copiedParamAutomation{};
  	// Sometimes the user will want to hold an audition pad without actually sounding the note, by holding an encoder
-diff --git a/src/deluge/hid/display/oled.cpp b/src/deluge/hid/display/oled.cpp
-index cf8fe45d0539ddef4f3840b8609de9723d2e5b2c..493037e2e6dbb1c4b605a7ba4916a9c91b168414 100644
---- a/src/deluge/hid/display/oled.cpp
-+++ b/src/deluge/hid/display/oled.cpp
-@@ -59,6 +59,7 @@ oled_canvas::Canvas OLED::popup;
- oled_canvas::Canvas OLED::console;
- 
- bool OLED::needsSending;
-+uint32_t OLED::mainImageGeneration;
- 
- static int32_t working_animation_count;
- static bool started_animation;
-@@ -80,6 +81,7 @@ void OLED::clearMainImage() {
- 	stopBlink();
- 	stopScrollingAnimation();
- 	main.clear();
-+	++mainImageGeneration;
- 	markChanged();
- 	drawnPermanentPopup = false;
- }
-diff --git a/src/deluge/hid/display/oled.h b/src/deluge/hid/display/oled.h
-index 4daf354d985ff8a285f714a778121b6cbdc538b4..623763922b68c7f2662aa64234e0aece7820f8c2 100644
---- a/src/deluge/hid/display/oled.h
-+++ b/src/deluge/hid/display/oled.h
-@@ -55,6 +55,9 @@ public:
- 	/// Marks the OLED as dirty, so you don't need to do that later yourself.
- 	static void clearMainImage();
- 
-+	/// Observe replacement of the whole main canvas without coupling its consumers to individual render call sites.
-+	[[nodiscard]] static uint32_t getMainImageGeneration() { return mainImageGeneration; }
-+
- 	static void setupBlink(int32_t minX, int32_t width, int32_t minY, int32_t maxY, bool shouldBlinkImmediately);
- 	static void stopBlink();
- 
-@@ -191,6 +194,7 @@ public:
- 
- private:
- 	static bool needsSending;
-+	static uint32_t mainImageGeneration;
- };
- 
- } // namespace deluge::hid::display
 diff --git a/tests/spec/oled_clip_progress_ruler_spec.cpp b/tests/spec/oled_clip_progress_ruler_spec.cpp
 new file mode 100644
 index 0000000000000000000000000000000000000000..649a41bb9f58688f87dfc714fd499ea092a97820

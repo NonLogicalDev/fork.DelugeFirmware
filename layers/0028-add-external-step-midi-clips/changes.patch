@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 950312abc5e3e9c10a92ab1840f4ff0e7ee1ac1a..dd56c32c269cdcbe0b6b892be67b34e7e27172cc 100644
+index 3e97247dc791d0c6028b3636487506f26908c40b..1eb85db1a25ea366d8f8c6ec44acd730aeb72c35 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -5,7 +5,7 @@ set(CMAKE_TOOLCHAIN_FILE ${CMAKE_CURRENT_LIST_DIR}/scripts/cmake/CMakeToolchainD
@@ -12,10 +12,10 @@ index 950312abc5e3e9c10a92ab1840f4ff0e7ee1ac1a..dd56c32c269cdcbe0b6b892be67b34e7
  include(FetchContent)
  include(ProcessorCount)
 diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
-index da1fdec8f4f63d59bd54ccff17063456efd28295..53040fdd10ccfe8737892014baca5f56a8b94b78 100644
+index 9a019468414a51e7b0ce93f340f99fc60601bfb2..d235e64d70ded2c0b3d4012dd1dbdbd459f1abe2 100644
 --- a/src/deluge/gui/l10n/english.json
 +++ b/src/deluge/gui/l10n/english.json
-@@ -1001,6 +1001,18 @@
+@@ -1009,6 +1009,18 @@
      "STRING_FOR_FAVOURITES_EMPTY": "Empty",
      "STRING_FOR_DEFAULT_HORIZONTAL_MENU": "Horizontal Menu",
      "STRING_FOR_CHORD_KEYBOARD_MODE_ROW": "Chord Row Mode",
@@ -36,10 +36,10 @@ index da1fdec8f4f63d59bd54ccff17063456efd28295..53040fdd10ccfe8737892014baca5f56
    }
  }
 diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
-index 6fb84d1111cdc6472b3f2d33da06e4031240b254..1924db299b7c55359c13c05947e0b9023fe52153 100644
+index 2bb686a0faa9171055c39f65b4e53c84f7a1e18f..110760f2de43a13e446cafc6802c7950b3167c11 100644
 --- a/src/deluge/gui/l10n/g_english.cpp
 +++ b/src/deluge/gui/l10n/g_english.cpp
-@@ -1015,6 +1015,18 @@ PLACE_SDRAM_DATA Language english{
+@@ -1023,6 +1023,18 @@ PLACE_SDRAM_DATA Language english{
          {STRING_FOR_DEFAULT_HORIZONTAL_MENU, "Horizontal Menu"},
          {STRING_FOR_CHORD_KEYBOARD_MODE_ROW, "Chord Row Mode"},
          {STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN, "Chord Column Mode"},
@@ -59,10 +59,10 @@ index 6fb84d1111cdc6472b3f2d33da06e4031240b254..1924db299b7c55359c13c05947e0b902
  };
  } // namespace deluge::l10n::built_in
 diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
-index 678e14a83da0ee717e858e4281529a06de609cf1..c3525ef84b81e50c245f2cb9eac464cbfd8b5be7 100644
+index fdea45129c3d7427f0eb2b84bad7d56aa4bb2621..e569912c87c18fe604b6e65b1424d253a42e7adc 100644
 --- a/src/deluge/gui/l10n/g_seven_segment.cpp
 +++ b/src/deluge/gui/l10n/g_seven_segment.cpp
-@@ -566,6 +566,18 @@ PLACE_SDRAM_DATA Language seven_segment{
+@@ -574,6 +574,18 @@ PLACE_SDRAM_DATA Language seven_segment{
          {STRING_FOR_DEFAULT_USE_LAST_CLIP_TYPE, "LAST"},
          {STRING_FOR_FAVOURITES_EMPTY, "NONE"},
          {STRING_FOR_DEFAULT_HORIZONTAL_MENU, "HORZ"},
@@ -82,10 +82,10 @@ index 678e14a83da0ee717e858e4281529a06de609cf1..c3525ef84b81e50c245f2cb9eac464cb
      &built_in::english,
  };
 diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
-index e861ec21057b7d9824f0238a9f5cc4e4534d9f01..1809ac6fe019d1832ba057f9a3e184166aadaee1 100644
+index c27037880e475fc74268d57940ae401c78c47c1f..1d482116d7c80913850636f7f58fe6a789705914 100644
 --- a/src/deluge/gui/l10n/seven_segment.json
 +++ b/src/deluge/gui/l10n/seven_segment.json
-@@ -609,6 +609,19 @@
+@@ -617,6 +617,19 @@
  
          "STRING_FOR_FAVOURITES_EMPTY": "NONE",
  
@@ -107,10 +107,10 @@ index e861ec21057b7d9824f0238a9f5cc4e4534d9f01..1809ac6fe019d1832ba057f9a3e18416
      }
  }
 diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
-index a781a7ab1eeccdf9d655c7174e34b8a663d250d7..63b080773de4ffea9d52a237cd13239c24551fd0 100644
+index eb6cf4d36ae924503c239a073c435ce6bf376862..393de3a71520c8e63f28dba4baac8651a509a753 100644
 --- a/src/deluge/gui/l10n/strings.h
 +++ b/src/deluge/gui/l10n/strings.h
-@@ -1147,6 +1147,20 @@ enum class String : size_t {
+@@ -1155,6 +1155,20 @@ enum class String : size_t {
  	STRING_FOR_CHORD_KEYBOARD_MODE_ROW,
  	STRING_FOR_CHORD_KEYBOARD_MODE_COLUMN,
  
@@ -132,10 +132,10 @@ index a781a7ab1eeccdf9d655c7174e34b8a663d250d7..63b080773de4ffea9d52a237cd13239c
  };
  
 diff --git a/src/deluge/gui/menu_item/menu_item.h b/src/deluge/gui/menu_item/menu_item.h
-index e8aae7b2545039f053ce721f8024fc94788d225b..2bcc63459f6644d12b73c4102489a227d727bef8 100644
+index 20eaa0d4cfa4a370628926a950f577c5de37a31a..1058da4a1f84d1dadf6edd4fb13d843bf4e97c83 100644
 --- a/src/deluge/gui/menu_item/menu_item.h
 +++ b/src/deluge/gui/menu_item/menu_item.h
-@@ -181,6 +181,8 @@ public:
+@@ -188,6 +188,8 @@ public:
  
  	/// Used by SoundEditor to determine if the current menu item can accept MIDI learning.
  	virtual bool allowsLearnMode() { return false; }
@@ -669,7 +669,7 @@ index 0000000000000000000000000000000000000000..73021af2e9e37ac34afaeaa6ee09225b
 +
 +} // namespace deluge::gui::menu_item::midi::external_step
 diff --git a/src/deluge/gui/menu_item/runtime_feature/settings.cpp b/src/deluge/gui/menu_item/runtime_feature/settings.cpp
-index ae10f4edc06ec9b3ff59ce6e89a447c5767989b1..d02211ace095e11c17665b2b3ea66a5eb0d258bf 100644
+index 95860e81e6213f76847b3fe4910d41ceb65e680c..3e7048b37f49c18ea3709ab41ebebca555080fd5 100644
 --- a/src/deluge/gui/menu_item/runtime_feature/settings.cpp
 +++ b/src/deluge/gui/menu_item/runtime_feature/settings.cpp
 @@ -20,8 +20,11 @@
@@ -716,7 +716,7 @@ index ae10f4edc06ec9b3ff59ce6e89a447c5767989b1..d02211ace095e11c17665b2b3ea66a5e
  SettingToggle menuFineTempo(RuntimeFeatureSettingType::FineTempoKnob);
 @@ -99,6 +125,7 @@ SettingToggle menuShowBatteryLevel(RuntimeFeatureSettingType::ShowBatteryLevel);
  RoundedCornersSettingToggle menuRoundedCorners(RuntimeFeatureSettingType::RoundedCorners);
- SettingToggle menuShortcutOverlay(RuntimeFeatureSettingType::ShortcutOverlay);
+ Setting menuShortcutOverlay(RuntimeFeatureSettingType::ShortcutOverlay);
  MidiSustainPedalSetting menuMidiSustainPedal(RuntimeFeatureSettingType::MidiSustainPedal);
 +ExternalStepMidiClipsSetting menuExternalStepMidiClips(RuntimeFeatureSettingType::ExternalStepMidiClips);
  
@@ -733,10 +733,10 @@ index ae10f4edc06ec9b3ff59ce6e89a447c5767989b1..d02211ace095e11c17665b2b3ea66a5e
  Settings::Settings(l10n::String name, l10n::String title) : menu_item::Submenu(name, title, subMenuEntries) {
  }
 diff --git a/src/deluge/gui/ui/menus.cpp b/src/deluge/gui/ui/menus.cpp
-index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae997401a407 100644
+index 8bf08eb4a283e4eb0d96c79762732e03198dd598..3adfe593725dc397922e2f2e89d90c02d27129ab 100644
 --- a/src/deluge/gui/ui/menus.cpp
 +++ b/src/deluge/gui/ui/menus.cpp
-@@ -103,6 +103,7 @@
+@@ -104,6 +104,7 @@
  #include "gui/menu_item/midi/device_send_clock.h"
  #include "gui/menu_item/midi/device_send_thru.h"
  #include "gui/menu_item/midi/devices.h"
@@ -802,7 +802,7 @@ index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae99
  PLACE_SDRAM_BSS submenu::PolyMonoConversion midiMPEMenu{STRING_FOR_MPE_MONO,
                                                          {&midiAftertouchCollapseMenu, &midiMPECollapseMenu}};
  // Clip-level stuff --------------------------------------------------------------------------
-@@ -1062,52 +1065,53 @@ PLACE_SDRAM_BSS runtime_feature::Settings runtimeFeatureSettingsMenu{STRING_FOR_
+@@ -1060,52 +1063,53 @@ PLACE_SDRAM_BSS runtime_feature::Settings runtimeFeatureSettingsMenu{STRING_FOR_
  PLACE_SDRAM_BSS ToggleBool midiThruMenu{STRING_FOR_MIDI_THRU, STRING_FOR_MIDI_THRU, midiEngine.midiThru};
  
  // MIDI Takeover
@@ -882,7 +882,7 @@ index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae99
  PLACE_SDRAM_BSS ToggleBool midiFollowFeedbackFilterMenu{
      STRING_FOR_FOLLOW_FEEDBACK_FILTER, STRING_FOR_FOLLOW_FEEDBACK_FILTER, midiEngine.midiFollowFeedbackFilter};
  
-@@ -1152,7 +1156,7 @@ PLACE_SDRAM_BSS ToggleBool midiSelectKitRowMenu{STRING_FOR_SELECT_KIT_ROW, STRIN
+@@ -1150,7 +1154,7 @@ PLACE_SDRAM_BSS ToggleBool midiSelectKitRowMenu{STRING_FOR_SELECT_KIT_ROW, STRIN
  
  // MIDI transpose menu
  
@@ -891,7 +891,7 @@ index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae99
  
  PLACE_SDRAM_BSS Submenu midiTransposeSubmenu{
      STRING_FOR_TRANSPOSE,
-@@ -1163,19 +1167,19 @@ PLACE_SDRAM_BSS Submenu midiTransposeSubmenu{
+@@ -1161,19 +1165,19 @@ PLACE_SDRAM_BSS Submenu midiTransposeSubmenu{
  };
  
  // MIDI commands submenu
@@ -924,7 +924,7 @@ index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae99
  
  PLACE_SDRAM_BSS Submenu midiCommandsMenu{
      STRING_FOR_COMMANDS,
-@@ -1187,12 +1191,12 @@ PLACE_SDRAM_BSS Submenu midiCommandsMenu{
+@@ -1185,12 +1189,12 @@ PLACE_SDRAM_BSS Submenu midiCommandsMenu{
  
  // MIDI device submenu - for after we've selected which device we want it for
  
@@ -943,7 +943,7 @@ index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae99
      EMPTY_STRING,
      {
          &mpe::directionSelectorMenu,
-@@ -1209,16 +1213,16 @@ PLACE_SDRAM_BSS ToggleBool midiInputDifferentiationMenu{
+@@ -1207,16 +1211,16 @@ PLACE_SDRAM_BSS ToggleBool midiInputDifferentiationMenu{
      STRING_FOR_DIFFERENTIATE_INPUTS, STRING_FOR_DIFFERENTIATE_INPUTS, MIDIDeviceManager::differentiatingInputsByDevice};
  
  // MIDI clock menu
@@ -965,7 +965,7 @@ index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae99
  PLACE_SDRAM_BSS mpe::DirectionSelector mpe::directionSelectorMenu{STRING_FOR_MPE};
  
  // MIDI menu
-@@ -1242,7 +1246,7 @@ PLACE_SDRAM_BSS Submenu midiMenu{
+@@ -1240,7 +1244,7 @@ PLACE_SDRAM_BSS Submenu midiMenu{
          &midiTakeoverMenu,
          &midiCommandsMenu,
          &midiInputDifferentiationMenu,
@@ -974,7 +974,7 @@ index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae99
      },
  };
  
-@@ -1695,10 +1699,29 @@ PLACE_SDRAM_BSS Submenu soundEditorRootActionsMenuMIDIOrCV{
+@@ -1693,10 +1697,29 @@ PLACE_SDRAM_BSS Submenu soundEditorRootActionsMenuMIDIOrCV{
      },
  };
  
@@ -1005,10 +1005,10 @@ index 916200731222f45be31d6ecbf85b2d9ce76b863b..221c0f60021af6882e9a839dfc38ae99
          &midiProgramMenu,
          &arpMenuMIDIOrCV,
 diff --git a/src/deluge/gui/ui/sound_editor.cpp b/src/deluge/gui/ui/sound_editor.cpp
-index a38eb2179644ee22026f6877848a67b4e1da96ae..fcc9c89f9f368b3b0a78be5bc8ac3e2c273a4e2c 100644
+index 151fc92b867c510d0f10c20a4f70756d25404895..2e1eec5b38273d111ff49610ad6f998a602f876b 100644
 --- a/src/deluge/gui/ui/sound_editor.cpp
 +++ b/src/deluge/gui/ui/sound_editor.cpp
-@@ -1847,6 +1847,14 @@ bool SoundEditor::noteOnReceivedForMidiLearn(MIDICable& cable, int32_t channel,
+@@ -1904,6 +1904,14 @@ bool SoundEditor::noteOnReceivedForMidiLearn(MIDICable& cable, int32_t channel,
  	return getCurrentMenuItem()->learnNoteOn(cable, channel, note);
  }
  
@@ -1024,10 +1024,10 @@ index a38eb2179644ee22026f6877848a67b4e1da96ae..fcc9c89f9f368b3b0a78be5bc8ac3e2c
  bool SoundEditor::midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value) {
  
 diff --git a/src/deluge/gui/ui/sound_editor.h b/src/deluge/gui/ui/sound_editor.h
-index 33e45e4bd81144c62719e277a935fe39e7269d7a..3d1e96ba2d937f49df2c425625ac1011a8b1c4fd 100644
+index 68735d042d3f90969c2928cb947bb5f66cda0740..a96c3aed04c4642656e354201eab2cf75e306e90 100644
 --- a/src/deluge/gui/ui/sound_editor.h
 +++ b/src/deluge/gui/ui/sound_editor.h
-@@ -137,6 +137,8 @@ public:
+@@ -138,6 +138,8 @@ public:
  	ActionResult potentialShortcutPadAction(int32_t x, int32_t y, bool on);
  	bool editingReverbSidechain();
  	MenuItem* getCurrentMenuItem();
@@ -1192,7 +1192,7 @@ index 0000000000000000000000000000000000000000..384049692a87111535425cec88e792dd
 +
 +} // namespace deluge::midi
 diff --git a/src/deluge/io/midi/midi_device_manager.cpp b/src/deluge/io/midi/midi_device_manager.cpp
-index d4faecec6ba8613457d09ad36d93ba3483a5bb5b..acae9865bf593ac9a3ed73cf15d1848bb4fd50be 100644
+index bd2e331562fd5bfbdb79723c929d0a3e31526615..b744db9f97f89ddc6ed35d855c6cdbcd3ff2bf2f 100644
 --- a/src/deluge/io/midi/midi_device_manager.cpp
 +++ b/src/deluge/io/midi/midi_device_manager.cpp
 @@ -28,6 +28,7 @@
@@ -1203,7 +1203,7 @@ index d4faecec6ba8613457d09ad36d93ba3483a5bb5b..acae9865bf593ac9a3ed73cf15d1848b
  #include "storage/storage_manager.h"
  #include "util/container/vector/named_thing_vector.h"
  #include "util/misc.h"
-@@ -283,7 +284,11 @@ extern "C" void hostedDeviceDetached(int32_t ip, int32_t midiDeviceNum) {
+@@ -286,7 +287,11 @@ extern "C" void hostedDeviceDetached(int32_t ip, int32_t midiDeviceNum) {
  	for (int32_t i = 0; i <= ports; i++) {
  		MIDICableUSB* device = connectedDevice->cable[i];
  		if (device) { // Surely always has one?
@@ -1215,7 +1215,7 @@ index d4faecec6ba8613457d09ad36d93ba3483a5bb5b..acae9865bf593ac9a3ed73cf15d1848b
  		}
  		connectedDevice->cable[i] = nullptr;
  	}
-@@ -317,9 +322,18 @@ extern "C" void detachedAsPeripheral(int32_t ip) {
+@@ -320,9 +325,18 @@ extern "C" void detachedAsPeripheral(int32_t ip) {
  	for (int32_t i = 0; i <= ports; i++) {
  		connectedUSBMIDIDevices[ip][0].cable[i] = nullptr;
  	}
@@ -1238,10 +1238,10 @@ index d4faecec6ba8613457d09ad36d93ba3483a5bb5b..acae9865bf593ac9a3ed73cf15d1848b
  	                                     // reason or whether technically essential, but adds to safety at least.
  
 diff --git a/src/deluge/io/midi/midi_engine.cpp b/src/deluge/io/midi/midi_engine.cpp
-index 1fe35137853968e4c93beeec552c073b3fc6ad72..f1ab7b172e8c4e864905e62611fdeebb068d4f92 100644
+index 18956ec029ae98d8624ba192765a2bf653f86ad1..4a020b3eb30be4a8bcdc21f9b2dbe5bf676e21df 100644
 --- a/src/deluge/io/midi/midi_engine.cpp
 +++ b/src/deluge/io/midi/midi_engine.cpp
-@@ -1019,34 +1019,37 @@ void MidiEngine::midiMessageReceived(MIDICable& cable, uint8_t statusType, uint8
+@@ -1056,34 +1056,37 @@ void MidiEngine::midiMessageReceived(MIDICable& cable, uint8_t statusType, uint8
  			case 0x0B: // CC or channel mode message
  				// CC
  				if (data1 < 120) {
@@ -1299,7 +1299,7 @@ index 1fe35137853968e4c93beeec552c073b3fc6ad72..f1ab7b172e8c4e864905e62611fdeebb
  				else {
  
  					// All notes off
-@@ -1060,7 +1063,7 @@ void MidiEngine::midiMessageReceived(MIDICable& cable, uint8_t statusType, uint8
+@@ -1097,7 +1100,7 @@ void MidiEngine::midiMessageReceived(MIDICable& cable, uint8_t statusType, uint8
  				break;
  
  			case 0x0C: // Program change message
@@ -1592,7 +1592,7 @@ index 0000000000000000000000000000000000000000..6dc5e606340ee7992a9f12f47d0603dc
 +
 +} // namespace deluge::external_step
 diff --git a/src/deluge/model/clip/instrument_clip.cpp b/src/deluge/model/clip/instrument_clip.cpp
-index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024abce97f78f 100644
+index f0b1b665d29951dfed109b45233da69dbd6b2a9e..0a00d65a2f75353cd313e0b783cc13fd0a3e2057 100644
 --- a/src/deluge/model/clip/instrument_clip.cpp
 +++ b/src/deluge/model/clip/instrument_clip.cpp
 @@ -26,6 +26,7 @@
@@ -2343,7 +2343,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  void InstrumentClip::sendPendingNoteOn(ModelStackWithTimelineCounter* modelStack, PendingNoteOn* pendingNoteOn) {
  
  	ModelStackWithNoteRow* modelStackWithNoteRow =
-@@ -1133,6 +1459,9 @@ ModelStackWithNoteRow* InstrumentClip::getOrCreateNoteRowForYNote(int32_t yNote,
+@@ -1134,6 +1460,9 @@ ModelStackWithNoteRow* InstrumentClip::getOrCreateNoteRowForYNote(int32_t yNote,
  // I think you need to check (playbackHandler.isEitherClockActive() && song->isClipActive(thisClip)) before calling
  // this.
  void InstrumentClip::resumePlayback(ModelStackWithTimelineCounter* modelStack, bool mayMakeSound) {
@@ -2353,7 +2353,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
  		NoteRow* thisNoteRow = noteRows.getElement(i);
  		if (!thisNoteRow->muted) {
-@@ -1145,6 +1474,14 @@ void InstrumentClip::resumePlayback(ModelStackWithTimelineCounter* modelStack, b
+@@ -1146,6 +1475,14 @@ void InstrumentClip::resumePlayback(ModelStackWithTimelineCounter* modelStack, b
  }
  
  void InstrumentClip::expectNoFurtherTicks(Song* song, bool actuallySoundChange) {
@@ -2368,7 +2368,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  
  	// If it's actually another Clip, that we're recording into the arranger...
  	if (output->getActiveClip() && output->getActiveClip()->beingRecordedFromClip == this) {
-@@ -1196,6 +1533,10 @@ void InstrumentClip::expectNoFurtherTicks(Song* song, bool actuallySoundChange)
+@@ -1197,6 +1534,10 @@ void InstrumentClip::expectNoFurtherTicks(Song* song, bool actuallySoundChange)
  // Stops currently-playing notes by actually sending a note-off right now.
  // Check that we're allowed to make sound before you call this (nowhere does, is that bad?)
  void InstrumentClip::stopAllNotesPlaying(ModelStackWithTimelineCounter* modelStack, bool actuallySoundChange) {
@@ -2379,7 +2379,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  	for (int32_t i = 0; i < noteRows.getNumElements(); i++) {
  		NoteRow* thisNoteRow = noteRows.getElement(i);
  		ModelStackWithNoteRow* modelStackWithNoteRow =
-@@ -1610,6 +1951,7 @@ int32_t InstrumentClip::getNumNoteRows() {
+@@ -1611,6 +1952,7 @@ int32_t InstrumentClip::getNumNoteRows() {
  }
  
  Error InstrumentClip::setNonAudioInstrument(Instrument* newInstrument, Song* song, ParamManager* newParamManager) {
@@ -2387,7 +2387,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  
  	// New addition - need expression params... hopefully fine?
  	// Maybe this function should have the ability to do something equivalent to solicitParamManager(), for the purpose
-@@ -2226,6 +2568,9 @@ void InstrumentClip::detachFromOutput(ModelStackWithTimelineCounter* modelStack,
+@@ -2227,6 +2569,9 @@ void InstrumentClip::detachFromOutput(ModelStackWithTimelineCounter* modelStack,
                                        bool shouldDeleteEmptyNoteRowsAtEitherEnd, bool shouldRetainLinksToOutput,
                                        bool keepNoteRowsWithMIDIInput, bool shouldGrabMidiCommands,
                                        bool shouldBackUpExpressionParamsToo) {
@@ -2397,7 +2397,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  
  	if (isActiveOnOutput()) {
  		output->detachActiveClip(modelStack->song);
-@@ -2300,6 +2645,7 @@ Error InstrumentClip::undoDetachmentFromOutput(ModelStackWithTimelineCounter* mo
+@@ -2301,6 +2646,7 @@ Error InstrumentClip::undoDetachmentFromOutput(ModelStackWithTimelineCounter* mo
  Error InstrumentClip::setAudioInstrument(Instrument* newInstrument, Song* song, bool shouldSetupPatching,
                                           ParamManager* newParamManager,
                                           InstrumentClip* favourClipForCloningParamManager) {
@@ -2405,7 +2405,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  
  	output = newInstrument;
  	affectEntire = (newInstrument->type != OutputType::KIT); // Moved here from changeInstrument, March 2021
-@@ -2353,6 +2699,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
+@@ -2354,6 +2700,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
  	if (output->type == OutputType::KIT) {
  		writer.writeAttribute("affectEntire", affectEntire);
  	}
@@ -2414,7 +2414,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  
  	Instrument* instrument = (Instrument*)output;
  
-@@ -2400,6 +2748,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
+@@ -2401,6 +2749,8 @@ void InstrumentClip::writeDataToFile(Serializer& writer, Song* song) {
  	writer.writeOpeningTagEnd();
  
  	Clip::writeMidiCommandsToFile(writer, song);
@@ -2423,7 +2423,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  
  	if (output->type == OutputType::MIDI_OUT) {
  		paramManager.getMIDIParamCollection()->writeToFile(writer);
-@@ -2565,6 +2915,25 @@ someError:
+@@ -2566,6 +2916,25 @@ someError:
  			midiPGM = reader.readTagOrAttributeValueInt();
  		}
  
@@ -2449,7 +2449,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  		else if (!strcmp(tagName, "yScroll")) {
  			yScroll = reader.readTagOrAttributeValueInt();
  		}
-@@ -3931,6 +4300,8 @@ Error InstrumentClip::claimOutput(ModelStackWithTimelineCounter* modelStack) {
+@@ -3935,6 +4304,8 @@ Error InstrumentClip::claimOutput(ModelStackWithTimelineCounter* modelStack) {
  		}
  	}
  
@@ -2458,7 +2458,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  	// If Instrument is a Kit, match each NoteRow to its Drum
  	if (output->type == OutputType::KIT) {
  		Kit* kit = (Kit*)output;
-@@ -4413,6 +4784,9 @@ returnNull:
+@@ -4417,6 +4788,9 @@ returnNull:
  }
  
  void InstrumentClip::expectEvent() {
@@ -2468,7 +2468,7 @@ index fffb805cd295ca1bfba7de337a7033c9ec9886f0..a613b221e8a1e033b1384a5e993024ab
  	ticksTilNextNoteRowEvent = 0;
  	Clip::expectEvent();
  }
-@@ -4738,6 +5112,9 @@ bool InstrumentClip::hasAnyPitchExpressionAutomationOnNoteRows() {
+@@ -4742,6 +5116,9 @@ bool InstrumentClip::hasAnyPitchExpressionAutomationOnNoteRows() {
  }
  
  void InstrumentClip::incrementPos(ModelStackWithTimelineCounter* modelStack, int32_t numTicks) {
@@ -2565,7 +2565,7 @@ index b6e15e334b0dcdfff47cffd889eea88ca78b707b..9effa729727a7623f3d3e22678656d90
 +	deluge::external_step::Runtime externalStepRuntime;
  };
 diff --git a/src/deluge/model/note/note_row.cpp b/src/deluge/model/note/note_row.cpp
-index 1a692acc70bbc07694553e45b5432bf02041de3c..2168ccd26a8687ec0f3628ec1b5a24a0124fa2a1 100644
+index 756349b3ca3ea26821de70ff2b287419a9e5a432..e05a4309a68b2c27404d7067758de26793d74a7f 100644
 --- a/src/deluge/model/note/note_row.cpp
 +++ b/src/deluge/model/note/note_row.cpp
 @@ -24,11 +24,12 @@
@@ -2580,9 +2580,9 @@ index 1a692acc70bbc07694553e45b5432bf02041de3c..2168ccd26a8687ec0f3628ec1b5a24a0
  #include "model/drum/gate_drum.h"
 +#include "model/drum/generated_slice_name.h"
  #include "model/instrument/kit.h"
+ #include "model/iterance/iterance_migration.h"
  #include "model/note/copied_note_row.h"
- #include "model/note/note.h"
-@@ -93,7 +94,8 @@ Error NoteRow::beenCloned(ModelStackWithNoteRow* modelStack, bool shouldFlattenR
+@@ -94,7 +95,8 @@ Error NoteRow::beenCloned(ModelStackWithNoteRow* modelStack, bool shouldFlattenR
  
  	firstOldDrumName = nullptr;
  	ignoreNoteOnsBefore_ = 0;
@@ -2592,7 +2592,7 @@ index 1a692acc70bbc07694553e45b5432bf02041de3c..2168ccd26a8687ec0f3628ec1b5a24a0
  
  	int32_t effectiveLength = modelStack->getLoopLength();
  
-@@ -1878,6 +1880,72 @@ void NoteRow::stopCurrentlyPlayingNote(ModelStackWithNoteRow* modelStack, bool a
+@@ -1877,6 +1879,72 @@ void NoteRow::stopCurrentlyPlayingNote(ModelStackWithNoteRow* modelStack, bool a
  	sequenced = false;
  }
  
@@ -2665,7 +2665,7 @@ index 1a692acc70bbc07694553e45b5432bf02041de3c..2168ccd26a8687ec0f3628ec1b5a24a0
  // occupancyMask now optional!
  void NoteRow::renderRow(TimelineView* editorScreen, RGB rowColour, RGB rowTailColour, RGB rowBlurColour, RGB* image,
                          uint8_t occupancyMask[], bool overwriteExisting, uint32_t effectiveRowLength,
-@@ -2646,6 +2714,14 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
+@@ -2645,6 +2713,14 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
                          int32_t oldPos, // Sometimes needs to be overridden
                          bool hadIndependentPlayPosBefore) {
  	Clip* clip = (Clip*)modelStack->getTimelineCounter();
@@ -2680,7 +2680,7 @@ index 1a692acc70bbc07694553e45b5432bf02041de3c..2168ccd26a8687ec0f3628ec1b5a24a0
  
  	bool playingReversedBefore = modelStack->isCurrentlyPlayingReversed();
  
-@@ -2665,7 +2741,7 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
+@@ -2664,7 +2740,7 @@ void NoteRow::setLength(ModelStackWithNoteRow* modelStack, int32_t newLength, Ac
  			repeatCountIfIndependent = clip->repeatCount;
  		}
  
@@ -2689,7 +2689,7 @@ index 1a692acc70bbc07694553e45b5432bf02041de3c..2168ccd26a8687ec0f3628ec1b5a24a0
  			resumePlayback(modelStack, true);
  		}
  	}
-@@ -4492,6 +4568,15 @@ bool NoteRow::recordPolyphonicExpressionEvent(ModelStackWithNoteRow* modelStack,
+@@ -4453,6 +4529,15 @@ bool NoteRow::recordPolyphonicExpressionEvent(ModelStackWithNoteRow* modelStack,
  }
  
  void NoteRow::setSequenceDirectionMode(ModelStackWithNoteRow* modelStack, SequenceDirection newMode) {
@@ -2705,7 +2705,7 @@ index 1a692acc70bbc07694553e45b5432bf02041de3c..2168ccd26a8687ec0f3628ec1b5a24a0
  	int32_t lastProcessedPosBefore = modelStack->getLastProcessedPos();
  
  	bool reversedBefore = modelStack->isCurrentlyPlayingReversed();
-@@ -4512,7 +4597,7 @@ void NoteRow::setSequenceDirectionMode(ModelStackWithNoteRow* modelStack, Sequen
+@@ -4473,7 +4558,7 @@ void NoteRow::setSequenceDirectionMode(ModelStackWithNoteRow* modelStack, Sequen
  		if (reversedBefore != modelStack->isCurrentlyPlayingReversed()) {
  			lastProcessedPosIfIndependent =
  			    modelStack->getLoopLength() - lastProcessedPosIfIndependent; // Again, might have no effect.
@@ -2738,10 +2738,10 @@ index ca04ec3f5d4b746b66f609f84dcb236ced1b354c..d4129377b9e9ebf984fdb339dbeb747e
  	LearnedMIDI muteMIDICommand;
  	LearnedMIDI midiInput;
 diff --git a/src/deluge/model/settings/runtime_feature_settings.cpp b/src/deluge/model/settings/runtime_feature_settings.cpp
-index 5e8dc4021529578e401d180783ac914ad8b7c0fd..f454f6047720960d57bd46d7e9089dd5e86bc166 100644
+index fe890c9df3c93102196e4655d3aa7c04eda95322..723f368bac2d130b5fd49cda23edd29eb3a2c8dd 100644
 --- a/src/deluge/model/settings/runtime_feature_settings.cpp
 +++ b/src/deluge/model/settings/runtime_feature_settings.cpp
-@@ -213,6 +213,11 @@ void RuntimeFeatureSettings::init() {
+@@ -222,6 +222,11 @@ void RuntimeFeatureSettings::init() {
  	SetupOnOffSetting(settings[RuntimeFeatureSettingType::MidiSustainPedal],
  	                  STRING_FOR_COMMUNITY_FEATURE_MIDI_SUSTAIN_PEDAL, "midiSustainPedal",
  	                  RuntimeFeatureStateToggle::Off);
@@ -2754,10 +2754,10 @@ index 5e8dc4021529578e401d180783ac914ad8b7c0fd..f454f6047720960d57bd46d7e9089dd5
  
  void RuntimeFeatureSettings::factoryReset(bool showPopup) {
 diff --git a/src/deluge/model/settings/runtime_feature_settings.h b/src/deluge/model/settings/runtime_feature_settings.h
-index ee5d2a794baa98c3677ed352026368391e810412..6cd32a86417e5b012ab86aa164fc6a4f427bb54b 100644
+index 1f29fcbe9e244e3a91e336ef49ab5e6dc5c735d7..3304143f1328da98fbfee4eb5009c8ec8855b509 100644
 --- a/src/deluge/model/settings/runtime_feature_settings.h
 +++ b/src/deluge/model/settings/runtime_feature_settings.h
-@@ -69,6 +69,7 @@ enum RuntimeFeatureSettingType : uint32_t {
+@@ -72,6 +72,7 @@ enum RuntimeFeatureSettingType : uint32_t {
  	RoundedCorners,
  	ShortcutOverlay,
  	MidiSustainPedal,
@@ -2819,10 +2819,10 @@ index 0000000000000000000000000000000000000000..bb662d863d5c563f76b251c91ff9278b
 +
 +} // namespace deluge::project_compatibility
 diff --git a/src/deluge/model/song/song.cpp b/src/deluge/model/song/song.cpp
-index 41155e0589b617f2a6e0c8c82dd8975570456e56..3f272a29d46503739f04991c3cf7e5ce586af88d 100644
+index c72fbad820357717dbfd260fe0b587c4ce029d96..648a7df82fe7ea2e454081a9985c5be9f9d866c3 100644
 --- a/src/deluge/model/song/song.cpp
 +++ b/src/deluge/model/song/song.cpp
-@@ -49,6 +49,7 @@
+@@ -50,6 +50,7 @@
  #include "model/scale/utils.h"
  #include "model/settings/runtime_feature_settings.h"
  #include "model/song/clip_iterators.h"
@@ -2830,7 +2830,7 @@ index 41155e0589b617f2a6e0c8c82dd8975570456e56..3f272a29d46503739f04991c3cf7e5ce
  #include "model/voice/voice_sample.h"
  #include "modulation/patch/patch_cable_set.h"
  #include "playback/mode/arrangement.h"
-@@ -1152,7 +1153,14 @@ void Song::writeToFile() {
+@@ -1167,7 +1168,14 @@ void Song::writeToFile() {
  	writer.writeOpeningTagBeginning("song", true, false);
  
  	writer.writeFirmwareVersion();
@@ -2847,7 +2847,7 @@ index 41155e0589b617f2a6e0c8c82dd8975570456e56..3f272a29d46503739f04991c3cf7e5ce
  	writer.writeAttribute("previewNumPads", 144);
  	writer.insertCommaIfNeeded();
 diff --git a/src/deluge/playback/mode/session.cpp b/src/deluge/playback/mode/session.cpp
-index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa543732711 100644
+index 13ddd359ad7684a97a2ed6306c5b8cb99ae9316d..6b65d8ed6fc8ea7b5c971eba2d136be6d4d82e4c 100644
 --- a/src/deluge/playback/mode/session.cpp
 +++ b/src/deluge/playback/mode/session.cpp
 @@ -58,6 +58,18 @@ enum class LaunchStatus {
@@ -2883,7 +2883,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  
  					giveClipOpportunityToBeginLinearRecording(clip, c, 0);
  					output = clip->output; // A new Output may have been created as recording began
-@@ -822,6 +839,9 @@ void Session::launchSchedulingMightNeedCancelling() {
+@@ -824,6 +841,9 @@ void Session::launchSchedulingMightNeedCancelling() {
  // under these conditions since the input clock started. Presumably we'd call this if the conditions have changed (e.g.
  // sync-scaling changed) and we want to restore order
  void Session::reSyncClipToSongTicks(Clip* clip) {
@@ -2893,7 +2893,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  
  	if (clip->armState != ArmState::OFF) {
  		clip->armState = ArmState::OFF;
-@@ -856,6 +876,9 @@ void Session::reSyncClipToSongTicks(Clip* clip) {
+@@ -858,6 +878,9 @@ void Session::reSyncClipToSongTicks(Clip* clip) {
  void Session::reSyncClip(ModelStackWithTimelineCounter* modelStack, bool mustSetPosToSomething, bool mayResumeClip) {
  
  	Clip* clip = (Clip*)modelStack->getTimelineCounter();
@@ -2903,7 +2903,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  
  	bool armingCancelled = clip->cancelAnyArming();
  	if (armingCancelled) {
-@@ -1873,6 +1896,10 @@ void Session::armClipToStartOrSoloUsingQuantization(Clip* thisClip, bool doLateS
+@@ -1882,6 +1905,10 @@ void Session::armClipToStartOrSoloUsingQuantization(Clip* thisClip, bool doLateS
  			currentSong->assertActiveness(modelStack, playbackHandler.getActualArrangementRecordPos() - pos);
  
  setPosAndStuff:
@@ -2914,7 +2914,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  			// pos is a "live" pos, so we have to subtract swungTicksSkipped before setting the Clip's lastProcessedPos,
  			// because it's soon going to be jumped forward by that many ticks
  			int32_t modifiedStartPos = (int32_t)pos - playbackHandler.getNumSwungTicksInSinceLastActionedSwungTick();
-@@ -1904,6 +1931,9 @@ setPosAndStuff:
+@@ -1913,6 +1940,9 @@ setPosAndStuff:
   *
   */
  void Session::scheduleFillClip(Clip* clip) {
@@ -2924,7 +2924,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  
  	if (clip->launchStyle == LaunchStyle::FILL) {
  		if (launchEventAtSwungTickCount > 0) {
-@@ -2095,6 +2125,9 @@ void Session::reversionDone() {
+@@ -2115,6 +2145,9 @@ void Session::reversionDone() {
  	}
  	for (Clip* clip : AllClips::everywhere(currentSong)) {
  		if (currentSong->isClipActive(clip)) {
@@ -2934,7 +2934,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  			char modelStackMemory[MODEL_STACK_MAX_SIZE];
  			ModelStackWithTimelineCounter* modelStackWithTimelineCounter =
  			    setupModelStackWithTimelineCounter(modelStackMemory, currentSong, clip);
-@@ -2127,6 +2160,14 @@ bool Session::endPlayback() {
+@@ -2147,6 +2180,14 @@ bool Session::endPlayback() {
  		if (currentSong->isClipActive(clip)) {
  			clip->expectNoFurtherTicks(currentSong);
  		}
@@ -2949,7 +2949,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  	}
  
  	currentSong->deactivateAnyArrangementOnlyClips(); // In case any still playing after switch from arrangement
-@@ -2236,11 +2277,16 @@ void Session::resetPlayPos(int32_t newPos, bool doingComplete, int32_t buttonPre
+@@ -2262,11 +2303,16 @@ void Session::resetPlayPos(int32_t newPos, bool doingComplete, int32_t buttonPre
  yeahNahItsOn:
  			ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
  
@@ -2968,7 +2968,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  					clip->resumePlayback(modelStackWithTimelineCounter);
  				}
  
-@@ -2314,7 +2360,9 @@ traverseClips:
+@@ -2340,7 +2386,9 @@ traverseClips:
  
  		ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
  
@@ -2979,7 +2979,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  	}
  	if (clipArray != &currentSong->arrangementOnlyClips) {
  		clipArray = &currentSong->arrangementOnlyClips;
-@@ -2480,6 +2528,9 @@ void Session::doTickForward(int32_t posIncrement) {
+@@ -2508,6 +2556,9 @@ void Session::doTickForward(int32_t posIncrement) {
  			if (!currentSong->isClipActive(clip)) {
  				continue;
  			}
@@ -2989,7 +2989,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  
  			if (clip->output->getActiveClip() && clip->output->getActiveClip()->beingRecordedFromClip == clip) {
  				clip = clip->output->getActiveClip();
-@@ -2513,6 +2564,9 @@ void Session::doTickForward(int32_t posIncrement) {
+@@ -2541,6 +2592,9 @@ void Session::doTickForward(int32_t posIncrement) {
  
  	// Do arps too (hmmm, could we want to do this in considerLaunchEvent() instead, just like the incrementing?)
  	for (Output* thisOutput = currentSong->firstOutput; thisOutput; thisOutput = thisOutput->next) {
@@ -3000,7 +3000,7 @@ index 7a2679f77ae6b75ac8398bfce6a50ae64689918c..f2712552560f4dd5838fcdfae7865fa5
  		int32_t posForArp;
  		if (thisOutput->getActiveClip() && currentSong->isClipActive(thisOutput->getActiveClip())) {
 diff --git a/src/deluge/playback/playback_handler.cpp b/src/deluge/playback/playback_handler.cpp
-index 6245c1ce29c872d1f49160aa0291b5a3482aa3bb..8fc5e0fef9a4d3d836abb554a9c3999a1b77a133 100644
+index 45d623210d156b29fcb0f11b4cc9de934bf0ecb3..3ace2e98b9a09cf37701e7901e98e3354633135b 100644
 --- a/src/deluge/playback/playback_handler.cpp
 +++ b/src/deluge/playback/playback_handler.cpp
 @@ -38,6 +38,7 @@
@@ -3080,7 +3080,7 @@ index 6245c1ce29c872d1f49160aa0291b5a3482aa3bb..8fc5e0fef9a4d3d836abb554a9c3999a
  }
  
  void PlaybackHandler::slowRoutine() {
-@@ -2952,17 +3008,347 @@ bool PlaybackHandler::tryGlobalMIDICommandsOff(MIDICable& cable, int32_t channel
+@@ -2999,17 +3055,347 @@ bool PlaybackHandler::tryGlobalMIDICommandsOff(MIDICable& cable, int32_t channel
  	return foundAnything;
  }
  
@@ -3430,7 +3430,7 @@ index 6245c1ce29c872d1f49160aa0291b5a3482aa3bb..8fc5e0fef9a4d3d836abb554a9c3999a
  	}
  }
  bool PlaybackHandler::offerNoteToLearnedThings(MIDICable& cable, bool on, int32_t channel, int32_t note) {
-@@ -3023,20 +3409,36 @@ void PlaybackHandler::noteMessageReceived(MIDICable& cable, bool on, int32_t cha
+@@ -3070,20 +3456,36 @@ void PlaybackHandler::noteMessageReceived(MIDICable& cable, bool on, int32_t cha
  	if (currentUIMode == UI_MODE_MIDI_LEARN && on) {
  		// Checks velocity to let note-offs pass through,
  		// so no risk of stuck note if they pressed learn while holding a note
@@ -3468,7 +3468,7 @@ index 6245c1ce29c872d1f49160aa0291b5a3482aa3bb..8fc5e0fef9a4d3d836abb554a9c3999a
  
  	bool shouldRecordNotesNowNow = shouldRecordNotesNow();
  
-@@ -3181,26 +3583,57 @@ void PlaybackHandler::pitchBendReceived(MIDICable& cable, uint8_t channel, uint8
+@@ -3228,26 +3630,57 @@ void PlaybackHandler::pitchBendReceived(MIDICable& cable, uint8_t channel, uint8
  
  void PlaybackHandler::midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value,
                                       bool* doingMidiThru) {
@@ -3528,7 +3528,7 @@ index 6245c1ce29c872d1f49160aa0291b5a3482aa3bb..8fc5e0fef9a4d3d836abb554a9c3999a
  		}
  	}
 diff --git a/src/deluge/playback/playback_handler.h b/src/deluge/playback/playback_handler.h
-index a40a3d6da2a017745da83c74c0a1f84bb7f3b32d..4cd14d3fe67b13906787da3e37528fd4fc4791cb 100644
+index 98ff45ddd2ba5120282694e3fa6e343bf6ce95ea..ea67539574b3f697061df6cd434c2930be91df89 100644
 --- a/src/deluge/playback/playback_handler.h
 +++ b/src/deluge/playback/playback_handler.h
 @@ -43,6 +43,11 @@ class MIDICable;
@@ -3543,7 +3543,7 @@ index a40a3d6da2a017745da83c74c0a1f84bb7f3b32d..4cd14d3fe67b13906787da3e37528fd4
  constexpr uint16_t metronomeValuesBPM[16] = {
      60, 63, 66, 69, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116,
  };
-@@ -190,7 +195,10 @@ public:
+@@ -193,7 +198,10 @@ public:
  	void setMidiOutClockMode(bool newValue);
  	void pitchBendReceived(MIDICable& cable, uint8_t channel, uint8_t data1, uint8_t data2, bool* doingMidiThru);
  	void midiCCReceived(MIDICable& cable, uint8_t channel, uint8_t ccNumber, uint8_t value, bool* doingMidiThru);
@@ -3555,7 +3555,7 @@ index a40a3d6da2a017745da83c74c0a1f84bb7f3b32d..4cd14d3fe67b13906787da3e37528fd4
  	void aftertouchReceived(MIDICable& cable, int32_t channel, int32_t value, int32_t noteCode,
  	                        bool* doingMidiThru); // noteCode -1 means channel-wide
  	void loopCommand(OverDubType overdubNature);
-@@ -272,6 +280,15 @@ private:
+@@ -278,6 +286,15 @@ private:
  	bool offerNoteToLearnedThings(MIDICable& cable, bool on, int32_t channel, int32_t note);
  	bool tryGlobalMIDICommands(MIDICable& cable, int32_t channel, int32_t note);
  	bool tryGlobalMIDICommandsOff(MIDICable& cable, int32_t channel, int32_t note);
@@ -3571,7 +3571,7 @@ index a40a3d6da2a017745da83c74c0a1f84bb7f3b32d..4cd14d3fe67b13906787da3e37528fd4
  	void decideOnCurrentPlaybackMode();
  	float getCurrentInternalTickFloatFollowingExternalClock();
  	void scheduleTriggerClockOutTickParamsKnown(uint32_t analogOutTicksPer, uint64_t fractionLastTimerTick,
-@@ -280,6 +297,9 @@ private:
+@@ -286,6 +303,9 @@ private:
  	void scheduleMIDIClockOutTickParamsKnown(uint32_t midiClockOutTicksPer, uint64_t fractionLastTimerTick,
  	                                         uint64_t fractionNextMIDIClockOutTick);
  	void scheduleMIDIClockOutTickFromExternalClock();
@@ -3582,7 +3582,7 @@ index a40a3d6da2a017745da83c74c0a1f84bb7f3b32d..4cd14d3fe67b13906787da3e37528fd4
  
  extern PlaybackHandler playbackHandler;
 diff --git a/src/deluge/storage/Deserializer.cpp b/src/deluge/storage/Deserializer.cpp
-index 02924309fb25ae889da9cfde1226a9003478123b..b1a7b50d4248792283e55b420cb4f5dcaf53d834 100644
+index 28338293eff35b15c41ac930f218d23c50584e56..a582345eb9e98d0a78043f6b70682d7e31c0daf6 100644
 --- a/src/deluge/storage/Deserializer.cpp
 +++ b/src/deluge/storage/Deserializer.cpp
 @@ -20,6 +20,7 @@
@@ -3593,7 +3593,7 @@ index 02924309fb25ae889da9cfde1226a9003478123b..b1a7b50d4248792283e55b420cb4f5dc
  #include "storage/storage_manager.h"
  #include "util/d_string.h"
  #include "util/firmware_version.h"
-@@ -857,10 +858,8 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
+@@ -863,10 +864,8 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
  	// If this tag doesn't exist, it's from old firmware so is ok
  	else if (!strcmp(tagName, "earliestCompatibleFirmware")) {
  		char const* firmware_version_string = readTagOrAttributeValue();
@@ -3606,7 +3606,7 @@ index 02924309fb25ae889da9cfde1226a9003478123b..b1a7b50d4248792283e55b420cb4f5dc
  	}
  
  	else {
-@@ -868,4 +867,4 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
+@@ -874,4 +873,4 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
  	}
  
  	return Error::NONE;

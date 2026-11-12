@@ -24,8 +24,8 @@ reference may not resolve on a case-sensitive filesystem.
 [operation.git-clone]
 url = "git@github.com:SynthstromAudible/DelugeFirmware.git"
 pre-checkout-script = "scripts/git_normalize_casing.pl"
-ref = "refs/heads/main"
-commit = "9e3132dc17070695b40f69bada5565a33ce428b4"
+ref = "refs/tags/v1.3.0"
+commit = "156500e7c4b756840bd4b116e70a3b27c27d64bb"
 
 [[operation]]
 [operation.overlay]

@@ -1,5 +1,5 @@
 diff --git a/src/deluge/gui/menu_item/audio_clip/sample_marker_editor.cpp b/src/deluge/gui/menu_item/audio_clip/sample_marker_editor.cpp
-index 6a22f072330f5a9e9528bf7ea3aa4cb2d8a8821f..0b93ec22c83745265b9d18002de108d46a37e05b 100644
+index dc24e359ff4eaed05073841c041827cc661a1702..ae4f450bd5f1cc5eb19ce02de2b7608217063599 100644
 --- a/src/deluge/gui/menu_item/audio_clip/sample_marker_editor.cpp
 +++ b/src/deluge/gui/menu_item/audio_clip/sample_marker_editor.cpp
 @@ -19,9 +19,8 @@
@@ -13,8 +13,8 @@ index 6a22f072330f5a9e9528bf7ea3aa4cb2d8a8821f..0b93ec22c83745265b9d18002de108d4
  
  namespace deluge::gui::menu_item::audio_clip {
  
-@@ -40,14 +39,15 @@ MenuPermission SampleMarkerEditor::checkPermissionToBeginSession(ModControllable
- 	return MenuPermission::YES;
+@@ -29,14 +28,15 @@ bool SampleMarkerEditor::isRelevant(ModControllableAudio* modControllable, int32
+ 	return getCurrentAudioClip()->sampleHolder.audioFile != nullptr;
  }
  
 -void SampleMarkerEditor::beginSession(MenuItem* navigatedBackwardFrom) {
@@ -34,7 +34,7 @@ index 6a22f072330f5a9e9528bf7ea3aa4cb2d8a8821f..0b93ec22c83745265b9d18002de108d4
  }
  
  void SampleMarkerEditor::renderInHorizontalMenu(const SlotPosition& slot) {
-@@ -61,10 +61,4 @@ void SampleMarkerEditor::renderInHorizontalMenu(const SlotPosition& slot) {
+@@ -50,10 +50,4 @@ void SampleMarkerEditor::renderInHorizontalMenu(const SlotPosition& slot) {
  
  	image.drawIcon(OLED::loopPointIcon, slot.start_x + 5, slot.start_y + kHorizontalMenuSlotYOffset, true);
  }
@@ -46,10 +46,10 @@ index 6a22f072330f5a9e9528bf7ea3aa4cb2d8a8821f..0b93ec22c83745265b9d18002de108d4
 -
  } // namespace deluge::gui::menu_item::audio_clip
 diff --git a/src/deluge/gui/menu_item/audio_clip/sample_marker_editor.h b/src/deluge/gui/menu_item/audio_clip/sample_marker_editor.h
-index cc207531b3cc492d66030db57fc3c27a2828f49c..44ce9f7be953b2a83db804b13239a14a55780d14 100644
+index aee341b690b606d3a2cfee2cd24d17f7d7aa6b05..dbc01d778b196853295a01ee1a69dd27c4f2829e 100644
 --- a/src/deluge/gui/menu_item/audio_clip/sample_marker_editor.h
 +++ b/src/deluge/gui/menu_item/audio_clip/sample_marker_editor.h
-@@ -25,17 +25,13 @@ namespace deluge::gui::menu_item::audio_clip {
+@@ -25,16 +25,13 @@ namespace deluge::gui::menu_item::audio_clip {
  
  class SampleMarkerEditor final : public MenuItem {
  public:
@@ -57,12 +57,11 @@ index cc207531b3cc492d66030db57fc3c27a2828f49c..44ce9f7be953b2a83db804b13239a14a
 -	    : MenuItem(newName), whichMarker(newWhichMarker) {}
 +	using MenuItem::MenuItem;
  
- 	MenuPermission checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
- 	                                             ::MultiRange** currentRange) override;
+ 	bool isRelevant(ModControllableAudio* modControllable, int32_t whichThing) const override;
 -	void beginSession(MenuItem* navigatedBackwardFrom) override;
--	[[nodiscard]] bool allowToBeginSessionFromHorizontalMenu() override { return true; }
 +	MenuItem* selectButtonPress() override;
 +	bool shouldEnterSubmenu() override { return false; }
+ 	[[nodiscard]] bool allowToBeginSessionFromHorizontalMenu() override { return true; }
  	void renderInHorizontalMenu(const SlotPosition& slot) override;
 -	void getColumnLabel(StringBuf& label) override;
 -
@@ -146,7 +145,7 @@ index 39f2068eb579b076059f971c1b89fccdbeb39be5..db29c78c5872ec3887932b2b79f6e949
  	bool isRangeDependent() final { return true; }
  	MenuPermission checkPermissionToBeginSession(ModControllableAudio* modControllable, int32_t whichThing,
 diff --git a/src/deluge/gui/ui/menus.cpp b/src/deluge/gui/ui/menus.cpp
-index 0d18a9382e8aa80ad63534aeecd7d5bc5f90c6bb..916200731222f45be31d6ecbf85b2d9ce76b863b 100644
+index 199f1483fa872fdc446e44b77932969419c1867f..8bf08eb4a283e4eb0d96c79762732e03198dd598 100644
 --- a/src/deluge/gui/ui/menus.cpp
 +++ b/src/deluge/gui/ui/menus.cpp
 @@ -930,8 +930,7 @@ PLACE_SDRAM_BSS Submenu audioClipFXMenu{
@@ -168,7 +167,7 @@ index 0d18a9382e8aa80ad63534aeecd7d5bc5f90c6bb..916200731222f45be31d6ecbf85b2d9c
          &audioClipInterpolationMenu,
      },
  };
-@@ -1960,8 +1959,8 @@ PLACE_SDRAM_DATA MenuItem* paramShortcutsForSoundsSecondLayer[][kDisplayHeight]
+@@ -1959,8 +1958,8 @@ PLACE_SDRAM_DATA MenuItem* paramShortcutsForSoundsSecondLayer[][kDisplayHeight]
  };
  
  PLACE_SDRAM_DATA MenuItem* paramShortcutsForAudioClips[kDisplayWidth][kDisplayHeight] = {
@@ -180,10 +179,10 @@ index 0d18a9382e8aa80ad63534aeecd7d5bc5f90c6bb..916200731222f45be31d6ecbf85b2d9c
      {nullptr,                 &audioClipTransposeMenu, nullptr,                    nullptr,                     nullptr,              nullptr,            nullptr,                  nullptr                            },
      {nullptr,                 nullptr,                 nullptr,                    nullptr,                     nullptr,              nullptr,            nullptr,                  nullptr                            },
 diff --git a/src/deluge/gui/ui/menus.h b/src/deluge/gui/ui/menus.h
-index 3c67a340e57a02e25ce7d2a1574a56bf63f35881..fdfd21525ddfb82caaac71109a9e46288374a1bd 100644
+index 09efdfd6273210a17e8db8c9f1d1ecfee552a8f2..90d0dd2d8180fde124b31947877f5bbc10098e53 100644
 --- a/src/deluge/gui/ui/menus.h
 +++ b/src/deluge/gui/ui/menus.h
-@@ -34,6 +34,9 @@ namespace deluge::gui::menu_item {
+@@ -35,6 +35,9 @@ namespace deluge::gui::menu_item {
  class HorizontalMenu;
  class HorizontalMenuGroup;
  class HorizontalMenuContainer;
@@ -193,7 +192,7 @@ index 3c67a340e57a02e25ce7d2a1574a56bf63f35881..fdfd21525ddfb82caaac71109a9e4628
  } // namespace deluge::gui::menu_item
  
  extern gui::menu_item::patched_param::IntegerNonFM noiseMenu;
-@@ -45,10 +48,11 @@ extern gui::menu_item::sample::Start sample0StartMenu;
+@@ -46,10 +49,11 @@ extern gui::menu_item::sample::Start sample0StartMenu;
  extern gui::menu_item::sample::Start sample1StartMenu;
  extern gui::menu_item::sample::End sample0EndMenu;
  extern gui::menu_item::sample::End sample1EndMenu;
@@ -331,7 +330,7 @@ index 531e7acf82050ce6dfdcaa03b5bb7f666fe3d4e2..36ca7897f92cd332105924c81b1d7cd1
  	Kit* auditionedKit = nullptr;
  	bool kitRowAuditionStarted = false;
 diff --git a/src/deluge/gui/ui/sound_editor.cpp b/src/deluge/gui/ui/sound_editor.cpp
-index a0fdd91e5afab7dbdc18699f5ec5e9d2b90ffac5..a38eb2179644ee22026f6877848a67b4e1da96ae 100644
+index 1cd5b7410872db387592e7b3c4f7ac79c8c42341..151fc92b867c510d0f10c20a4f70756d25404895 100644
 --- a/src/deluge/gui/ui/sound_editor.cpp
 +++ b/src/deluge/gui/ui/sound_editor.cpp
 @@ -10,6 +10,7 @@
@@ -342,7 +341,7 @@ index a0fdd91e5afab7dbdc18699f5ec5e9d2b90ffac5..a38eb2179644ee22026f6877848a67b4
  #include "gui/ui/audio_recorder.h"
  #include "gui/ui/browser/sample_browser.h"
  #include "gui/ui/keyboard/keyboard_screen.h"
-@@ -279,11 +280,11 @@ void SoundEditor::setShortcutsVersion(int32_t newVersion) {
+@@ -346,11 +347,11 @@ void SoundEditor::setShortcutsVersion(int32_t newVersion) {
  
  	case SHORTCUTS_VERSION_1:
  
@@ -358,7 +357,7 @@ index a0fdd91e5afab7dbdc18699f5ec5e9d2b90ffac5..a38eb2179644ee22026f6877848a67b4
  
  		paramShortcutsForSounds[0][6] = &sample0EndMenu;
  		paramShortcutsForSounds[1][6] = &sample1EndMenu;
-@@ -307,6 +308,24 @@ void SoundEditor::setShortcutsVersion(int32_t newVersion) {
+@@ -374,6 +375,24 @@ void SoundEditor::setShortcutsVersion(int32_t newVersion) {
  
  SoundEditor soundEditor{};
  
@@ -383,7 +382,7 @@ index a0fdd91e5afab7dbdc18699f5ec5e9d2b90ffac5..a38eb2179644ee22026f6877848a67b4
  SoundEditor::SoundEditor() {
  	currentParamShortcutX = kNoSelection;
  	timeLastAttemptedAutomatedParamEdit = 0;
-@@ -538,6 +557,13 @@ ActionResult SoundEditor::buttonAction(deluge::hid::Button b, bool on, bool inCa
+@@ -611,6 +630,13 @@ ActionResult SoundEditor::buttonAction(deluge::hid::Button b, bool on, bool inCa
  		if (currentUIMode == UI_MODE_NONE || currentUIMode == UI_MODE_AUDITIONING
  		    || currentUIMode == UI_MODE_NOTES_PRESSED || currentUIMode == UI_MODE_HOLDING_AFFECT_ENTIRE_IN_SOUND_EDITOR
  		    || currentUIMode == UI_MODE_STUTTERING) {
@@ -397,8 +396,8 @@ index a0fdd91e5afab7dbdc18699f5ec5e9d2b90ffac5..a38eb2179644ee22026f6877848a67b4
  			if (!on && !Buttons::selectButtonPressUsedUp) {
  				if (inCardRoutine) {
  					return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
-@@ -997,10 +1023,9 @@ void SoundEditor::updatePadLightsFor(MenuItem* currentItem) {
- 	uiTimerManager.unsetTimer(TimerName::SHORTCUT_BLINK);
+@@ -1090,10 +1116,9 @@ void SoundEditor::updatePadLightsFor(MenuItem* currentItem) {
+ 	}
  
  	if (!inSettingsMenu()
 -	    && !util::one_of<MenuItem*>(currentItem,
@@ -411,7 +410,7 @@ index a0fdd91e5afab7dbdc18699f5ec5e9d2b90ffac5..a38eb2179644ee22026f6877848a67b4
  
  		memset(sourceShortcutBlinkFrequencies, 255, sizeof(sourceShortcutBlinkFrequencies));
  		memset(sourceShortcutBlinkColours, 0, sizeof(sourceShortcutBlinkColours));
-@@ -2284,19 +2309,26 @@ void SoundEditor::mpeZonesPotentiallyUpdated() {
+@@ -2341,19 +2366,26 @@ void SoundEditor::mpeZonesPotentiallyUpdated() {
  }
  
  HorizontalMenu* SoundEditor::maybeGetParentMenu(MenuItem* item) {

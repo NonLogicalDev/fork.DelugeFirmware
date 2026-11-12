@@ -3,7 +3,7 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-fix: keep waveform rendering valid for long samples
+fix: harden long-sample and reversed waveform rendering
 
 Use wider, checked sample, byte, and cluster position arithmetic in waveform peak lookup
 and viewport navigation. Reject invalid or overflowing positions before narrowing or
@@ -12,6 +12,14 @@ indexing, and account for the valid length of both loaded samples and live recor
 Handle zero-length samples and only persist viewport coordinates that fit the existing
 saved fields. These changes prevent long recordings and large file offsets from wrapping
 into missing waveforms or unrelated data; focused tests cover boundary and overflow cases.
+
+Mirror a requested half-open waveform column interval [start, end) to [width - end, width
+- start) for reversed single-row rendering. This keeps full-width and edge-column requests
+inside the display and preserves the requested number of columns.
+
+Reject invalid column ranges before accessing cached peaks, and add tests for full,
+partial, and edge ranges. This avoids the off-by-one and out-of-bounds results of the
+previous mapping.
 """
 
 [[operation]]

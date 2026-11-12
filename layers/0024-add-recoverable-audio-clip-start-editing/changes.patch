@@ -682,10 +682,10 @@ index e50973e0717d91f723851fc2d0d4ff2651b01876..606712a4a09df7274c5caabc6f357c7d
  
  extern AudioClipView audioClipView;
 diff --git a/src/deluge/gui/views/clip_view.cpp b/src/deluge/gui/views/clip_view.cpp
-index 5c22fbb65d59470f9724c5e248e57dfd893e99c7..6a873543a0d37568cfb2cc116e929751c8e3496e 100644
+index 400840185e98af9d5618b67129c3058d402f4f58..41f6a569d6bb065dba4d05613d9df7c8138e7891 100644
 --- a/src/deluge/gui/views/clip_view.cpp
 +++ b/src/deluge/gui/views/clip_view.cpp
-@@ -38,6 +38,7 @@
+@@ -39,6 +39,7 @@
  #include "playback/playback_handler.h"
  #include "processing/engines/audio_engine.h"
  #include "processing/stem_export/stem_export.h"
@@ -693,16 +693,16 @@ index 5c22fbb65d59470f9724c5e248e57dfd893e99c7..6a873543a0d37568cfb2cc116e929751
  
  namespace ruler = deluge::gui::views::clip_progress_ruler;
  
-@@ -141,6 +142,7 @@ uint32_t ClipView::getMaxLength() {
- 
- void ClipView::focusRegained() {
- 	ClipNavigationTimelineView::focusRegained();
+@@ -146,6 +147,7 @@ void ClipView::focusRegained() {
+ 	exitedShortcutOverview = false;
+ 	// Browsers can draw directly onto the pad image, even without a waveform preview.
+ 	uiNeedsRendering(this);
 +	currentSong->xScroll[NAVIGATION_CLIP] = std::max(currentSong->xScroll[NAVIGATION_CLIP], getMinXScroll());
  	invalidateClipProgressRuler();
  }
  
 diff --git a/src/deluge/gui/views/session_view.cpp b/src/deluge/gui/views/session_view.cpp
-index 74b2f3f7680a64c053c915c12a3b1b34f2bf7133..52bc99f0c5744a750830d5945ce5ee445da40ad2 100644
+index 6b98514cbf0e3c7a0c6e3805a210fe5c7ef064b3..ed472cdc9cd471da3c0de97d6a617f6f8783b11f 100644
 --- a/src/deluge/gui/views/session_view.cpp
 +++ b/src/deluge/gui/views/session_view.cpp
 @@ -163,6 +163,7 @@ bool SessionView::opened() {
@@ -713,7 +713,7 @@ index 74b2f3f7680a64c053c915c12a3b1b34f2bf7133..52bc99f0c5744a750830d5945ce5ee44
  	selectLayout(0); // Make sure we get a valid layout from the loaded file
  
  	bool doingRender = (currentUIMode != UI_MODE_ANIMATION_FADE);
-@@ -2492,7 +2493,7 @@ void SessionView::rowNeedsRenderingDependingOnSubMode(int32_t yDisplay) {
+@@ -2529,7 +2530,7 @@ void SessionView::rowNeedsRenderingDependingOnSubMode(int32_t yDisplay) {
  	}
  }
  
@@ -722,7 +722,7 @@ index 74b2f3f7680a64c053c915c12a3b1b34f2bf7133..52bc99f0c5744a750830d5945ce5ee44
  
  	bool anyToDo = false;
  
-@@ -2501,8 +2502,8 @@ bool SessionView::calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll
+@@ -2538,8 +2539,8 @@ bool SessionView::calculateZoomPinSquares(uint32_t oldScroll, uint32_t newScroll
  		Clip* clip = getClipOnScreen(yDisplay);
  
  		if (clip && clip->currentlyScrollableAndZoomable()) {
@@ -733,7 +733,7 @@ index 74b2f3f7680a64c053c915c12a3b1b34f2bf7133..52bc99f0c5744a750830d5945ce5ee44
  
  			PadLEDs::zoomPinSquare[yDisplay] =
  			    ((int64_t)(int32_t)(oldLocal - newLocal) << 16) / (int32_t)(newZoom - oldZoom);
-@@ -2525,7 +2526,7 @@ uint32_t SessionView::getMaxLength() {
+@@ -2562,7 +2563,7 @@ uint32_t SessionView::getMaxLength() {
  	return currentSong->getLongestClip(true, false)->loopLength;
  }
  
@@ -742,7 +742,7 @@ index 74b2f3f7680a64c053c915c12a3b1b34f2bf7133..52bc99f0c5744a750830d5945ce5ee44
  	if (currentSong->sessionLayout == SessionLayoutType::SessionLayoutTypeGrid) {
  		return false;
  	}
-@@ -2547,7 +2548,7 @@ bool SessionView::setupScroll(uint32_t oldScroll) {
+@@ -2584,7 +2585,7 @@ bool SessionView::setupScroll(uint32_t oldScroll) {
  		if (clip && clip->currentlyScrollableAndZoomable()) {
  
  			uint32_t newLocalPos = getClipLocalScroll(clip, currentSong->xScroll[NAVIGATION_CLIP], xZoom);
@@ -752,7 +752,7 @@ index 74b2f3f7680a64c053c915c12a3b1b34f2bf7133..52bc99f0c5744a750830d5945ce5ee44
  			if (moved) {
  				ModelStackWithTimelineCounter* modelStackWithTimelineCounter = modelStack->addTimelineCounter(clip);
 diff --git a/src/deluge/gui/views/session_view.h b/src/deluge/gui/views/session_view.h
-index 59b024b6a6a8eee81bb21bc8141a44cfc5a30470..ee055be60664fe9c22609a7955197a60df46beb1 100644
+index bec64c015258745d2a8f730a4a029fff4d7b3340..0145e1f2efa31684de480f4fb87039df72edb1ae 100644
 --- a/src/deluge/gui/views/session_view.h
 +++ b/src/deluge/gui/views/session_view.h
 @@ -70,9 +70,9 @@ public:
@@ -963,10 +963,10 @@ index 0000000000000000000000000000000000000000..53846e9289051bbfdce6853009194a87
 +
 +} // namespace deluge::gui::timeline_view_navigation
 diff --git a/src/deluge/gui/waveform/waveform_renderer.cpp b/src/deluge/gui/waveform/waveform_renderer.cpp
-index 818fa2bb4c085481fa7994855a844543727a11e9..ff49a856d0536d62f25b9c0dcc1a02110123b284 100644
+index 383446be671bb6c0aedde0a9c9321896cf9f2b71..bb5a9b4f62b7cc2e67522c1b7291a9154138273b 100644
 --- a/src/deluge/gui/waveform/waveform_renderer.cpp
 +++ b/src/deluge/gui/waveform/waveform_renderer.cpp
-@@ -45,7 +45,7 @@ WaveformRenderer::WaveformRenderer() {
+@@ -90,7 +90,7 @@ void shiftColumns(WaveformRenderData& data, int32_t shift) {
  static_assert(Cluster::kSizeFAT16Max <= std::numeric_limits<int32_t>::max());
  
  // Returns false if had trouble loading some (will often not be all) Clusters, e.g. cos we're in the card routine
@@ -976,10 +976,10 @@ index 818fa2bb4c085481fa7994855a844543727a11e9..ff49a856d0536d62f25b9c0dcc1a0211
                                          SampleRecorder* recorder, std::optional<RGB> rgb, bool reversed, int32_t xEnd) {
  
 diff --git a/src/deluge/gui/waveform/waveform_renderer.h b/src/deluge/gui/waveform/waveform_renderer.h
-index 9b6989c03a2faf5a7d4bc33447e37e40ed416b43..385971d9ed3ca637aa9105233e22a8ae28eb3c61 100644
+index d4cd92529a1715ac3e49ea0ea9795ad5c16a14d5..51fe05739fae1e7a32b4a56ad729e801b409ddc1 100644
 --- a/src/deluge/gui/waveform/waveform_renderer.h
 +++ b/src/deluge/gui/waveform/waveform_renderer.h
-@@ -41,7 +41,7 @@ class WaveformRenderer {
+@@ -43,7 +43,7 @@ class WaveformRenderer {
  public:
  	WaveformRenderer();
  
@@ -1102,7 +1102,7 @@ index 2099bd3b9cb0c4d99bbe7b8f5b9c02a3b4ed16d3..d84163662c01da2983ff372dadbfafea
  	void recordAudioClipSampleChange(AudioClip* clip);
  	void deleteAllConsequences(int32_t whichQueueActionIn, Song* song, bool destructing = false);
 diff --git a/src/deluge/model/action/action_logger.cpp b/src/deluge/model/action/action_logger.cpp
-index 07f1ed68abe6e16b493324832e8e7164a06379e3..b7caaa848beef1079589ddfee64b453fdbf56774 100644
+index f08ff964a9051c979b6a3d722de4b4a77316b34c..54e3616a89573b054bb6f6d30667abafe2bae159 100644
 --- a/src/deluge/model/action/action_logger.cpp
 +++ b/src/deluge/model/action/action_logger.cpp
 @@ -36,6 +36,7 @@
@@ -1222,7 +1222,7 @@ index 07f1ed68abe6e16b493324832e8e7164a06379e3..b7caaa848beef1079589ddfee64b453f
  
  	updateAction(newAction);
 diff --git a/src/deluge/model/action/action_logger.h b/src/deluge/model/action/action_logger.h
-index 3498bf3ea97d6f78d5281f844a1e8c8fef18a743..8bf8fa75c3e8a7a13e41b90fda689933670fef6b 100644
+index 4c8370c7bee2644d44b46956e8a5c48780866393..9dd4995618ede31625cb9f06c90dcf04938a0e76 100644
 --- a/src/deluge/model/action/action_logger.h
 +++ b/src/deluge/model/action/action_logger.h
 @@ -25,6 +25,7 @@
@@ -1243,10 +1243,10 @@ index 3498bf3ea97d6f78d5281f844a1e8c8fef18a743..8bf8fa75c3e8a7a13e41b90fda689933
  	void recordUnautomatedParamChange(ModelStackWithAutoParam const* modelStack,
  	                                  ActionType actionType = ActionType::PARAM_UNAUTOMATED_VALUE_CHANGE);
  	void recordSwingChange(int8_t swingBefore, int8_t swingAfter);
-@@ -60,6 +64,8 @@ public:
- 	Action* firstAction[2];
+@@ -61,6 +65,8 @@ public:
  
  private:
+ 	ActionType getParameterChangeActionType() const;
 +	Action* getNewActionInternal(ActionType newActionType, ActionAddition addToExistingIfPossible,
 +	                             Clip* clipRequiredForAddition, uint64_t* markerValueForClipLengthChange);
  	void revertAction(Action* action, bool updateVisually, bool doNavigation, TimeType time);

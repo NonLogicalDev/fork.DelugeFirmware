@@ -1,8 +1,8 @@
 diff --git a/src/deluge/gui/ui/browser/sample_browser.cpp b/src/deluge/gui/ui/browser/sample_browser.cpp
-index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242bd3bf492 100644
+index cd8f74034f98b1861ff333590d28ba84dcb41848..d76d271e75400f61258a9473cfbf0ab1a5632efc 100644
 --- a/src/deluge/gui/ui/browser/sample_browser.cpp
 +++ b/src/deluge/gui/ui/browser/sample_browser.cpp
-@@ -55,6 +55,8 @@
+@@ -58,6 +58,8 @@
  #include "model/model_stack.h"
  #include "model/note/note_row.h"
  #include "model/song/song.h"
@@ -11,7 +11,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  #include "modulation/automation/auto_param.h"
  #include "modulation/params/param_manager.h"
  #include "modulation/params/param_set.h"
-@@ -71,6 +73,7 @@
+@@ -74,6 +76,7 @@
  #include "storage/storage_manager.h"
  #include "util/d_string.h"
  #include "util/functions.h"
@@ -19,7 +19,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  #include <cstring>
  
  namespace params = deluge::modulation::params;
-@@ -79,6 +82,10 @@ using namespace gui;
+@@ -82,6 +85,10 @@ using namespace gui;
  
  SampleBrowser sampleBrowser{};
  
@@ -30,7 +30,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  char const* allowedFileExtensionsAudio[] = {"WAV", "AIFF", "AIF", NULL};
  
  SampleBrowser::SampleBrowser() {
-@@ -257,6 +264,7 @@ void SampleBrowser::currentFileChanged(int32_t movementDirection) {
+@@ -265,6 +272,7 @@ void SampleBrowser::currentFileChanged(int32_t movementDirection) {
  
  void SampleBrowser::exitAndNeverDeleteDrum() {
  	display->setNextTransitionDirection(-1);
@@ -38,7 +38,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  	close();
  }
  
-@@ -265,6 +273,7 @@ void SampleBrowser::exitAction() {
+@@ -273,6 +281,7 @@ void SampleBrowser::exitAction() {
  	UI* redrawUI = nullptr;
  
  	display->setNextTransitionDirection(-1);
@@ -46,7 +46,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  	if (!isUIOpen(&soundEditor)) {
  		// If no file was selected, the user wanted to get out of creating this Drum.
  		// Only if some unassigned Drums
-@@ -368,6 +377,7 @@ void SampleBrowser::enterKeyPress() {
+@@ -376,6 +385,7 @@ void SampleBrowser::enterKeyPress() {
  
  		if (error != Error::NONE) {
  			display->displayError(error);
@@ -54,7 +54,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  			close(); // Don't use goBackToSoundEditor() because that would do a left-scroll
  		}
  	}
-@@ -657,9 +667,10 @@ void SampleBrowser::previewIfPossible(int32_t movementDirection) {
+@@ -740,9 +750,10 @@ void SampleBrowser::previewIfPossible(int32_t movementDirection) {
  						drawKeys();
  					}
  					else if (!qwertyVisible) {
@@ -68,7 +68,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  						PadLEDs::sendOutMainPadColours();
  					}
  					qwertyCurrentlyDrawnOnscreen = qwertyVisible;
-@@ -699,6 +710,56 @@ void SampleBrowser::previewIfPossible(int32_t movementDirection) {
+@@ -782,6 +793,56 @@ void SampleBrowser::previewIfPossible(int32_t movementDirection) {
  
  void SampleBrowser::scrollFinished() {
  	exitUIMode(UI_MODE_HORIZONTAL_SCROLL);
@@ -125,7 +125,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  }
  
  void SampleBrowser::displayCurrentFilename() {
-@@ -2062,8 +2123,8 @@ getOut:
+@@ -2147,8 +2208,8 @@ getOut:
  					}
  
  					kit->addDrum(drum);
@@ -136,7 +136,7 @@ index e8857a4dcae440737eed33564a1b0643112614c4..bdf20da4f09abf0b72ef26a825adb242
  					newNoteRow->setDrum(drum, kit, newNoteRowModelStack, nullptr, &paramManager);
  				}
  				else {
-@@ -2155,9 +2216,10 @@ ActionResult SampleBrowser::horizontalEncoderAction(int32_t offset) {
+@@ -2240,9 +2301,10 @@ ActionResult SampleBrowser::horizontalEncoderAction(int32_t offset) {
  			bool success = waveformBasicNavigator.scroll(offset);
  
  			if (success) {
@@ -783,10 +783,10 @@ index 0000000000000000000000000000000000000000..bbcac27123481dbdc4469c78e477e8ad
 +
 +} // namespace deluge::gui::waveform
 diff --git a/src/deluge/gui/waveform/waveform_renderer.cpp b/src/deluge/gui/waveform/waveform_renderer.cpp
-index ff49a856d0536d62f25b9c0dcc1a02110123b284..9679a336f5ca6a81838d47f742da5334a1c75273 100644
+index bb5a9b4f62b7cc2e67522c1b7291a9154138273b..56b520161cda33a9f43ba1367505d9969162fff0 100644
 --- a/src/deluge/gui/waveform/waveform_renderer.cpp
 +++ b/src/deluge/gui/waveform/waveform_renderer.cpp
-@@ -47,19 +47,20 @@ static_assert(Cluster::kSizeFAT16Max <= std::numeric_limits<int32_t>::max());
+@@ -92,19 +92,20 @@ static_assert(Cluster::kSizeFAT16Max <= std::numeric_limits<int32_t>::max());
  // Returns false if had trouble loading some (will often not be all) Clusters, e.g. cos we're in the card routine
  bool WaveformRenderer::renderFullScreen(Sample* sample, int64_t xScroll, uint64_t xZoom,
                                          RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
@@ -810,7 +810,7 @@ index ff49a856d0536d62f25b9c0dcc1a02110123b284..9679a336f5ca6a81838d47f742da5334
  
  	// Clear display
  	for (int32_t y = 0; y < kDisplayHeight; y++) {
-@@ -67,7 +68,7 @@ void WaveformRenderer::renderFullScreenFromData(Sample* sample, RGB thisImage[][
+@@ -112,7 +113,7 @@ void WaveformRenderer::renderFullScreenFromData(Sample* sample, RGB thisImage[][
  	}
  
  	for (int32_t xDisplay = 0; xDisplay < xEnd; xDisplay++) {
@@ -819,7 +819,7 @@ index ff49a856d0536d62f25b9c0dcc1a02110123b284..9679a336f5ca6a81838d47f742da5334
  	}
  }
  
-@@ -742,9 +743,10 @@ void WaveformRenderer::drawColBar(int32_t xDisplay, int32_t min24, int32_t max24
+@@ -840,9 +841,10 @@ void WaveformRenderer::drawColBar(int32_t xDisplay, int32_t min24, int32_t max24
  }
  
  void WaveformRenderer::renderOneCol(Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth],
@@ -833,7 +833,7 @@ index ff49a856d0536d62f25b9c0dcc1a02110123b284..9679a336f5ca6a81838d47f742da5334
  	int32_t xDisplaySource = reversed ? (kDisplayWidth - 1 - xDisplay) : xDisplay;
  
 diff --git a/src/deluge/gui/waveform/waveform_renderer.h b/src/deluge/gui/waveform/waveform_renderer.h
-index 385971d9ed3ca637aa9105233e22a8ae28eb3c61..7cdffea81a0bf6e077aab7c96ca3c4e6f90e26bd 100644
+index 51fe05739fae1e7a32b4a56ad729e801b409ddc1..785c5c8893481e97c193b895a38a9c60ea4cf419 100644
 --- a/src/deluge/gui/waveform/waveform_renderer.h
 +++ b/src/deluge/gui/waveform/waveform_renderer.h
 @@ -19,6 +19,7 @@
@@ -842,9 +842,9 @@ index 385971d9ed3ca637aa9105233e22a8ae28eb3c61..7cdffea81a0bf6e077aab7c96ca3c4e6
  #include "gui/colour/colour.h"
 +#include "gui/waveform/waveform_playhead.h"
  #include <cstdint>
+ #include <etl/vector.h>
  #include <optional>
- 
-@@ -41,17 +42,21 @@ class WaveformRenderer {
+@@ -43,13 +44,15 @@ class WaveformRenderer {
  public:
  	WaveformRenderer();
  
@@ -864,6 +864,11 @@ index 385971d9ed3ca637aa9105233e22a8ae28eb3c61..7cdffea81a0bf6e077aab7c96ca3c4e6
 +	    Sample* sample, RGB thisImage[][kDisplayWidth + kSideBarWidth], WaveformRenderData* data,
 +	    std::optional<RGB> rgb = std::nullopt, bool reversed = false, int32_t xEnd = kDisplayWidth,
 +	    deluge::gui::waveform::PadWaveformIntensity intensity = deluge::gui::waveform::PadWaveformIntensity::FULL);
+ 	/// @brief Renders a Sample's waveform as one row of brightness, as song row view shows it.
+ 	///
+ 	/// Doesn't wait on the SD card unless @p recorder is set: Clusters not in memory are enqueued, and until they've
+@@ -59,8 +62,10 @@ public:
+ 	/// @returns false if some columns are still waiting on the card, so the caller should render the row again later.
  	bool renderAsSingleRow(Sample* sample, int64_t xScroll, uint64_t xZoom, RGB* thisImage, WaveformRenderData* data,
  	                       SampleRecorder* recorder, RGB rgb, bool reversed, int32_t xStart, int32_t xEnd);
 -	void renderOneCol(Sample* sample, int32_t xDisplay, RGB thisImage[][kDisplayWidth + kSideBarWidth],

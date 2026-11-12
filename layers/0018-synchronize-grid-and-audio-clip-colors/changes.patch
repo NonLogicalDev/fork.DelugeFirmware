@@ -12,7 +12,7 @@ index 4cad5cfdbc1549cb8d47bcdcf5d441d2d7f3a9c1..7f3e5865181efdce01f453d050c4623a
  	}
  	return ActionResult::DEALT_WITH;
 diff --git a/src/deluge/gui/views/session_view.cpp b/src/deluge/gui/views/session_view.cpp
-index 2d02ffaf3395725fe3e299ef176581825788a770..74b2f3f7680a64c053c915c12a3b1b34f2bf7133 100644
+index 8fcd8827f19b265fb85ea72adf5c42ef496c1df1..6b98514cbf0e3c7a0c6e3805a210fe5c7ef064b3 100644
 --- a/src/deluge/gui/views/session_view.cpp
 +++ b/src/deluge/gui/views/session_view.cpp
 @@ -82,6 +82,7 @@
@@ -23,7 +23,7 @@ index 2d02ffaf3395725fe3e299ef176581825788a770..74b2f3f7680a64c053c915c12a3b1b34
  #include <cstdint>
  #include <new>
  
-@@ -1442,12 +1443,19 @@ ActionResult SessionView::verticalEncoderAction(int32_t offset, bool inCardRouti
+@@ -1438,12 +1439,19 @@ ActionResult SessionView::verticalEncoderAction(int32_t offset, bool inCardRouti
  		    && (Buttons::isShiftButtonPressed() || clipWasSelectedWithShift)) {
  
  			Clip* clip = getClipOnScreen(selectedClipYDisplay);
@@ -47,7 +47,7 @@ index 2d02ffaf3395725fe3e299ef176581825788a770..74b2f3f7680a64c053c915c12a3b1b34
  
  			return ActionResult::DEALT_WITH;
  		}
-@@ -1671,7 +1679,6 @@ Error setPresetOrNextUnlaunchedOne(InstrumentClip* clip, OutputType outputType,
+@@ -1667,7 +1675,6 @@ Error setPresetOrNextUnlaunchedOne(InstrumentClip* clip, OutputType outputType,
  }
  
  constexpr float colourStep = 22.5882352941;
@@ -55,7 +55,7 @@ index 2d02ffaf3395725fe3e299ef176581825788a770..74b2f3f7680a64c053c915c12a3b1b34
  
  Clip* SessionView::createNewClip(OutputType outputType, int32_t yDisplay) {
  	Clip* clip = nullptr;
-@@ -3409,13 +3416,7 @@ RGB SessionView::gridRenderClipColor(Clip* clip, int32_t x, int32_t y, bool rend
+@@ -3463,13 +3470,7 @@ RGB SessionView::gridRenderClipColor(Clip* clip, int32_t x, int32_t y, bool rend
  		}
  	}
  
@@ -70,7 +70,7 @@ index 2d02ffaf3395725fe3e299ef176581825788a770..74b2f3f7680a64c053c915c12a3b1b34
  
  	// Black phase of arm flashing
  	if (view.clipArmFlashOn && clip->armState != ArmState::OFF) {
-@@ -4489,13 +4490,10 @@ ActionResult SessionView::gridHandleScroll(int32_t offsetX, int32_t offsetY) {
+@@ -4543,13 +4544,10 @@ ActionResult SessionView::gridHandleScroll(int32_t offsetX, int32_t offsetY) {
  		auto track = gridTrackFromX(gridFirstPressedX, gridTrackCount());
  		if (track != nullptr) {
  			if (Buttons::isButtonPressed(hid::button::Y_ENC)) {
@@ -87,7 +87,7 @@ index 2d02ffaf3395725fe3e299ef176581825788a770..74b2f3f7680a64c053c915c12a3b1b34
  			requestRendering(this);
  		}
 diff --git a/src/deluge/model/clip/audio_clip.cpp b/src/deluge/model/clip/audio_clip.cpp
-index cd92ec43d49e1050c85605c1c16292c88a97c353..e478afad7ae22fac3d217284891ac1e6ce9674fc 100644
+index f931c499c16e9617d1adf3bfea068b93975821de..5583e246c3e87a2c4768112d753b28e2c8d277ff 100644
 --- a/src/deluge/model/clip/audio_clip.cpp
 +++ b/src/deluge/model/clip/audio_clip.cpp
 @@ -27,6 +27,7 @@
@@ -98,7 +98,7 @@ index cd92ec43d49e1050c85605c1c16292c88a97c353..e478afad7ae22fac3d217284891ac1e6
  #include "model/sample/sample.h"
  #include "model/sample/sample_recorder.h"
  #include "model/song/song.h"
-@@ -1261,7 +1262,19 @@ Error AudioClip::setOutput(ModelStackWithTimelineCounter* modelStack, Output* ne
+@@ -1270,7 +1271,19 @@ Error AudioClip::setOutput(ModelStackWithTimelineCounter* modelStack, Output* ne
  }
  
  RGB AudioClip::getColour() {
@@ -120,7 +120,7 @@ index cd92ec43d49e1050c85605c1c16292c88a97c353..e478afad7ae22fac3d217284891ac1e6
  
  void AudioClip::quantizeLengthForArrangementRecording(ModelStackWithTimelineCounter* modelStack,
 diff --git a/src/deluge/model/clip/audio_clip.h b/src/deluge/model/clip/audio_clip.h
-index c9d50e1adb78aa73e3f73a22872e41dce98d1df6..5ad20d0458b6ac40ec55f09737052c0ae3fc1e3c 100644
+index ec4300c9fe19a7408038bcec275f2acaa6a8ea57..7affb9ced4b184638c53560f8f0a9d2ef9d124a2 100644
 --- a/src/deluge/model/clip/audio_clip.h
 +++ b/src/deluge/model/clip/audio_clip.h
 @@ -71,6 +71,7 @@ public:
@@ -132,7 +132,7 @@ index c9d50e1adb78aa73e3f73a22872e41dce98d1df6..5ad20d0458b6ac40ec55f09737052c0a
  	void getScrollAndZoomInSamples(int32_t xScroll, int32_t xZoom, int64_t* xScrollSamples, int64_t* xZoomSamples);
  	void clear(Action* action, ModelStackWithTimelineCounter* modelStack, bool clearAutomation,
 diff --git a/src/deluge/model/output.cpp b/src/deluge/model/output.cpp
-index 28432264f31b6e710acdb31a08832cb5cb4f72fe..e3c491e1cddac9cebf2b7d81cefa296623d21113 100644
+index 7e559de44dbb62eb3cbf53dec332363ba92c3566..dc451295851a652e3a8bc7da5907a3dd95efc300 100644
 --- a/src/deluge/model/output.cpp
 +++ b/src/deluge/model/output.cpp
 @@ -24,10 +24,17 @@
@@ -177,7 +177,7 @@ index 28432264f31b6e710acdb31a08832cb5cb4f72fe..e3c491e1cddac9cebf2b7d81cefa2966
  	removeRecorder(recorder);
  	// if another output is recording this one, we need to tell the other output to clear the pointer since we don't
 diff --git a/src/deluge/model/output.h b/src/deluge/model/output.h
-index 1a9b939c11f2c579a91c9250983cc73e0be8b6ce..56bf6b0dfa82ba956bc2c23b8333f1e8e4d1c45d 100644
+index 6dc11093d7b5cba30add9cf23408813d3e0819ab..c5f7928d375b9d7a9ee21df561ea29a4cc8104ef 100644
 --- a/src/deluge/model/output.h
 +++ b/src/deluge/model/output.h
 @@ -87,6 +87,8 @@ public:
@@ -273,11 +273,11 @@ index 0000000000000000000000000000000000000000..efb1c930338afba3a778a9483d3db852
 +
 +} // namespace deluge::output_colour
 diff --git a/tests/unit/CMakeLists.txt b/tests/unit/CMakeLists.txt
-index 3109524ef256368d03d8c90b4bada24b596ccf8a..3f26f20fc9868c98d99ec3b3ba1ad05d4c44ce96 100644
+index 2e05ffe362d36e049db7d606dd0b2f0eb30c4bb9..1efbe1537271b77b04a89f92d25821a77a66f620 100644
 --- a/tests/unit/CMakeLists.txt
 +++ b/tests/unit/CMakeLists.txt
-@@ -66,6 +66,8 @@ file(GLOB_RECURSE deluge_SOURCES
-         ../../src/deluge/gui/ui/browser/default_name.cpp
+@@ -76,6 +76,8 @@ file(GLOB_RECURSE deluge_SOURCES
+         ../../src/deluge/util/fast_pythag.cpp
          # For generated slice-name tests
          ../../src/deluge/model/drum/generated_slice_name.cpp
 +        # For Output colour stepping tests
@@ -285,14 +285,14 @@ index 3109524ef256368d03d8c90b4bada24b596ccf8a..3f26f20fc9868c98d99ec3b3ba1ad05d
  )
  
  add_executable(UnitTests
-@@ -83,6 +85,7 @@ add_executable(UnitTests
-         name_compare_tests.cpp
+@@ -96,6 +98,7 @@ add_executable(UnitTests
          default_name_tests.cpp
+         encoder_acceleration_tests.cpp
          generated_slice_name_tests.cpp
 +        output_colour_tests.cpp
          rgb_tests.cpp
          notes_state_tests.cpp
- )
+         iterance_migration_tests.cpp
 diff --git a/tests/unit/output_colour_tests.cpp b/tests/unit/output_colour_tests.cpp
 new file mode 100644
 index 0000000000000000000000000000000000000000..512afb8f6be17d6f1372cc8ffb7de0332e208cc1

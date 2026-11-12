@@ -12,4 +12,6 @@ Layer commit messages use conventional subjects and a 90-character wrap target. 
 
 The [firmware workstream](theme-001-community-firmware/EXEC_STATE.md) contains the Deluge feature plans moved from the learning owner, preserving their ownership and history.
 
-The [v1.3.0 layer audit](theme-001-community-firmware/artifacts/v1.3.0-layer-audit.md) compares all 32 layers against the release and records partial overlaps and trial conflicts. The pinned base has not been changed.
+The [v1.3.0 layer audit](theme-001-community-firmware/artifacts/v1.3.0-layer-audit.md) compares all 32 layers against the release and records partial overlaps and trial conflicts. The definitions now pin the v1.3.0 release.
+
+The completed [v1.3.0 port](theme-001-community-firmware/completed/plan-52%20Port%20layers%20to%20v1.3.0.md) records the reconciled layers, checks, and hardware-test limitation. The ignored `.layerctl-worktree` link points to the reusable firmware projection.

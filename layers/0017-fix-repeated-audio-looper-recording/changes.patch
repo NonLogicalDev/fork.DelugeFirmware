@@ -1,8 +1,8 @@
 diff --git a/src/deluge/model/clip/audio_clip.cpp b/src/deluge/model/clip/audio_clip.cpp
-index aeb4ea57daf30192a9ef272d354d23aab3d544a2..cd92ec43d49e1050c85605c1c16292c88a97c353 100644
+index bd4ea47ca742ad14ea74a92c319cc2046aa3da3f..f931c499c16e9617d1adf3bfea068b93975821de 100644
 --- a/src/deluge/model/clip/audio_clip.cpp
 +++ b/src/deluge/model/clip/audio_clip.cpp
-@@ -193,10 +193,12 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
+@@ -194,10 +194,12 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
  	if (!recorder) {
  		return; // Shouldn't ever happen?
  	}
@@ -16,7 +16,7 @@ index aeb4ea57daf30192a9ef272d354d23aab3d544a2..cd92ec43d49e1050c85605c1c16292c8
  		abortRecording();
  		return;
  	}
-@@ -212,10 +214,10 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
+@@ -213,10 +215,10 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
  		}
  	}
  
@@ -30,7 +30,7 @@ index aeb4ea57daf30192a9ef272d354d23aab3d544a2..cd92ec43d49e1050c85605c1c16292c8
  
  	// SampleRecorder will also call sampleNeedsReRendering() when "capturing" is finished, but in plenty of cases, that
  	// will have happened in the above call to endSyncedRecording(), and our sample hasn't been set yet, so that won't
-@@ -224,6 +226,9 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
+@@ -225,6 +227,9 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
  		getRootUI()->clipNeedsReRendering(this);
  	}
  
@@ -38,9 +38,9 @@ index aeb4ea57daf30192a9ef272d354d23aab3d544a2..cd92ec43d49e1050c85605c1c16292c8
 +	// recorder below, so release the Clip's recording-state pointer before replacing an existing sample.
 +	recorder = nullptr;
  	if (!isEmpty()) {
- 		clear(nullptr, modelStack, true, true);
- 	}
-@@ -233,21 +238,19 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
+ 		// Not our own clear(), which aborts the recorder we're about to take the sample from if no clock is running
+ 		Clip::clear(nullptr, modelStack, true, true);
+@@ -237,21 +242,19 @@ void AudioClip::finishLinearRecording(ModelStackWithTimelineCounter* modelStack,
  	// 	ao->mode = AudioOutputMode::player;
  	// }
  	originalLength = loopLength;
@@ -66,7 +66,7 @@ index aeb4ea57daf30192a9ef272d354d23aab3d544a2..cd92ec43d49e1050c85605c1c16292c8
  }
  
 diff --git a/src/deluge/model/output.cpp b/src/deluge/model/output.cpp
-index d4f8af0172c304592841f44a7fb8e6d82b63e844..28432264f31b6e710acdb31a08832cb5cb4f72fe 100644
+index 6db9d869661a426dff70450cbeab6d7f44d6dd61..7e559de44dbb62eb3cbf53dec332363ba92c3566 100644
 --- a/src/deluge/model/output.cpp
 +++ b/src/deluge/model/output.cpp
 @@ -45,7 +45,7 @@ Output::Output(OutputType newType) : type(newType) {
@@ -79,10 +79,10 @@ index d4f8af0172c304592841f44a7fb8e6d82b63e844..28432264f31b6e710acdb31a08832cb5
  	// exist
  	if (outputRecordingThisOutput) {
 diff --git a/src/deluge/model/output.h b/src/deluge/model/output.h
-index 10728100ccfc9bbd6d783b7e6c989814894e0065..1a9b939c11f2c579a91c9250983cc73e0be8b6ce 100644
+index 9d4ddf00fc25e18b315bf8f279f6a5c2bd06d26d..6dc11093d7b5cba30add9cf23408813d3e0819ab 100644
 --- a/src/deluge/model/output.h
 +++ b/src/deluge/model/output.h
-@@ -206,20 +206,20 @@ public:
+@@ -207,20 +207,20 @@ public:
  		outputRecordingThisOutput = output;
  	}
  	bool addRecorder(SampleRecorder* newRecorder) {
@@ -112,21 +112,22 @@ index 10728100ccfc9bbd6d783b7e6c989814894e0065..1a9b939c11f2c579a91c9250983cc73e
  	Output* getOutputRecordingThis() { return outputRecordingThisOutput; }
  	// only for audio outputs, will be used for instruments when I implement routing notes between clips
 diff --git a/src/deluge/model/sample/sample_recorder.cpp b/src/deluge/model/sample/sample_recorder.cpp
-index ff0e5ecd94c3542b5c22ae132d1fd4c7ca62c676..a2691285eaf5740da2061b035486350a0c7348bb 100644
+index 98029e0c74b0231fd82ac34256c8c6c7fd8f0dda..520d4d3994e06bfa537b56d1b233d9f4e12d97ea 100644
 --- a/src/deluge/model/sample/sample_recorder.cpp
 +++ b/src/deluge/model/sample/sample_recorder.cpp
-@@ -57,7 +57,9 @@ SampleRecorder::~SampleRecorder() {
+@@ -57,9 +57,8 @@ SampleRecorder::~SampleRecorder() {
  	if (sample != nullptr) {
  		detachSample();
  	}
--	outputRecordingFrom->removeRecorder();
+-	// Only set when recording from a specific track
+-	if (outputRecordingFrom != nullptr) {
+-		outputRecordingFrom->removeRecorder();
 +	if (outputRecordingFrom) {
 +		outputRecordingFrom->removeRecorder(this);
-+	}
+ 	}
  }
  
- // This can be called when this SampleRecorder is destructed routinely - or earlier if we've aborted and the sample file
-@@ -905,7 +907,7 @@ void SampleRecorder::finishCapturing() {
+@@ -911,7 +910,7 @@ void SampleRecorder::finishCapturing() {
  		getRootUI()->sampleNeedsReRendering(sample);
  	}
  	if (outputRecordingFrom) {
@@ -136,10 +137,10 @@ index ff0e5ecd94c3542b5c22ae132d1fd4c7ca62c676..a2691285eaf5740da2061b035486350a
  }
  
 diff --git a/src/deluge/playback/mode/session.cpp b/src/deluge/playback/mode/session.cpp
-index b8e82b8ebda9029ad723299d2515b96c3a1912e7..7a2679f77ae6b75ac8398bfce6a50ae64689918c 100644
+index f80176c85af6b02cc6d20dd0756838e1d1a0c377..13ddd359ad7684a97a2ed6306c5b8cb99ae9316d 100644
 --- a/src/deluge/playback/mode/session.cpp
 +++ b/src/deluge/playback/mode/session.cpp
-@@ -2179,6 +2179,9 @@ bool Session::wantsToDoTempolessRecord(int32_t newPos) {
+@@ -2199,6 +2199,9 @@ bool Session::wantsToDoTempolessRecord(int32_t newPos) {
  			if (clip->type != ClipType::AUDIO) {
  				return false; // Cos there's a non-audio clip playing or recording
  			}

@@ -1,9 +1,5 @@
 [layer]
-depends-on = [
-  "0013-make-kit-row-reordering-undoable",
-  "0021-add-efficient-oled-waveform-displays",
-  "0022-add-compact-oled-clip-progress-ruler",
-]
+depends-on = ["0013-make-kit-row-reordering-undoable", "0021-add-efficient-oled-waveform-displays", "0022-add-compact-oled-clip-progress-ruler"]
 
 [vcs]
 commit-msg = """

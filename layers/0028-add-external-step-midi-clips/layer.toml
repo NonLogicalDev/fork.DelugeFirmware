@@ -1,9 +1,5 @@
 [layer]
-depends-on = [
-  "0011-reuse-a-kit-from-manual-slice",
-  "0015-add-midi-sustain-pedal-feature-flag",
-  "0027-reject-unsupported-song-compatibility-versions",
-]
+depends-on = ["0011-reuse-a-kit-from-manual-slice", "0015-add-midi-sustain-pedal-feature-flag", "0027-reject-unsupported-song-compatibility-versions"]
 
 [vcs]
 commit-msg = """

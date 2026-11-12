@@ -148,10 +148,10 @@ index 0000000000000000000000000000000000000000..074d2273c3b48f7d13616b28705bd46e
 +
 +} // namespace deluge::gui::slicer_playhead
 diff --git a/tests/unit/CMakeLists.txt b/tests/unit/CMakeLists.txt
-index 3f26f20fc9868c98d99ec3b3ba1ad05d4c44ce96..b864de5a14eb48bb7b6f4829e2a29191dd04fa53 100644
+index 1efbe1537271b77b04a89f92d25821a77a66f620..2ac927bc91fe1d884dbd71b8596109ff26bc8a1a 100644
 --- a/tests/unit/CMakeLists.txt
 +++ b/tests/unit/CMakeLists.txt
-@@ -93,6 +93,7 @@ add_test(NAME UnitTests
+@@ -111,6 +111,7 @@ add_test(NAME UnitTests
          COMMAND UnitTests)
  target_sources(UnitTests PRIVATE ${deluge_SOURCES})
  target_sources(UnitTests PRIVATE slicer_batch_playback_mode_tests.cpp)

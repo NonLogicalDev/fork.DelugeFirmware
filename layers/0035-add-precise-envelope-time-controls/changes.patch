@@ -338,17 +338,17 @@ index 0000000000000000000000000000000000000000..6b3af20ab250d0f8273007905024279c
 +
 +} // namespace deluge::gui::menu_item::envelope
 diff --git a/tests/unit/CMakeLists.txt b/tests/unit/CMakeLists.txt
-index b864de5a14eb48bb7b6f4829e2a29191dd04fa53..de7277d88b153d8438dfb03bb1fed679b9054b4a 100644
+index 2ac927bc91fe1d884dbd71b8596109ff26bc8a1a..61bc4e0e143613d78099950a27869bc1e6f08206 100644
 --- a/tests/unit/CMakeLists.txt
 +++ b/tests/unit/CMakeLists.txt
-@@ -76,6 +76,7 @@ add_executable(UnitTests
+@@ -86,6 +86,7 @@ add_executable(UnitTests
          lfo_tests.cpp
          scale_tests.cpp
          value_scaling_tests.cpp
 +        envelope_time_tests.cpp
          clip_iterator_tests.cpp
          function_tests.cpp
-         sync_tests.cpp
+         volume_param_gain_tests.cpp
 diff --git a/tests/unit/envelope_time_tests.cpp b/tests/unit/envelope_time_tests.cpp
 new file mode 100644
 index 0000000000000000000000000000000000000000..c69c8f2524fb8942a7f23e82f5abc0925bb06fcb

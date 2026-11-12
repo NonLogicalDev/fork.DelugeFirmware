@@ -1,5 +1,5 @@
 [layer]
-depends-on = ["0005-show-chord-and-latest-pressed-note", "0026-add-velocity-drums-velocity-profiles"]
+depends-on = ["0004-add-keyboard-view-chord-detection", "0026-add-velocity-drums-velocity-profiles"]
 
 [vcs]
 commit-msg = """

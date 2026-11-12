@@ -3,7 +3,7 @@ depends-on = ["0001-base"]
 
 [vcs]
 commit-msg = """
-feat: add manual slicer kit creation option
+feat: add Manual Slicer Kit creation and stop previews
 
 Add a Manual slice choice to the sample-browser menu used to create a Kit. It requests
 Manual mode before opening the slicer, so the player can place boundaries immediately
@@ -11,6 +11,10 @@ instead of entering Region mode and switching modes afterward.
 
 Reset the requested mode after entry so a later ordinary Slice still starts in Region
 mode, request the initial display redraw, and add localized menu text for the new action.
+
+Stop the sample browser's current preview before opening its direct Manual Slice option.
+This prevents the browser audition from continuing underneath manual boundary placement
+without changing the existing normal Slice entry.
 """
 
 [[operation]]

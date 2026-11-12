@@ -1,8 +1,8 @@
 diff --git a/src/deluge/gui/l10n/english.json b/src/deluge/gui/l10n/english.json
-index c66112cbdb770cad8fe16073e47e5d33463cf6e0..da1fdec8f4f63d59bd54ccff17063456efd28295 100644
+index 4b260c02eff5825caa83f5a4486a267bfae18594..9a019468414a51e7b0ce93f340f99fc60601bfb2 100644
 --- a/src/deluge/gui/l10n/english.json
 +++ b/src/deluge/gui/l10n/english.json
-@@ -528,6 +528,7 @@
+@@ -534,6 +534,7 @@
      "STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT": "Light Shift",
      "STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY": "Emulated Display",
      "STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE": "DX7 Engine",
@@ -11,10 +11,10 @@ index c66112cbdb770cad8fe16073e47e5d33463cf6e0..da1fdec8f4f63d59bd54ccff17063456
      "STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD": "Launch Event Playhead",
      "STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD": "Chord Keyboards",
 diff --git a/src/deluge/gui/l10n/g_english.cpp b/src/deluge/gui/l10n/g_english.cpp
-index b981d3c92d5e11a915685e5c633708bbbb56a401..6fb84d1111cdc6472b3f2d33da06e4031240b254 100644
+index 7a0557d802a91511e35e4dfc48be7bfbd997bdb1..2bb686a0faa9171055c39f65b4e53c84f7a1e18f 100644
 --- a/src/deluge/gui/l10n/g_english.cpp
 +++ b/src/deluge/gui/l10n/g_english.cpp
-@@ -541,6 +541,7 @@ PLACE_SDRAM_DATA Language english{
+@@ -547,6 +547,7 @@ PLACE_SDRAM_DATA Language english{
          {STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT, "Light Shift"},
          {STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY, "Emulated Display"},
          {STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE, "DX7 Engine"},
@@ -23,10 +23,10 @@ index b981d3c92d5e11a915685e5c633708bbbb56a401..6fb84d1111cdc6472b3f2d33da06e403
          {STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD, "Launch Event Playhead"},
          {STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD, "Chord Keyboards"},
 diff --git a/src/deluge/gui/l10n/g_seven_segment.cpp b/src/deluge/gui/l10n/g_seven_segment.cpp
-index 79c1fead1446383d8bf6630d89a8c12e29dfc647..678e14a83da0ee717e858e4281529a06de609cf1 100644
+index 3c3f563c1851e6fa2001ff5e2617a11db0ae246d..fdea45129c3d7427f0eb2b84bad7d56aa4bb2621 100644
 --- a/src/deluge/gui/l10n/g_seven_segment.cpp
 +++ b/src/deluge/gui/l10n/g_seven_segment.cpp
-@@ -437,6 +437,7 @@ PLACE_SDRAM_DATA Language seven_segment{
+@@ -443,6 +443,7 @@ PLACE_SDRAM_DATA Language seven_segment{
          {STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT, "LGSH"},
          {STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY, "EMUL"},
          {STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE, "DX7"},
@@ -35,10 +35,10 @@ index 79c1fead1446383d8bf6630d89a8c12e29dfc647..678e14a83da0ee717e858e4281529a06
          {STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD, "PLAY"},
          {STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD, "CHRD"},
 diff --git a/src/deluge/gui/l10n/seven_segment.json b/src/deluge/gui/l10n/seven_segment.json
-index 550d63d70361e58cc9c9b43e9a83d0adaa5d2811..e861ec21057b7d9824f0238a9f5cc4e4534d9f01 100644
+index f16d8eb5056e3256010e4c700e2c597a2a29f1d6..c27037880e475fc74268d57940ae401c78c47c1f 100644
 --- a/src/deluge/gui/l10n/seven_segment.json
 +++ b/src/deluge/gui/l10n/seven_segment.json
-@@ -452,6 +452,7 @@
+@@ -458,6 +458,7 @@
          "STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT": "LGSH",
          "STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY": "EMUL",
          "STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE": "DX7",
@@ -47,10 +47,10 @@ index 550d63d70361e58cc9c9b43e9a83d0adaa5d2811..e861ec21057b7d9824f0238a9f5cc4e4
          "STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD": "PLAY",
          "STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD": "CHRD",
 diff --git a/src/deluge/gui/l10n/strings.h b/src/deluge/gui/l10n/strings.h
-index b1ac759265eeb920cd6853c0f5f1498a5f62f958..a781a7ab1eeccdf9d655c7174e34b8a663d250d7 100644
+index 6f21d2a9db41c6debedea025d16c5ed508e99c31..eb6cf4d36ae924503c239a073c435ce6bf376862 100644
 --- a/src/deluge/gui/l10n/strings.h
 +++ b/src/deluge/gui/l10n/strings.h
-@@ -571,6 +571,7 @@ enum class String : size_t {
+@@ -577,6 +577,7 @@ enum class String : size_t {
  	STRING_FOR_COMMUNITY_FEATURE_LIGHT_SHIFT,
  	STRING_FOR_COMMUNITY_FEATURE_EMULATED_DISPLAY,
  	STRING_FOR_COMMUNITY_FEATURE_DX7_ENGINE,
@@ -59,7 +59,7 @@ index b1ac759265eeb920cd6853c0f5f1498a5f62f958..a781a7ab1eeccdf9d655c7174e34b8a6
  	STRING_FOR_COMMUNITY_FEATURE_LAUNCH_EVENT_PLAYHEAD,
  	STRING_FOR_COMMUNITY_FEATURE_CHORD_KEYBOARD,
 diff --git a/src/deluge/gui/menu_item/runtime_feature/settings.cpp b/src/deluge/gui/menu_item/runtime_feature/settings.cpp
-index ab3a3d3776c52c2e6c151b9e398ac5a4c3674b4a..ae10f4edc06ec9b3ff59ce6e89a447c5767989b1 100644
+index 5fe8738f7417444d9b6cae43a9d21a723c693b68..95860e81e6213f76847b3fe4910d41ceb65e680c 100644
 --- a/src/deluge/gui/menu_item/runtime_feature/settings.cpp
 +++ b/src/deluge/gui/menu_item/runtime_feature/settings.cpp
 @@ -20,6 +20,9 @@
@@ -103,7 +103,7 @@ index ab3a3d3776c52c2e6c151b9e398ac5a4c3674b4a..ae10f4edc06ec9b3ff59ce6e89a447c5
 @@ -74,6 +98,7 @@ SettingToggle menuTrimFromStartOfAudioClip(RuntimeFeatureSettingType::TrimFromSt
  SettingToggle menuShowBatteryLevel(RuntimeFeatureSettingType::ShowBatteryLevel);
  RoundedCornersSettingToggle menuRoundedCorners(RuntimeFeatureSettingType::RoundedCorners);
- SettingToggle menuShortcutOverlay(RuntimeFeatureSettingType::ShortcutOverlay);
+ Setting menuShortcutOverlay(RuntimeFeatureSettingType::ShortcutOverlay);
 +MidiSustainPedalSetting menuMidiSustainPedal(RuntimeFeatureSettingType::MidiSustainPedal);
  
  std::array<MenuItem*, RuntimeFeatureSettingType::MaxElement - kNonTopLevelSettings> subMenuEntries{
@@ -338,13 +338,13 @@ index 0000000000000000000000000000000000000000..33355b8f1121ddc1aea89e4a9a8737b1
 +
 +} // namespace deluge::midi_support
 diff --git a/src/deluge/model/settings/runtime_feature_settings.cpp b/src/deluge/model/settings/runtime_feature_settings.cpp
-index c127568bc113712125e15b2b0e99db9af04a64b8..5e8dc4021529578e401d180783ac914ad8b7c0fd 100644
+index 962255e86ac52d0dc4774b801e0b66faed2b1af8..fe890c9df3c93102196e4655d3aa7c04eda95322 100644
 --- a/src/deluge/model/settings/runtime_feature_settings.cpp
 +++ b/src/deluge/model/settings/runtime_feature_settings.cpp
-@@ -208,6 +208,11 @@ void RuntimeFeatureSettings::init() {
- 	// Shortcut Overlay
- 	SetupOnOffSetting(settings[RuntimeFeatureSettingType::ShortcutOverlay],
- 	                  STRING_FOR_COMMUNITY_FEATURE_SHORTCUT_OVERLAY, "shortcutOverlay", RuntimeFeatureStateToggle::On);
+@@ -217,6 +217,11 @@ void RuntimeFeatureSettings::init() {
+ 	    {l10n::getView(STRING_FOR_SHORTCUT_OVERLAY_MENU_AND_CLIP),
+ 	     static_cast<uint32_t>(RuntimeFeatureStateShortcutOverlay::MenuAndClip)},
+ 	};
 +
 +	// MIDI Sustain Pedal
 +	SetupOnOffSetting(settings[RuntimeFeatureSettingType::MidiSustainPedal],
@@ -354,10 +354,10 @@ index c127568bc113712125e15b2b0e99db9af04a64b8..5e8dc4021529578e401d180783ac914a
  
  void RuntimeFeatureSettings::factoryReset(bool showPopup) {
 diff --git a/src/deluge/model/settings/runtime_feature_settings.h b/src/deluge/model/settings/runtime_feature_settings.h
-index 55e809efa6bc7fcf53c4b7c490ca9b471bab0493..ee5d2a794baa98c3677ed352026368391e810412 100644
+index a39f698aeca9a5324eb12dbec54dcb4f24b340dd..1f29fcbe9e244e3a91e336ef49ab5e6dc5c735d7 100644
 --- a/src/deluge/model/settings/runtime_feature_settings.h
 +++ b/src/deluge/model/settings/runtime_feature_settings.h
-@@ -68,6 +68,7 @@ enum RuntimeFeatureSettingType : uint32_t {
+@@ -71,6 +71,7 @@ enum RuntimeFeatureSettingType : uint32_t {
  	ShowBatteryLevel,
  	RoundedCorners,
  	ShortcutOverlay,

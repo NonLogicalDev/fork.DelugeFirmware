@@ -39,7 +39,8 @@
       "original_tree": "6565df1d0d5db4532d421533df90f05601998432",
       "original_headers": "tree 6565df1d0d5db4532d421533df90f05601998432\nparent 9ec4805740acafb71e8e42bdcd84642887138970\nauthor Oleg Utkin <oleg@nonlogical.net> 1787367993 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id ukvlvnwqroqqskmwzxqtymwxlrvlqlsl",
       "original_message": "show chord and latest pressed note\n",
-      "empty_message_replaced": false
+      "empty_message_replaced": false,
+      "integrated_into": "0004-add-keyboard-view-chord-detection"
     },
     {
       "layer": "0006-add-manual-slicer-kit-creation-option",
@@ -66,7 +67,8 @@
       "original_tree": "ceb225ff78f50a444cc1b73bb67b380b1bcce884",
       "original_headers": "tree ceb225ff78f50a444cc1b73bb67b380b1bcce884\nparent bc10ef872f19a5c689aea36b5bc374b4d1568ab7\nauthor Oleg Utkin <oleg@nonlogical.net> 1787385611 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id lrtxupmsvqnlzywnzprmyovnorlsukqn",
       "original_message": "stop preview when opening manual slice\n",
-      "empty_message_replaced": false
+      "empty_message_replaced": false,
+      "integrated_into": "0006-add-manual-slicer-kit-creation-option"
     },
     {
       "layer": "0009-add-panic-action",
@@ -102,7 +104,8 @@
       "original_tree": "fc9162326f01e821ae159d5f901a55a36e679bf7",
       "original_headers": "tree fc9162326f01e821ae159d5f901a55a36e679bf7\nparent f511144707517912b9ba50bd11eb806e67cf81a1\nauthor Oleg Utkin <oleg@nonlogical.net> 1787394098 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id rrrrumvqwwklkumwtmrmpourrvvmxxso",
       "original_message": "add Shift five-tap panic gesture\n",
-      "empty_message_replaced": false
+      "empty_message_replaced": false,
+      "integrated_into": "0009-add-panic-action"
     },
     {
       "layer": "0013-make-kit-row-reordering-undoable",
@@ -176,7 +179,8 @@
       "original_tree": "e0f5ce426365b2842b476d8b510ceee12338fc79",
       "original_headers": "tree e0f5ce426365b2842b476d8b510ceee12338fc79\nparent 37f31692eb66b548bb40f7e7ed5e5ac094b14333\nauthor Oleg Utkin <oleg@nonlogical.net> 1787618984 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330614 -0700\nchange-id ryzzlqzzlnrpzzlkxlmvplxvmtwopznu",
       "original_message": "correct reversed waveform row ranges\n",
-      "empty_message_replaced": false
+      "empty_message_replaced": false,
+      "integrated_into": "0019-keep-waveform-rendering-valid-for-long-samples"
     },
     {
       "layer": "0021-add-efficient-oled-waveform-displays",
@@ -361,5 +365,11 @@
     ],
     "base_source": "git@github.com:SynthstromAudible/DelugeFirmware.git",
     "base_ref": "refs/heads/main"
+  },
+  "current_base": {
+    "source": "git@github.com:SynthstromAudible/DelugeFirmware.git",
+    "ref": "refs/tags/v1.3.0",
+    "commit": "156500e7c4b756840bd4b116e70a3b27c27d64bb",
+    "commit_date": "2026-11-03"
   }
 }

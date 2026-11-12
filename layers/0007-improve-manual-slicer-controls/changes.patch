@@ -1,5 +1,5 @@
 diff --git a/src/deluge/gui/ui/slicer.cpp b/src/deluge/gui/ui/slicer.cpp
-index c1527491c27ada2223fa59b5366ae27ebe984daa..69f0c5ddfdab031dd69754596d456e5d11397b62 100644
+index 218ee249df6747e5b633f3147cb1d728e1d7e955..a003eb76ac774768fa6be1ab2db8498cccf80833 100644
 --- a/src/deluge/gui/ui/slicer.cpp
 +++ b/src/deluge/gui/ui/slicer.cpp
 @@ -18,6 +18,7 @@

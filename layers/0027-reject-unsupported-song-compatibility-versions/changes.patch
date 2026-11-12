@@ -49,10 +49,10 @@ index b7f3a7ed6644baeefdb5b939c3625b7d79e8c1c0..a848107f73659e4e33bcb80876549651
  	indicator_leds::setLedState(IndicatorLED::LOAD, false);
  	indicator_leds::setLedState(IndicatorLED::BACK, false);
 diff --git a/src/deluge/model/song/song.cpp b/src/deluge/model/song/song.cpp
-index f5bb1fd1e65d1fd943db0b0088c0a48e8cc99bbb..41155e0589b617f2a6e0c8c82dd8975570456e56 100644
+index d935c3c5f8c9ff7d0b1dac336aca47c3e7f692ad..c72fbad820357717dbfd260fe0b587c4ce029d96 100644
 --- a/src/deluge/model/song/song.cpp
 +++ b/src/deluge/model/song/song.cpp
-@@ -60,6 +60,7 @@
+@@ -61,6 +61,7 @@
  #include "processing/sound/sound_instrument.h"
  #include "processing/stem_export/stem_export.h"
  #include "storage/flash_storage.h"
@@ -60,7 +60,7 @@ index f5bb1fd1e65d1fd943db0b0088c0a48e8cc99bbb..41155e0589b617f2a6e0c8c82dd89755
  #include "storage/storage_manager.h"
  #include "util/lookuptables/lookuptables.h"
  #include "util/try.h"
-@@ -1612,8 +1613,10 @@ Error Song::readFromFile(Deserializer& reader) {
+@@ -1627,8 +1628,10 @@ Error Song::readFromFile(Deserializer& reader) {
  		default:
  unknownTag:
  			if (!strcmp(tagName, "firmwareVersion") || !strcmp(tagName, "earliestCompatibleFirmware")) {
@@ -74,10 +74,10 @@ index f5bb1fd1e65d1fd943db0b0088c0a48e8cc99bbb..41155e0589b617f2a6e0c8c82dd89755
  			else if (!strcmp(tagName, "preview") || !strcmp(tagName, "previewNumPads")) {
  				reader.tryReadingFirmwareTagFromFile(tagName, false);
 diff --git a/src/deluge/storage/Deserializer.cpp b/src/deluge/storage/Deserializer.cpp
-index 3ce4854580b174a94fa8427952460cba61dbe98e..02924309fb25ae889da9cfde1226a9003478123b 100644
+index 62f204e91ebc45f561b0a340c1de92e28bae0bcc..28338293eff35b15c41ac930f218d23c50584e56 100644
 --- a/src/deluge/storage/Deserializer.cpp
 +++ b/src/deluge/storage/Deserializer.cpp
-@@ -844,7 +844,6 @@ Error XMLDeserializer::openXMLFile(FilePointer* filePointer, char const* firstTa
+@@ -850,7 +850,6 @@ Error XMLDeserializer::openXMLFile(FilePointer* filePointer, char const* firstTa
  		exitTag(tagName);
  	}
  
@@ -85,7 +85,7 @@ index 3ce4854580b174a94fa8427952460cba61dbe98e..02924309fb25ae889da9cfde1226a900
  	return Error::FILE_CORRUPTED;
  }
  
-@@ -860,7 +859,6 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
+@@ -866,7 +865,6 @@ Error XMLDeserializer::tryReadingFirmwareTagFromFile(char const* tagName, bool i
  		char const* firmware_version_string = readTagOrAttributeValue();
  		auto earliestFirmware = FirmwareVersion::parse(firmware_version_string);
  		if (earliestFirmware > FirmwareVersion::current() && !ignoreIncorrectFirmware) {
@@ -327,7 +327,7 @@ index 0000000000000000000000000000000000000000..e99b580b5c38acd99b054abafc8c286c
 +
 +} // namespace deluge::song_load
 diff --git a/src/deluge/storage/storage_manager.cpp b/src/deluge/storage/storage_manager.cpp
-index 0185cd6992d7c1ddb7bcfbfdfdc07acedd524bb3..52f1e2e4165056ca769de7d3d9e139d4c0b5342f 100644
+index bac3a5ada20d0e6caf00b97c196bdfaed0f3d801..f21927d214063701d64d6367bab7e05154795c52 100644
 --- a/src/deluge/storage/storage_manager.cpp
 +++ b/src/deluge/storage/storage_manager.cpp
 @@ -39,6 +39,7 @@
@@ -338,7 +338,7 @@ index 0185cd6992d7c1ddb7bcfbfdfdc07acedd524bb3..52f1e2e4165056ca769de7d3d9e139d4
  
  #include "util/firmware_version.h"
  #include "util/functions.h"
-@@ -728,7 +729,7 @@ Error StorageManager::openXMLFile(FilePointer* filePointer, XMLDeserializer& rea
+@@ -718,7 +719,7 @@ Error StorageManager::openXMLFile(FilePointer* filePointer, XMLDeserializer& rea
  		return Error::NONE;
  	reader.closeWriter();
  
@@ -347,7 +347,7 @@ index 0185cd6992d7c1ddb7bcfbfdfdc07acedd524bb3..52f1e2e4165056ca769de7d3d9e139d4
  }
  
  Error StorageManager::openJsonFile(FilePointer* filePointer, JsonDeserializer& reader, char const* firstTagName,
-@@ -744,7 +745,7 @@ Error StorageManager::openJsonFile(FilePointer* filePointer, JsonDeserializer& r
+@@ -734,7 +735,7 @@ Error StorageManager::openJsonFile(FilePointer* filePointer, JsonDeserializer& r
  		return Error::NONE;
  	reader.closeWriter();
  
@@ -356,7 +356,7 @@ index 0185cd6992d7c1ddb7bcfbfdfdc07acedd524bb3..52f1e2e4165056ca769de7d3d9e139d4
  }
  
  Error StorageManager::openDelugeFile(FileItem* currentFileItem, char const* firstTagName, char const* altTagName,
-@@ -761,6 +762,23 @@ Error StorageManager::openDelugeFile(FileItem* currentFileItem, char const* firs
+@@ -751,6 +752,23 @@ Error StorageManager::openDelugeFile(FileItem* currentFileItem, char const* firs
  	return error;
  }
  
@@ -381,10 +381,10 @@ index 0185cd6992d7c1ddb7bcfbfdfdc07acedd524bb3..52f1e2e4165056ca769de7d3d9e139d4
  
  	FRESULT res;
 diff --git a/src/deluge/storage/storage_manager.h b/src/deluge/storage/storage_manager.h
-index 366f8de77f853c092cefc0749a70bd9d476933ba..421d7e2a8ccbc30a9c3b4964fba80f36262baa91 100644
+index b2e373032e66c95252ee9e2705a90bf08a6ce8c3..233cb435425d3fb80e712048eb212f0bdadec83c 100644
 --- a/src/deluge/storage/storage_manager.h
 +++ b/src/deluge/storage/storage_manager.h
-@@ -377,6 +377,7 @@ Error openJsonFile(FilePointer* filePointer, JsonDeserializer& reader, char cons
+@@ -378,6 +378,7 @@ Error openJsonFile(FilePointer* filePointer, JsonDeserializer& reader, char cons
                     char const* altTagName = "", bool ignoreIncorrectFirmware = false);
  Error openDelugeFile(FileItem* currentFileItem, char const* firstTagName, char const* altTagName = "",
                       bool ignoreIncorrectFirmware = false);
@@ -408,10 +408,10 @@ index f4e57e2fec8528ec9fb81ef0244bec7c8df26354..a4c1bec2e9b73ecaafaf1fcedd11cf0e
  
  	if (version_string[0] == 'c') {
 diff --git a/tests/spec/CMakeLists.txt b/tests/spec/CMakeLists.txt
-index affe7e74dece8c56c2c55b69c60fce7818704bf7..8e019b3a892920dce78c3c28afe06888e116e12e 100644
+index b4661ba39e6505a0105f1af79755318b2ebf183b..534849ccf3f58148aa41c2ce7ca906804ff47b36 100644
 --- a/tests/spec/CMakeLists.txt
 +++ b/tests/spec/CMakeLists.txt
-@@ -48,6 +48,12 @@ endfunction()
+@@ -68,6 +68,12 @@ endfunction()
  
  create_specs_driver(all_specs ${CMAKE_CURRENT_LIST_DIR})
  target_link_libraries(all_specs PUBLIC deluge_spec)

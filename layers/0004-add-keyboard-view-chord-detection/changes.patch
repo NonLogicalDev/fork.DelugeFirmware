@@ -99,7 +99,7 @@ index be34ef822d596852789ef19eccb0170c6916d312..f5fe3e02df6140e025ca9f0bd22dec21
  extern const Chord kEmptyChord;
  extern const Chord kMajor;
 diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
-index 89202e7d962a341bf2b11d0d2a9470779d1ff673..e0ea5cb2acb6338574f5f8aa9fd26db82b56bd66 100644
+index 3b9089ec8b79693980ded564d095da6c8f790de8..71c3398cb06da5ebaf7552d4b3cfaa9ac0ca7ca0 100644
 --- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
 +++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
 @@ -19,6 +19,7 @@
@@ -110,7 +110,15 @@ index 89202e7d962a341bf2b11d0d2a9470779d1ff673..e0ea5cb2acb6338574f5f8aa9fd26db8
  #include "gui/ui/sound_editor.h"
  #include "gui/ui_timer_manager.h"
  #include "gui/views/arranger_view.h"
-@@ -185,6 +186,7 @@ ActionResult KeyboardScreen::padAction(int32_t x, int32_t y, int32_t velocity) {
+@@ -159,6 +160,7 @@ ActionResult KeyboardScreen::padAction(int32_t x, int32_t y, int32_t velocity) {
+ 	}
+ 
+ 	evaluateActiveNotes();
++	updatePhysicalNotePressOrder();
+ 
+ 	if (markDead != -1) {
+ 		pressedPads[markDead].dead = true;
+@@ -185,6 +187,7 @@ ActionResult KeyboardScreen::padAction(int32_t x, int32_t y, int32_t velocity) {
  	}
  	else {
  		updateActiveNotes();
@@ -118,7 +126,34 @@ index 89202e7d962a341bf2b11d0d2a9470779d1ff673..e0ea5cb2acb6338574f5f8aa9fd26db8
  	}
  
  	// The main pad grid only changes when the set of active notes changes, but rendering it re-transmits the whole
-@@ -384,6 +386,54 @@ void KeyboardScreen::updateActiveNotes() {
+@@ -204,6 +207,26 @@ void KeyboardScreen::evaluateActiveNotes() {
+ 	currentNotesState = layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->getNotesState();
+ }
+ 
++void KeyboardScreen::updatePhysicalNotePressOrder() {
++	for (const NoteState& currentNote : currentNotesState) {
++		if (currentNote.generatedNote) {
++			continue;
++		}
++
++		const NoteState* lastNote = nullptr;
++		for (const NoteState& previousNote : lastNotesState) {
++			if (previousNote.note == currentNote.note) {
++				lastNote = &previousNote;
++				break;
++			}
++		}
++
++		if (lastNote == nullptr || currentNote.activationCount > lastNote->activationCount) {
++			physicalNotePressOrder[currentNote.note] = ++nextPhysicalNotePressOrder;
++		}
++	}
++}
++
+ void KeyboardScreen::updateActiveNotes() {
+ 	Instrument* activeInstrument = getCurrentInstrument();
+ 	char modelStackMemory[MODEL_STACK_MAX_SIZE];
+@@ -384,6 +407,65 @@ void KeyboardScreen::updateActiveNotes() {
  	}
  }
  
@@ -162,7 +197,18 @@ index 89202e7d962a341bf2b11d0d2a9470779d1ff673..e0ea5cb2acb6338574f5f8aa9fd26db8
 +	char chordName[16];
 +	snprintf(chordName, sizeof(chordName), "%s%s", rootName, match.suffix);
 +	if (display->haveOLED()) {
-+		display->popupTextTemporary(chordName);
++		uint8_t lastPressedNote = currentNotesState.latestPhysicalNote(physicalNotePressOrder);
++		if (lastPressedNote == kHighestKeyboardNote) {
++			display->popupTextTemporary(chordName);
++		}
++		else {
++			char lastPressedName[3] = {0};
++			noteCodeToString(lastPressedNote, lastPressedName, &isNatural, false);
++
++			char chordPopup[20];
++			snprintf(chordPopup, sizeof(chordPopup), "%s\n%s", chordName, lastPressedName);
++			display->popupTextTemporary(chordPopup);
++		}
 +	}
 +	else {
 +		display->setScrollingText(chordName, 0);
@@ -173,28 +219,41 @@ index 89202e7d962a341bf2b11d0d2a9470779d1ff673..e0ea5cb2acb6338574f5f8aa9fd26db8
  void KeyboardScreen::noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument,
                               int32_t note) {
  	NoteRow* noteRow = (static_cast<InstrumentClip*>(activeInstrument.getActiveClip()))->getNoteRowForYNote(note);
+@@ -764,6 +846,8 @@ void KeyboardScreen::selectEncoderAction(int8_t offset) {
+ 
+ void KeyboardScreen::exitAuditionMode() {
+ 	memset(&pressedPads, 0, sizeof(pressedPads));
++	physicalNotePressOrder.fill(0);
++	nextPhysicalNotePressOrder = 0;
+ 	evaluateActiveNotes();
+ 	updateActiveNotes();
+ 
 diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.h b/src/deluge/gui/ui/keyboard/keyboard_screen.h
-index af65d480e2b90f8cec443b2da96c7d82cf77f559..39d0ca283c762ed4816cd0b7985eeef5c16fb193 100644
+index af65d480e2b90f8cec443b2da96c7d82cf77f559..06c1c0aebddc7ff4819c048c46983885c129a710 100644
 --- a/src/deluge/gui/ui/keyboard/keyboard_screen.h
 +++ b/src/deluge/gui/ui/keyboard/keyboard_screen.h
-@@ -72,6 +72,7 @@ private:
+@@ -71,7 +71,9 @@ private:
+ 	void displayOrLanguageChanged() final;
  
  	void evaluateActiveNotes();
++	void updatePhysicalNotePressOrder();
  	void updateActiveNotes();
 +	void displayHeldChord();
  
  	void noteOff(ModelStack& modelStack, Instrument& activeInstrument, bool clipIsActiveOnInstrument, int32_t note);
  
-@@ -94,6 +95,7 @@ private:
+@@ -94,6 +96,9 @@ private:
  	PressedPad pressedPads[kMaxNumKeyboardPadPresses];
  	NotesState lastNotesState;
  	NotesState currentNotesState;
++	NotesState::NotePressOrder physicalNotePressOrder = {};
++	uint32_t nextPhysicalNotePressOrder = 0;
 +	bool chordNameDisplayed = false;
  
  	bool keyboardButtonActive = false;
  	bool keyboardButtonUsed = false;
 diff --git a/src/deluge/gui/ui/keyboard/notes_state.h b/src/deluge/gui/ui/keyboard/notes_state.h
-index 5ffb037d0e9e7e8e15310e657142d5e8e0c2a7f0..a8663f3fb38477b7607f0ef4d65ce9d938f06d0f 100644
+index 5ffb037d0e9e7e8e15310e657142d5e8e0c2a7f0..bc3c2f31650ae756d948e96e6233afc4054bc7c0 100644
 --- a/src/deluge/gui/ui/keyboard/notes_state.h
 +++ b/src/deluge/gui/ui/keyboard/notes_state.h
 @@ -18,6 +18,8 @@
@@ -206,7 +265,15 @@ index 5ffb037d0e9e7e8e15310e657142d5e8e0c2a7f0..a8663f3fb38477b7607f0ef4d65ce9d9
  #include <array>
  #include <bitset>
  #include <climits>
-@@ -103,6 +105,22 @@ struct NotesState {
+@@ -55,6 +57,7 @@ constexpr uint8_t kLowestKeyboardNote = 0;
+ constexpr uint8_t kHighestKeyboardNote = kOctaveSize * 12;
+ struct NotesState {
+ 	using NoteArray = std::array<NoteState, kMaxNumActiveNotes>;
++	using NotePressOrder = std::array<uint32_t, kHighestKeyboardNote>;
+ 
+ 	std::bitset<kHighestKeyboardNote> states;
+ 	NoteArray notes;
+@@ -103,6 +106,34 @@ struct NotesState {
  	}
  
  	[[nodiscard]] constexpr bool noteEnabled(uint8_t note) const { return note < kHighestKeyboardNote && states[note]; }
@@ -226,11 +293,23 @@ index 5ffb037d0e9e7e8e15310e657142d5e8e0c2a7f0..a8663f3fb38477b7607f0ef4d65ce9d9
 +		}
 +		return lowest;
 +	}
++
++	[[nodiscard]] uint8_t latestPhysicalNote(const NotePressOrder& pressOrder) const {
++		uint8_t latest = kHighestKeyboardNote;
++		uint32_t latestOrder = 0;
++		for (const NoteState& state : *this) {
++			if (!state.generatedNote && pressOrder[state.note] > latestOrder) {
++				latest = state.note;
++				latestOrder = pressOrder[state.note];
++			}
++		}
++		return latest;
++	}
  };
  
  }; // namespace deluge::gui::ui::keyboard
 diff --git a/tests/unit/chord_tests.cpp b/tests/unit/chord_tests.cpp
-index 8696ee96a4e3ae7f7fcb837a3398eb36bc0df3c0..054efc24f579b5348c6e5c0584cc9cf8661ae830 100644
+index 8696ee96a4e3ae7f7fcb837a3398eb36bc0df3c0..35a7bbf34f0e3e258411c3fe65dab52fa841172a 100644
 --- a/tests/unit/chord_tests.cpp
 +++ b/tests/unit/chord_tests.cpp
 @@ -1,9 +1,13 @@
@@ -247,7 +326,7 @@ index 8696ee96a4e3ae7f7fcb837a3398eb36bc0df3c0..054efc24f579b5348c6e5c0584cc9cf8
  using deluge::gui::ui::keyboard::Voicing;
  
  TEST_GROUP(ChordTests) {
-@@ -90,3 +94,46 @@ TEST(ChordTests, adjustVoicingOffsetBoundsCheck) {
+@@ -90,3 +94,68 @@ TEST(ChordTests, adjustVoicingOffsetBoundsCheck) {
  		CHECK_EQUAL(kUniqueVoicings - 2, chordList.voicingOffset[chordNo]);
  	}
  }
@@ -288,6 +367,28 @@ index 8696ee96a4e3ae7f7fcb837a3398eb36bc0df3c0..054efc24f579b5348c6e5c0584cc9cf8
 +	CHECK_TRUE(match.found());
 +	CHECK_EQUAL(0, match.root);
 +	STRCMP_EQUAL("AUG", match.suffix);
++}
++
++TEST(ChordTests, findsLatestPhysicalHeldNoteByPressOrder) {
++	NotesState notes;
++	notes.enableNote(60, 64);       // C
++	notes.enableNote(64, 64);       // E
++	notes.enableNote(67, 64);       // G
++	notes.enableNote(72, 64, true); // Generated C
++
++	NotesState::NotePressOrder pressOrder = {};
++	pressOrder[60] = 1;
++	pressOrder[64] = 3;
++	pressOrder[67] = 2;
++	pressOrder[72] = 4;
++
++	CHECK_EQUAL(64, notes.latestPhysicalNote(pressOrder));
++
++	NotesState releasedNotes;
++	releasedNotes.enableNote(60, 64);       // C remains held
++	releasedNotes.enableNote(67, 64);       // G remains held
++	releasedNotes.enableNote(72, 64, true); // Generated C remains held
++	CHECK_EQUAL(67, releasedNotes.latestPhysicalNote(pressOrder));
 +}
 +
 +TEST(ChordTests, rejectsIncompleteAndUnknownChordSets) {

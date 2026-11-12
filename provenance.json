@@ -120,7 +120,9 @@
       "original_tree": "ecd8cb069431a3917de4b985483c2b9832785324",
       "original_headers": "tree ecd8cb069431a3917de4b985483c2b9832785324\nparent 5dc25215a1eed7d488d334f37df12efd3d710570\nauthor Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330575 -0700\nchange-id rzyvlqmtrwkryvtlmqwmunrmlqrrqkmk",
       "original_message": "",
-      "empty_message_replaced": true
+      "empty_message_replaced": false,
+      "omitted": true,
+      "omission_reason": "The original commit has no file changes or message."
     },
     {
       "layer": "0015-add-midi-sustain-pedal-feature-flag",

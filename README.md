@@ -1,8 +1,8 @@
 # Deluge Firmware layers
 
-This repository defines a Git-backed layerctl composition of the Deluge Firmware fork. `layers/0001-base` imports the official upstream `main` base at a pinned commit runs [a casing-normalization script](layers/0001-base/scripts/git_normalize_casing.py) against Git's index before checking out files, and adds the local Nix build environment. The following layers reproduce the remaining firmware changes in order. Their commit messages explain the changes and their purpose; the original messages remain in `provenance.json`. The layer directories are ordered by their four-digit prefixes.
+This repository defines a Git-backed layerctl composition of the Deluge Firmware fork. `layers/0001-base` imports the official upstream `main` base at a pinned commit, runs [a casing-normalization script](layers/0001-base/scripts/git_normalize_casing.py) against Git's index before checking out files, and adds the local Nix build environment. The following layers reproduce the remaining firmware changes in order. Their commit messages explain the changes and their purpose; the original messages remain in `provenance.json`. The layer directories are ordered by their four-digit prefixes.
 
-`provenance.json` records the original source commits, trees, authors, commit headers including JJ change IDs, messages, and remote branch tips. The empty original change at `711d48340ddb9c42d65db6088434b4b9c2ba5e58` is retained as a no-op marker with a descriptive layer commit message; its original message was empty. The original branches and history remain available at the source remote. Layerctl creates new workspace commits, so those commit IDs and JJ headers differ from the originals. The original casing-fix and Nix environment layers are recorded in provenance as integrated into the base layer.
+`provenance.json` records the original source commits, trees, authors, commit headers including JJ change IDs, messages, and remote branch tips. The empty original change at `711d48340ddb9c42d65db6088434b4b9c2ba5e58` remains in provenance but has no layer. The original branches and history remain available at the source remote. Layerctl creates new workspace commits, so those commit IDs and JJ headers differ from the originals. The original casing-fix and Nix environment layers are recorded in provenance as integrated into the base layer.
 
 [Project plans](docs/plans/README.md) include the conversion history and current work.
 
@@ -25,28 +25,27 @@ flowchart LR
   n8["0011-reuse-a-kit-from-manual-slice"]
   n9["0012-add-shift-five-tap-panic-gesture"]
   n10["0013-make-kit-row-reordering-undoable"]
-  n11["0014-empty-change-marker"]
-  n12["0015-add-midi-sustain-pedal-feature-flag"]
-  n13["0016-add-song-grid-track-column-glow"]
-  n14["0017-fix-repeated-audio-looper-recording"]
-  n15["0018-synchronize-grid-and-audio-clip-colors"]
-  n16["0019-keep-waveform-rendering-valid-for-long-samples"]
-  n17["0020-correct-reversed-waveform-row-ranges"]
-  n18["0021-add-efficient-oled-waveform-displays"]
-  n19["0022-add-compact-oled-clip-progress-ruler"]
-  n20["0023-audition-current-waveform-editor-kit-row"]
-  n21["0024-add-recoverable-audio-clip-start-editing"]
-  n22["0025-improve-waveform-editor-entry-and-bound-selection"]
-  n23["0026-add-velocity-drums-velocity-profiles"]
-  n24["0027-reject-unsupported-song-compatibility-versions"]
-  n25["0028-add-external-step-midi-clips"]
-  n26["0029-make-preview-only-note-input-release-order-safe"]
-  n27["0030-correct-slicer-playhead-source"]
-  n28["0031-improve-waveform-playhead-visibility"]
-  n29["0032-add-kit-choke-groups"]
-  n30["0033-catalog-firmware-keybindings"]
-  n31["0034-add-shared-song-scale-menu"]
-  n32["0035-add-precise-envelope-time-controls"]
+  n11["0015-add-midi-sustain-pedal-feature-flag"]
+  n12["0016-add-song-grid-track-column-glow"]
+  n13["0017-fix-repeated-audio-looper-recording"]
+  n14["0018-synchronize-grid-and-audio-clip-colors"]
+  n15["0019-keep-waveform-rendering-valid-for-long-samples"]
+  n16["0020-correct-reversed-waveform-row-ranges"]
+  n17["0021-add-efficient-oled-waveform-displays"]
+  n18["0022-add-compact-oled-clip-progress-ruler"]
+  n19["0023-audition-current-waveform-editor-kit-row"]
+  n20["0024-add-recoverable-audio-clip-start-editing"]
+  n21["0025-improve-waveform-editor-entry-and-bound-selection"]
+  n22["0026-add-velocity-drums-velocity-profiles"]
+  n23["0027-reject-unsupported-song-compatibility-versions"]
+  n24["0028-add-external-step-midi-clips"]
+  n25["0029-make-preview-only-note-input-release-order-safe"]
+  n26["0030-correct-slicer-playhead-source"]
+  n27["0031-improve-waveform-playhead-visibility"]
+  n28["0032-add-kit-choke-groups"]
+  n29["0033-catalog-firmware-keybindings"]
+  n30["0034-add-shared-song-scale-menu"]
+  n31["0035-add-precise-envelope-time-controls"]
   n0 --> n1
   n1 --> n2
   n0 --> n3
@@ -61,41 +60,40 @@ flowchart LR
   n0 --> n11
   n0 --> n12
   n0 --> n13
-  n0 --> n14
-  n8 --> n15
-  n14 --> n15
-  n0 --> n16
-  n16 --> n17
-  n8 --> n18
-  n16 --> n18
-  n7 --> n19
-  n0 --> n20
-  n10 --> n21
-  n18 --> n21
+  n8 --> n14
+  n13 --> n14
+  n0 --> n15
+  n15 --> n16
+  n8 --> n17
+  n15 --> n17
+  n7 --> n18
+  n0 --> n19
+  n10 --> n20
+  n17 --> n20
+  n18 --> n20
   n19 --> n21
-  n20 --> n22
-  n19 --> n23
-  n0 --> n24
-  n8 --> n25
-  n12 --> n25
-  n24 --> n25
-  n2 --> n26
-  n23 --> n26
-  n18 --> n27
-  n21 --> n28
-  n22 --> n28
-  n27 --> n28
-  n7 --> n29
-  n15 --> n29
-  n20 --> n29
+  n18 --> n22
+  n0 --> n23
+  n8 --> n24
+  n11 --> n24
+  n23 --> n24
+  n2 --> n25
+  n22 --> n25
+  n17 --> n26
+  n20 --> n27
+  n21 --> n27
+  n26 --> n27
+  n7 --> n28
+  n14 --> n28
+  n19 --> n28
+  n24 --> n28
+  n9 --> n29
+  n12 --> n29
   n25 --> n29
-  n9 --> n30
-  n13 --> n30
-  n26 --> n30
-  n28 --> n30
+  n27 --> n29
+  n28 --> n29
   n29 --> n30
   n30 --> n31
-  n31 --> n32
 ```
 
 ## Rebuild

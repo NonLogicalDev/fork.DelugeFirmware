@@ -7,3 +7,5 @@ Completed: [use the upstream Deluge repository and normalize casing with a scrip
 The base now uses official upstream `main` at the pinned source commit and a pre-checkout script. The full projection and replay passed on a case-insensitive filesystem with the recorded final tree. The Deluge plans live in this repository.
 
 Completed: [include the Nix environment in the base layer](completed/plan-04%20Include%20Nix%20environment%20in%20base.md).
+
+Completed: [remove the empty change marker](completed/plan-05%20Remove%20empty%20change%20marker.md).

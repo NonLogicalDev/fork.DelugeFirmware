@@ -26,3 +26,5 @@ The definition worktree is on `layerctl-conversion`. The base fetches upstream `
 
 - The final executable script returns the normalized index tree, preserving file modes and blob IDs. The script rejects destination collisions. The former patch remains recoverable from Git history. Python 3 is documented as a prerequisite.
 - A full SSH rebuild against official upstream reproduced the recorded firmware tree. After the final collision check was added, a full local-source projection and `layerctl check` replay on a case-insensitive filesystem reproduced final tree `e184389511a711f129d12b6064c2d29f760babaf` and base parent `9e3132dc17070695b40f69bada5565a33ce428b4`. The original fork source and provenance remain intact.
+
+- Following the script placement convention, the hook lives in `layers/0001-base/scripts/` and the manifest uses a layer-relative `scripts/` path. Replayed the full projection and `check` with that path on a case-insensitive filesystem; the expected final tree was unchanged. The hook runs in the temporary bare repository.

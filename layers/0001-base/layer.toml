@@ -16,6 +16,6 @@ still refers to an uppercase KORG path; that historical reference may not resolv
 [[operation]]
 [operation.git-clone]
 url = "git@github.com:SynthstromAudible/DelugeFirmware.git"
-pre-checkout-script = "git_normalize_casing.py"
+pre-checkout-script = "scripts/git_normalize_casing.py"
 ref = "refs/heads/main"
 commit = "9e3132dc17070695b40f69bada5565a33ce428b4"

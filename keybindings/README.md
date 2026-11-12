@@ -1,12 +1,20 @@
 # Keybinding catalog
 
-Catalog records, schema, review data, and source snapshots are in `data/`; the maintenance tools are in `scripts/`. Generated reports can be placed in the ignored `generated/` directory. The catalog lives in the layer definitions repository. The current v1.3.0 projection has changed since parts of the catalog were reviewed: the audit reports 68 changed source files and three unreviewed handler candidates. Review those changes before refreshing source hashes. Its source checks read the firmware workspace through the ignored `.layerctl-worktree` link at the repository root. Create a layerctl projection and link it there before running the checks.
+Catalog records, schema, review data, and source snapshots are in `data/`; the maintenance tools are in `scripts/`. Generated reports can be placed in the ignored `generated/` directory. The catalog lives in the layer definitions repository. The current v1.3.0 projection has changed since parts of the catalog were reviewed: the audit reports 68 changed source files. Review those changes before refreshing source hashes. Its source checks read the firmware workspace through the ignored `.layerctl-worktree` link at the repository root. Create a layerctl projection and link it there before running the checks.
 
-`bindings.jsonl` contains 1,275 source-reviewed binding records from the full source inventory and subsequent shortcut changes in this local firmware checkout. The coverage ledger accounts for all 392 definitions discovered by the input-handler scanner, plus manually reviewed helpers and mappings: 519 ledger rows in total. The audit tracks 187 source files across bindings, control definitions and the ledger. This is source documentation, not a hardware-tested guarantee that every possible dispatch path has been found. Firmware source remains authoritative for runtime behavior.
+`bindings.jsonl` contains 1,275 source-reviewed binding records from the full source inventory and subsequent shortcut changes in this local firmware checkout. The coverage ledger contains 521 reviewed or excluded handler and helper records. The current input-handler scan finds 391 candidates, all accounted for by the ledger. The audit tracks 188 source files across bindings, control definitions and the ledger. This is source documentation, not a hardware-tested guarantee that every possible dispatch path has been found. Firmware source remains authoritative for runtime behavior.
 
 Coverage includes global controls, Session Rows/Grid, Arranger, Audio/Instrument Clips, Automation, Performance, keyboard layouts and sidebar controls, sample editors and slicers, browsers/load/save/rename, Sound Editor, context menus, parameter-pad tables, DX7, gold-knob behavior and MIDI-learning gestures. Configurable parameter/assignment families are represented as families; fixed Sound Editor and DX7 pad targets have individual entries. Disabled legacy hardware branches and no-op/forwarding handlers have explicit coverage explanations. Arbitrary user-learned MIDI assignments are not a finite list of physical shortcuts.
 
 Write one complete JSON object per line, without comments, blank records, or an enclosing array. Add each reviewed binding as it is discovered; do not wait for a complete action inventory. Keep existing record order during small edits so a review shows the actual additions. The format is draft 2; the seven initial draft-1 entries have been migrated in place.
+
+## Origin tags
+
+- `upstream` identifies bindings whose cited source files, handler bodies, or selected pad mappings match the pinned upstream base. This comparison is limited to the cited evidence and does not establish whole-program equivalence.
+- `fork:nonlogical` identifies a binding introduced or changed by this fork. A binding can carry both tags when the fork changes upstream behavior.
+- `origin:unverified` marks a binding whose cited code changed or could not be compared and has not yet received a binding-level origin review.
+
+Reviewed exceptions and their evidence live in `data/origin-overrides.json`. Rebuild the tags with `python3 keybindings/scripts/origin_tag.py --write` against a clean `.layerctl-worktree`. The tool leaves ambiguous cases unverified; it does not review changed handlers or refresh coverage hashes. It rejects reviewed overrides when the pinned upstream commit or firmware source tree changes, so they can be reviewed again first.
 
 ## Record fields
 

@@ -1,0 +1,551 @@
+{
+  "source": "Manually reviewed binding origins relative to the pinned upstream base.",
+  "groups": [
+    {
+      "ids": [
+        "kit.row.copy.sound",
+        "kit.row.copy.sound-and-notes",
+        "kit.row.paste"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "Kit row copy and paste are introduced by the fork; see DEVIATIONS.md section 10."
+    },
+    {
+      "ids": [
+        "system.panic.shift-five",
+        "menu.panic.activate"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "The Panic action and five-Shift gesture are introduced by the fork; see DEVIATIONS.md section 9."
+    },
+    {
+      "ids": [
+        "menu.midi.external-step.learn-note",
+        "menu.midi.external-step.learn-cc",
+        "menu.midi.external-step.learn-program",
+        "menu.midi.external-step.clear"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "External Step MIDI Clip controls are introduced by the fork; see DEVIATIONS.md section 23."
+    },
+    {
+      "ids": [
+        "menu.context.slicer-mode",
+        "menu.context.slicer.pad-release",
+        "menu.context.slicer.horizontal-release"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "The slice playback-mode menu is introduced by the fork; see the Manual Slicer behavior in DEVIATIONS.md."
+    },
+    {
+      "ids": [
+        "song.scale-menu.open",
+        "song.scale-menu.release",
+        "song.scale-menu.select-field",
+        "song.scale-menu.begin-edit",
+        "song.scale-menu.finish-edit",
+        "song.scale-menu.root",
+        "song.scale-menu.mode",
+        "song.scale-menu.back-field",
+        "song.scale-menu.close",
+        "song.scale-menu.pad-down",
+        "song.scale-menu.pad-up",
+        "song.scale-menu.vertical"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "The shared Song Root / Mode menu is introduced by the fork; see DEVIATIONS.md section 29."
+    },
+    {
+      "ids": [
+        "menu.envelope.time-fine"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "Held-Select fine envelope adjustments are introduced by the fork; see DEVIATIONS.md section 30."
+    },
+    {
+      "ids": [
+        "slicer.manual.move-start.coarse",
+        "slicer.manual.stop-preview"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "The held-Horizontal coarse step and Shift-Back preview stop are introduced by the fork; see DEVIATIONS.md section 6."
+    },
+    {
+      "ids": [
+        "keyboard.scale.cycle.shift",
+        "instrument.scale-cycle"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream cycles the scale; the fork adds a shared scale menu and restricts the old behavior to fallback cases; see DEVIATIONS.md section 29."
+    },
+    {
+      "ids": [
+        "menu.sample.waveform",
+        "menu.audio.waveform"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream opens waveform editors; the fork changes the menu entry and bound-selection flow; see DEVIATIONS.md section 21."
+    },
+    {
+      "ids": [
+        "menu.envelope.time-coarse"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream supports envelope time adjustment; the fork changes precision and display; see DEVIATIONS.md section 30."
+    },
+    {
+      "ids": [
+        "slicer.manual.move-start.fine",
+        "slicer.switch-mode"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream has these Manual Slicer controls; the fork changes movement bounds or mode-switch handling; see DEVIATIONS.md section 6."
+    },
+    {
+      "ids": [
+        "slicer.manual.show-transpose"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "The v1.3.0 Slicer handles Vertical press in Manual mode to show the slice transpose."
+    },
+    {
+      "ids": [
+        "global.display.swap",
+        "global.back.hold-exit",
+        "global.play.start",
+        "global.play.stop",
+        "global.play.restart.horizontal",
+        "global.play.start-alternate.horizontal",
+        "global.play.restart.cross-screen",
+        "global.play.start-alternate.cross-screen",
+        "global.play.arrangement-pad",
+        "global.record.begin-resampling",
+        "global.record.toggle",
+        "global.record.stop-resampling",
+        "global.record.play-resample",
+        "global.record.stop-at-loop-end",
+        "global.tempo.clear-automation",
+        "global.tempo.show-swing-interval",
+        "global.tempo.show"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared Buttons::buttonAction against v1.3.0: the fork adds Shift panic and Scale-menu interception; the listed non-Shift, non-Scale branches and their other cited handlers match upstream."
+    },
+    {
+      "ids": [
+        "global.shift.activate",
+        "global.shift.release"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Shift activation and release exist upstream; the fork intercepts the five-tap Panic gesture and its release. See DEVIATIONS.md section 9."
+    },
+    {
+      "ids": [
+        "instrument.session",
+        "instrument.automation",
+        "instrument.keyboard",
+        "instrument.wrap",
+        "instrument.sample-record",
+        "instrument.drum-stems",
+        "instrument.cancel-stems",
+        "instrument.cancel-new-row",
+        "instrument.output.kit",
+        "instrument.output.synth",
+        "instrument.output.midi",
+        "instrument.output.cv",
+        "instrument.save-row",
+        "instrument.delete-row",
+        "instrument.delete-unused-rows",
+        "instrument.multiply",
+        "instrument.paste-unscaled",
+        "instrument.repeat-show",
+        "instrument.euclidean-show",
+        "instrument.nudge-show",
+        "instrument.quantize-show"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared InstrumentClipView::buttonAction against v1.3.0: the fork changes a new-Kit-row identifier and adds Kit row copy/paste on Learn; the listed distinct button branches remain unchanged."
+    },
+    {
+      "ids": [
+        "keyboard.exit",
+        "keyboard.return-target",
+        "keyboard.song",
+        "keyboard.output.kit",
+        "keyboard.output.synth",
+        "keyboard.output.midi",
+        "keyboard.output.cv"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared KeyboardScreen::buttonAction against v1.3.0: the fork adds Scale handling for Velocity Drums and records a held Load press; the listed non-Scale navigation and output branches remain unchanged."
+    },
+    {
+      "ids": [
+        "keyboard.drums.report-profile"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "The Scale-release velocity profile report is introduced by the fork; see DEVIATIONS.md section 22."
+    },
+    {
+      "ids": [
+        "menu.sound.back",
+        "menu.sound.save",
+        "menu.sound.learn",
+        "menu.sound.unlearn",
+        "menu.sound.learn-release",
+        "menu.sound.keyboard",
+        "menu.sound.session",
+        "menu.sound.fill",
+        "menu.sound.fill-release",
+        "menu.sound.affect-entire",
+        "menu.sound.affect-release"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared SoundEditor::buttonAction against v1.3.0: the fork modifies the Select waveform-launcher branch; the listed other button branches remain unchanged."
+    },
+    {
+      "ids": [
+        "menu.sound.select"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream activates menu items on Select release; the fork changes Select ownership for shifted waveform launchers. See DEVIATIONS.md section 21."
+    },
+    {
+      "ids": [
+        "sample-marker.exit.mute",
+        "sample-marker.select.pad",
+        "sample-marker.move.pad",
+        "sample-marker.audition-pad"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream has these waveform editor gestures; the fork adds persistent playback-bound selection and stops its owned Kit-row audition when forwarding or exiting. See DEVIATIONS.md sections 19 and 21."
+    },
+    {
+      "ids": [
+        "keyboard.scale.cycle.select",
+        "keyboard.scale.toggle",
+        "keyboard.scale.audition-root",
+        "keyboard.scale.show",
+        "keyboard.drum.load.kit"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared KeyboardScreen::buttonAction with v1.3.0: these non-Shift melodic scale and Kit-button branches remain after the added Velocity Drums Scale handling."
+    },
+    {
+      "ids": [
+        "keyboard.drum.load.load"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "The Kit pad and Load gesture exists upstream; the fork also uses Load to suppress a pending Velocity Drums Scale-profile report. See DEVIATIONS.md section 22."
+    },
+    {
+      "ids": [
+        "slicer.playback-mode-menu",
+        "sample-marker.bound.toggle",
+        "sample-marker.audition",
+        "keyboard.drums.velocity-profile",
+        "keyboard.drums.fixed-velocity",
+        "menu.polyphony.choke-group"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "These controls are introduced by the fork. See DEVIATIONS.md sections 5, 19, 21, 22 and 27."
+    },
+    {
+      "ids": [
+        "keyboard.velocity-drums.play",
+        "keyboard.preview-only"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream provides Velocity Drums and preview-only playing; the fork adds velocity profiles and extends release-safe preview behavior. See DEVIATIONS.md sections 22 and 24."
+    },
+    {
+      "ids": [
+        "sample-marker.move.encoder",
+        "sample-marker.exit.back",
+        "sample-marker.zoom",
+        "sample-marker.scroll",
+        "sample-marker.loop.double",
+        "sample-marker.loop.halve"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream provides waveform marker movement, navigation, loop scaling and Back. The fork adds OLED waveform updates and audition cleanup to those paths; see DEVIATIONS.md sections 17, 19 and 21."
+    },
+    {
+      "ids": [
+        "audio.session",
+        "audio.automation",
+        "audio.remove-stretch",
+        "audio.settings",
+        "audio.clear",
+        "audio.tempo-from-audio",
+        "audio.select-start",
+        "audio.select-end",
+        "audio.place-end",
+        "audio.macro",
+        "audio.output-select",
+        "audio.marker-move",
+        "audio.output-mode",
+        "audio.resize-no-stretch"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "These Audio Clip gestures exist upstream. The fork changes selection and cleanup of Start and End markers during button, pad and encoder flows. See DEVIATIONS.md section 20."
+    },
+    {
+      "ids": [
+        "audio.color"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream supports changing Audio Clip colour; the fork synchronizes the Audio Output colour with Song Grid track colour. See DEVIATIONS.md section 14."
+    },
+    {
+      "ids": [
+        "slicer.mode.auto",
+        "slicer.mode.cut",
+        "slicer.mode.once"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "The fork introduces batch slice playback-mode controls in the Slicer sidebar. See DEVIATIONS.md section 5."
+    },
+    {
+      "ids": [
+        "slicer.count",
+        "slicer.manual.trim-last",
+        "slicer.cancel",
+        "slicer.manual.audition",
+        "slicer.manual.capture",
+        "slicer.manual.delete"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream has these Slicer controls; the fork changes existing-Kit reuse, preview handling, bounds and rendering. See DEVIATIONS.md sections 5 and 6."
+    },
+    {
+      "ids": [
+        "sample-browser.zoom",
+        "sample-browser.cursor"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared SampleBrowser::horizontalEncoderAction with v1.3.0: the fork changes pad intensity on the scroll path; the zoom and text-cursor branches remain unchanged."
+    },
+    {
+      "ids": [
+        "session.transpose",
+        "session.grid-scroll-x",
+        "session.grid-scroll-y"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared the Session View encoder handlers with v1.3.0: the fork changes clip and track colour handling; the listed transpose and Grid scrolling branches remain unchanged."
+    },
+    {
+      "ids": [
+        "sample-browser.scroll",
+        "sample-browser.options.select",
+        "timeline.zoom",
+        "timeline.scroll",
+        "session.clip-color",
+        "session.grid-color"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream provides these gestures. The fork changes waveform rendering, Kit creation options, negative timeline navigation, or shared Audio track colours in their respective paths; see DEVIATIONS.md sections 5, 14, 17 and 20."
+    },
+    {
+      "ids": [
+        "sample-marker.loop.start.create",
+        "sample-marker.loop.start.remove",
+        "sample-marker.loop.start.remove.reverse",
+        "sample-marker.loop.end.create",
+        "sample-marker.loop.end.remove",
+        "sample-marker.loop.end.remove.reverse"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream supports these loop-marker gestures. The fork records the selected playback bound when the Start or End marker is pressed, affecting later editor selection. See DEVIATIONS.md section 21."
+    },
+    {
+      "ids": [
+        "sample-marker.loop.lock"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared SampleMarkerEditor::padAction with v1.3.0: loop-marker locking is unchanged; the fork only adds audition cleanup and persistence for selected Start and End playback bounds."
+    },
+    {
+      "ids": [
+        "menu.pad.old-sound-0",
+        "menu.pad.old-sound-1"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared SoundEditor::setShortcutsVersion with v1.3.0: the old-layout Sound shortcut assignments remain unchanged; the fork changes Audio Clip marker assignments."
+    },
+    {
+      "ids": [
+        "menu.pad.audio.0-7",
+        "menu.pad.audio.1-7",
+        "menu.pad.old-audio-0",
+        "menu.pad.old-audio-1"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream provides these Audio Clip sample-marker shortcuts; the fork consolidates their target and changes playback-bound selection. See DEVIATIONS.md section 21."
+    },
+    {
+      "ids": [
+        "menu.context.kit-option-0",
+        "menu.context.kit-option-1"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream provides folder import and region slicing. The fork changes eligibility and supports reuse of an existing Kit. See DEVIATIONS.md section 5."
+    },
+    {
+      "ids": [
+        "menu.context.kit-option-2"
+      ],
+      "tags": [
+        "fork:nonlogical"
+      ],
+      "evidence": "The fork adds the Manual Slice option to Kit sample creation. See DEVIATIONS.md section 5."
+    },
+    {
+      "ids": [
+        "keyboard.scale.pad-root",
+        "keyboard.colour",
+        "keyboard.resample"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared the listed Keyboard View branches against v1.3.0. The fork adds chord and preview lifecycle handling and Velocity Drums modifiers, but these root, colour, and resample branches remain unchanged."
+    },
+    {
+      "ids": [
+        "instrument.load-synth-sample.load",
+        "instrument.load-synth-sample.kit",
+        "instrument.note-editor",
+        "instrument.reorder-press",
+        "instrument.scale-root-pad",
+        "instrument.mute",
+        "instrument.drag-row",
+        "instrument.velocity-editor"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared the Instrument Clip button and pad handlers against v1.3.0. The fork adds Kit clipboard and audition-lifecycle handling; these distinct existing branches remain unchanged."
+    },
+    {
+      "ids": [
+        "menu.sound.delete-range"
+      ],
+      "tags": [
+        "upstream"
+      ],
+      "evidence": "Compared SoundEditor::buttonAction and MultiRange::deletePress against v1.3.0: the fork changes the Select waveform-launcher branch, while Delete Range remains unchanged."
+    },
+    {
+      "ids": [
+        "instrument.load-row.load",
+        "instrument.load-row.kit",
+        "instrument.notes-copy",
+        "instrument.notes-paste",
+        "instrument.row-editor",
+        "instrument.audition",
+        "instrument.audition-preview",
+        "note-menu.row-select"
+      ],
+      "tags": [
+        "fork:nonlogical",
+        "upstream"
+      ],
+      "evidence": "Upstream provides these Kit row, note clipboard, row editor, and audition gestures. The fork changes Kit row identity, clipboard dispatch, or preview recording lifecycle. See DEVIATIONS.md sections 5, 10 and 24."
+    }
+  ],
+  "upstream_commit": "156500e7c4b756840bd4b116e70a3b27c27d64bb",
+  "firmware_source_tree": "a9fa6af29dd3743179675e3f16923ecb2eb2f61d"
+}

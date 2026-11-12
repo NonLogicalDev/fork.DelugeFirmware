@@ -15,9 +15,60 @@ from jsonschema import Draft202012Validator
 
 import audit
 import inventory
+import origin_tag
 import validate
 
 DIRECTORY = Path(__file__).resolve().parent.parent / "data"
+
+
+class OriginTests(unittest.TestCase):
+    def test_matching_handler_ignores_unrelated_file_changes(self):
+        source = {'file': 'file.cpp', 'symbol': 'View::buttonAction', 'role': 'handler'}
+        old = 'void View::buttonAction() { show("a"); }\nint other = 1;'
+        new = 'void View::buttonAction() { show("a"); }\nint other = 2;'
+        self.assertTrue(origin_tag.reference_matches(source, old, new, 'select.down'))
+
+    def test_changed_or_ambiguous_handler_needs_review(self):
+        source = {'file': 'file.cpp', 'symbol': 'View::buttonAction', 'role': 'handler'}
+        record = {'id': 'x', 'key': 'select.down', 'sources': [source]}
+        files = {'file.cpp': ('void View::buttonAction() { a(); }', 'void View::buttonAction() { b(); }')}
+        self.assertEqual(origin_tag.classify(record, files, {}), {'origin:unverified'})
+        self.assertEqual(origin_tag.classify(record, files, {'x': {'upstream', 'fork:nonlogical'}}), {'upstream', 'fork:nonlogical'})
+
+    def test_pad_mapping_compares_the_selected_cell(self):
+        source = {'file': 'file.cpp', 'symbol': 'shortcuts', 'role': 'mapping', 'anchor': '&second'}
+        old = 'Menu* shortcuts[][2] = {{&first, &second}, {&third, &fourth}};'
+        unrelated = 'Menu* shortcuts[][2] = {{&changed, &second}, {&third, &fourth}};'
+        changed = 'Menu* shortcuts[][2] = {{&first, &changed}, {&third, &fourth}};'
+        self.assertTrue(origin_tag.reference_matches(source, old, unrelated, 'pad[0,1].down'))
+        self.assertFalse(origin_tag.reference_matches(source, old, changed, 'pad[0,1].down'))
+
+
+    def test_method_section_fallback_compares_complete_section(self):
+        old = 'void View::buttonAction() {\n#if FIRST\n{\n#else\n{\n#endif\n}\nvoid View::next() {}\n'
+        same = old + '// unrelated later change\n'
+        changed = old.replace('FIRST', 'SECOND')
+        source = {'file': 'file.cpp', 'symbol': 'View::buttonAction', 'role': 'handler'}
+        self.assertTrue(origin_tag.reference_matches(source, old, same, 'select.down'))
+        self.assertFalse(origin_tag.reference_matches(source, old, changed, 'select.down'))
+
+    def test_named_shortcut_arrays_use_their_hardware_indices(self):
+        one = 'Menu* midiOrCVParamShortcuts[2] = {&first, &second};'
+        self.assertEqual(origin_tag.grid_entry(one, 'midiOrCVParamShortcuts', 'pad[11,1].down'), '&second')
+        self.assertIsNone(origin_tag.grid_entry(one, 'midiOrCVParamShortcuts', 'pad[10,1].down'))
+        two = 'Source modSourceShortcuts[2][2] = {{first, second}, {third, fourth}};'
+        self.assertEqual(origin_tag.grid_entry(two, 'modSourceShortcuts', 'pad[15,1].down'), 'fourth')
+        self.assertIsNone(origin_tag.grid_entry(two, 'modSourceShortcuts', 'pad[13,1].down'))
+
+    def test_review_overrides_are_tied_to_the_source_revision(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            data = Path(temporary)
+            (data / 'origin-overrides.json').write_text(json.dumps({
+                'upstream_commit': 'old', 'firmware_source_tree': 'tree', 'groups': []
+            }))
+            with patch.object(origin_tag, 'DATA', data):
+                with self.assertRaisesRegex(ValueError, 'review origin overrides'):
+                    origin_tag.load_overrides('new', 'tree')
 
 
 class InventoryTests(unittest.TestCase):

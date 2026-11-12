@@ -20,7 +20,8 @@
       "original_tree": "3571b14f010533c4d07d32e7c180814711e7d87e",
       "original_headers": "tree 3571b14f010533c4d07d32e7c180814711e7d87e\nparent c2686c4b72671e56c4acf7d1648204f7361fefe7\nauthor Oleg Utkin <oleg@nonlogical.net> 1787360564 -0700\ncommitter Oleg Utkin <oleg@nonlogical.net> 1789330574 -0700\nchange-id zyyvmolzkvlmyrpokulwrupktooklvzo",
       "original_message": "add local Nix build environment\n",
-      "empty_message_replaced": false
+      "empty_message_replaced": false,
+      "integrated_into": "0001-base"
     },
     {
       "layer": "0004-add-keyboard-view-chord-detection",

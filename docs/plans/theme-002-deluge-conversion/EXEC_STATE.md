@@ -5,3 +5,5 @@ Status: complete locally. Detailed layer messages are wrapped at 120 characters;
 Completed: [use the upstream Deluge repository and normalize casing with a script](completed/plan-03%20Use%20upstream%20source.md).
 
 The base now uses official upstream `main` at the pinned source commit and a pre-checkout script. The full projection and replay passed on a case-insensitive filesystem with the recorded final tree. The Deluge plans live in this repository.
+
+Completed: [include the Nix environment in the base layer](completed/plan-04%20Include%20Nix%20environment%20in%20base.md).

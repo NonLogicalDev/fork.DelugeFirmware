@@ -13,5 +13,3 @@ Completed: [remove the empty change marker](completed/plan-05%20Remove%20empty%2
 Completed: [format layer commit messages](completed/plan-06%20Format%20layer%20commit%20messages.md).
 
 Completed: [convert the casing hook to Perl](completed/plan-07%20Convert%20casing%20hook%20to%20Perl.md).
-
-Completed: [integrate firmware plans into the repository themes](completed/plan-08%20Move%20firmware%20plans%20into%20repository.md).

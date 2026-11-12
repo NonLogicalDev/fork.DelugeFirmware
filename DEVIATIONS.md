@@ -941,7 +941,7 @@ Catalog physical controls from the source so players can look up forgotten short
 
 ### Behavior
 
-- The repository provides `docs/keybindings/bindings.jsonl`, with one independent JSON object per line. Add entries as bindings are reviewed; do not wait for a complete action inventory.
+- The repository provides `keybindings/data/bindings.jsonl`, with one independent JSON object per line. Add entries as bindings are reviewed; do not wait for a complete action inventory.
 - Each record identifies the binding, applicable mode, physical gesture, semantic action and arguments, user-facing description, relevant conditions, controlled tags, search keywords, source files and symbols, and verification scope. Relevant timing, partial effects, release ownership, dispatch order, consumed failures, and cancellation remain visible.
 - Multiple bindings for one action retain a shared action identity. Separate bindings and arguments remain distinguishable so contextual reuse and possible inconsistencies can be audited.
 - The catalog declares its incomplete state and records uncertainty. Missing entries do not imply missing firmware functionality. Do not describe source review as hardware testing or proof that every input path is reachable.

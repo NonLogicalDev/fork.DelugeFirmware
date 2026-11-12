@@ -1,0 +1,303 @@
+diff --git a/src/deluge/gui/menu_item/envelope/envelope_menu.h b/src/deluge/gui/menu_item/envelope/envelope_menu.h
+index 40a2332c412cdf96e053c27ceb81dec953d6fb27..75206135c0f8ae58c74c3ec2cc38289e9d44421f 100644
+--- a/src/deluge/gui/menu_item/envelope/envelope_menu.h
++++ b/src/deluge/gui/menu_item/envelope/envelope_menu.h
+@@ -19,6 +19,7 @@
+ #include "gui/menu_item/horizontal_menu.h"
+ #include "hid/display/oled.h"
+ #include "segment.h"
++#include "time_value.h"
+ 
+ using namespace deluge::hid::display;
+ 
+@@ -32,11 +33,15 @@ public:
+ 	[[nodiscard]] std::string_view getTitle() const override { return FormattedTitle::title(); }
+ 
+ 	void renderMenuItems(std::span<MenuItem*> items, const MenuItem* currentItem) override {
+-		// Get the values in 0-50 range
+-		const int32_t attack = static_cast<Segment*>(items[0])->getValue();
+-		const int32_t decay = static_cast<Segment*>(items[1])->getValue();
+-		const int32_t sustain = static_cast<Segment*>(items[2])->getValue();
+-		const int32_t release = static_cast<Segment*>(items[3])->getValue();
++		// Time segments use hundredths; Sustain still uses whole units. Keep fine fractions in the graph.
++		const auto valueForGraph = [](MenuItem* item) {
++			auto* segment = static_cast<Segment*>(item);
++			return graphValue(segment->getValue(), segment->getMaxValue());
++		};
++		const float attack = valueForGraph(items[0]);
++		const float decay = valueForGraph(items[1]);
++		const float sustain = valueForGraph(items[2]);
++		const float release = valueForGraph(items[3]);
+ 
+ 		// Constants
+ 		constexpr int32_t padding_x = 4;
+diff --git a/src/deluge/gui/menu_item/envelope/segment.cpp b/src/deluge/gui/menu_item/envelope/segment.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..a469ea2e5662ce690121bcbf4289b273acc883ee
+--- /dev/null
++++ b/src/deluge/gui/menu_item/envelope/segment.cpp
+@@ -0,0 +1,110 @@
++#include "gui/menu_item/envelope/segment.h"
++#include "gui/menu_item/envelope/time_value.h"
++#include "gui/ui/sound_editor.h"
++#include "hid/buttons.h"
++#include "hid/display/oled.h"
++#include "modulation/params/param_set.h"
++#include "util/functions.h"
++
++namespace deluge::gui::menu_item::envelope {
++
++void Segment::readCurrentValue() {
++	if (!isTime()) {
++		return source::PatchedParam::readCurrentValue();
++	}
++	rawValue_ = soundEditor.currentParamManager->getPatchedParamSet()->getValue(getP());
++	setValue(timeValueHundredths(rawValue_));
++}
++
++int32_t Segment::getFinalValue() {
++	return isTime() ? rawValue_ : source::PatchedParam::getFinalValue();
++}
++
++void Segment::selectEncoderAction(int32_t offset) {
++	if (!isTime()) {
++		return source::PatchedParam::selectEncoderAction(offset);
++	}
++	if (offset == 0) {
++		return;
++	}
++	const bool fine = Buttons::isButtonPressed(hid::button::SELECT_ENC);
++	if (Buttons::isButtonPressed(hid::button::SELECT_ENC)) {
++		Buttons::selectButtonPressUsedUp = true;
++	}
++	const int32_t next = stepTimeValue(rawValue_, offset, fine);
++	if (next == rawValue_) {
++		return;
++	}
++	rawValue_ = next;
++	setValue(timeValueHundredths(rawValue_));
++	// Retain the shared parameter write, Kit affect-entire, MIDI feedback and automation paths.
++	Number::selectEncoderAction(offset);
++}
++
++void Segment::getNotificationValue(StringBuf& value) {
++	if (!isTime()) {
++		return Number::getNotificationValue(value);
++	}
++	value.appendFloat(getValue() / 100.f, 2, 2);
++}
++
++void Segment::drawValue() {
++	if (!isTime()) {
++		return source::PatchedParam::drawValue();
++	}
++	DEF_STACK_STRING_BUF(value, 12);
++	getNotificationValue(value);
++	display->setText(value, true, shouldDrawDotOnName());
++}
++
++void Segment::appendTime(StringBuf& value) {
++	const uint8_t p = getP();
++	// Match the unmodulated preset cable and rate conversion, not the full-width stored value.
++	const int32_t combined = multiply_32x32_rshift32(rawValue_, paramRanges[p]);
++	const int32_t rate = getFinalParameterValueExpWithDumbEnvelopeHack(paramNeutralValues[p], combined, p);
++	if (rate <= 0) {
++		value.append("infinite");
++		return;
++	}
++	const bool attack = menu_item::PatchedParam::getP() == modulation::params::LOCAL_ENV_0_ATTACK;
++	const float milliseconds = nominalTimeMilliseconds(rate, attack, kSampleRate);
++	if (milliseconds < 1000.f) {
++		value.appendFloat(milliseconds, milliseconds < 10.f ? 2 : 1, milliseconds < 10.f ? 2 : 1);
++		value.append(" ms");
++	}
++	else {
++		value.appendFloat(milliseconds / 1000.f, 2, 2);
++		value.append(" s");
++	}
++}
++
++void Segment::drawPixelsForOled() {
++	if (!isTime()) {
++		return source::PatchedParam::drawPixelsForOled();
++	}
++	DEF_STACK_STRING_BUF(value, 16);
++	getNotificationValue(value);
++	hid::display::OLED::main.drawStringCentred(value.c_str(), OLED_MAIN_TOPMOST_PIXEL + 15, kTextSpacingX,
++	                                           kTextSpacingY);
++	DEF_STACK_STRING_BUF(time, 32);
++	time.append("Base ~");
++	appendTime(time);
++	hid::display::OLED::main.drawStringCentred(time.c_str(), OLED_MAIN_TOPMOST_PIXEL + 25, kTextSpacingX,
++	                                           kTextSpacingY);
++#if OLED_MAIN_VISIBLE_HEIGHT >= 42
++	hid::display::OLED::main.drawStringCentred("Hold SELECT: fine", OLED_MAIN_TOPMOST_PIXEL + 35, kTextSpacingX,
++	                                           kTextSpacingY);
++#endif
++}
++
++void Segment::renderInHorizontalMenu(const SlotPosition& slot) {
++	if (!isTime()) {
++		return Number::renderInHorizontalMenu(slot);
++	}
++	DEF_STACK_STRING_BUF(value, 12);
++	getNotificationValue(value);
++	hid::display::OLED::main.drawStringCentered(value, slot.start_x, slot.start_y + kHorizontalMenuSlotYOffset,
++	                                            kTextSmallSpacingX, kTextSmallSizeY, slot.width);
++}
++
++} // namespace deluge::gui::menu_item::envelope
+diff --git a/src/deluge/gui/menu_item/envelope/segment.h b/src/deluge/gui/menu_item/envelope/segment.h
+index 800f630027ef1362299fabf07b1fc27460b45f78..8898f2eb1a880bc337f355457b841c51c83e720b 100644
+--- a/src/deluge/gui/menu_item/envelope/segment.h
++++ b/src/deluge/gui/menu_item/envelope/segment.h
+@@ -27,6 +27,9 @@ public:
+ 	    : PatchedParam(newName, title, newP, source_id), FormattedTitle(title, source_id + 1) {}
+ 
+ 	[[nodiscard]] std::string_view getTitle() const override { return FormattedTitle::title(); }
++	void selectEncoderAction(int32_t offset) override;
++	void drawValue() override;
++	[[nodiscard]] int32_t getMaxValue() const override { return isTime() ? 5000 : 50; }
+ 
+ 	void getColumnLabel(StringBuf& label) override {
+ 		const auto& shortNameString = getShortEnvelopeParamName(menu_item::PatchedParam::getP());
+@@ -34,6 +37,16 @@ public:
+ 	}
+ 
+ private:
++	bool isTime() const { return timeSegment_; }
++	void readCurrentValue() override;
++	int32_t getFinalValue() override;
++	void drawPixelsForOled() override;
++	void renderInHorizontalMenu(const SlotPosition& slot) override;
++	void getNotificationValue(StringBuf& value) override;
++	void appendTime(StringBuf& value);
++	int32_t rawValue_ = 0;
++	bool timeSegment_ = menu_item::PatchedParam::getP() != modulation::params::LOCAL_ENV_0_SUSTAIN;
++
+ 	static l10n::String getShortEnvelopeParamName(uint8_t param) {
+ 		using namespace deluge::modulation;
+ 		switch (param) {
+diff --git a/src/deluge/gui/menu_item/envelope/time_value.h b/src/deluge/gui/menu_item/envelope/time_value.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..6b3af20ab250d0f8273007905024279c27067b79
+--- /dev/null
++++ b/src/deluge/gui/menu_item/envelope/time_value.h
+@@ -0,0 +1,31 @@
++#pragma once
++
++#include <algorithm>
++#include <cstdint>
++
++namespace deluge::gui::menu_item::envelope {
++
++// The overview uses legacy 0-50 geometry, independent of a segment's editing precision.
++constexpr float graphValue(int32_t value, int32_t maximum) {
++	return static_cast<float>(value) * 50.f / maximum;
++}
++
++// Display rounding never becomes the source of an edit: retain any off-grid saved value.
++constexpr int32_t timeValueHundredths(int32_t raw) {
++	return ((static_cast<int64_t>(raw) - INT32_MIN) * 5000 + (int64_t{1} << 31)) >> 32;
++}
++
++constexpr int32_t stepTimeValue(int32_t raw, int32_t offset, bool fine) {
++	const int64_t delta = static_cast<int64_t>(offset) * 85899345 / (fine ? 100 : 1);
++	return std::clamp<int64_t>(static_cast<int64_t>(raw) + delta, INT32_MIN, INT32_MAX);
++}
++
++// This is a phase-traversal estimate, not a measurement of block-quantized playback.
++constexpr float nominalTimeMilliseconds(int32_t rate, bool attack, int32_t sampleRate) {
++	if (attack && rate > 245632) {
++		return 0.f;
++	}
++	return (8388608.0f * 1000.f / sampleRate) / rate;
++}
++
++} // namespace deluge::gui::menu_item::envelope
+diff --git a/tests/unit/CMakeLists.txt b/tests/unit/CMakeLists.txt
+index 2ac927bc91fe1d884dbd71b8596109ff26bc8a1a..61bc4e0e143613d78099950a27869bc1e6f08206 100644
+--- a/tests/unit/CMakeLists.txt
++++ b/tests/unit/CMakeLists.txt
+@@ -86,6 +86,7 @@ add_executable(UnitTests
+         lfo_tests.cpp
+         scale_tests.cpp
+         value_scaling_tests.cpp
++        envelope_time_tests.cpp
+         clip_iterator_tests.cpp
+         function_tests.cpp
+         volume_param_gain_tests.cpp
+diff --git a/tests/unit/envelope_time_tests.cpp b/tests/unit/envelope_time_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..c69c8f2524fb8942a7f23e82f5abc0925bb06fcb
+--- /dev/null
++++ b/tests/unit/envelope_time_tests.cpp
+@@ -0,0 +1,68 @@
++#include "CppUTest/TestHarness.h"
++#include "gui/menu_item/envelope/time_value.h"
++
++using namespace deluge::gui::menu_item::envelope;
++
++TEST_GROUP(EnvelopeTime){};
++
++TEST(EnvelopeTime, GraphPreservesLegacyRangeAndFineFractions) {
++	for (int32_t whole = 0; whole <= 50; ++whole) {
++		DOUBLES_EQUAL(whole, graphValue(whole * 100, 5000), 0.00001);
++		DOUBLES_EQUAL(whole, graphValue(whole, 50), 0.00001);
++	}
++	for (int32_t fine = 0; fine <= 5000; ++fine) {
++		const float value = graphValue(fine, 5000);
++		CHECK(value >= 0.f && value <= 50.f);
++		DOUBLES_EQUAL(fine / 100.f, value, 0.00001);
++	}
++	DOUBLES_EQUAL(0.01, graphValue(1, 5000), 0.00001);
++}
++
++TEST(EnvelopeTime, DisplayRangeAndMidpoint) {
++	CHECK_EQUAL(0, timeValueHundredths(INT32_MIN));
++	CHECK_EQUAL(2500, timeValueHundredths(0));
++	CHECK_EQUAL(5000, timeValueHundredths(INT32_MAX));
++}
++
++TEST(EnvelopeTime, FineAndCoarsePreserveOffGridResidual) {
++	constexpr int32_t raw = 123456789;
++	CHECK_EQUAL(raw, stepTimeValue(raw, 0, false));
++	CHECK_EQUAL(raw, stepTimeValue(raw, 0, true));
++	CHECK_EQUAL(raw, stepTimeValue(stepTimeValue(raw, 1, false), -1, false));
++	CHECK_EQUAL(raw, stepTimeValue(stepTimeValue(raw, 1, true), -1, true));
++	CHECK_EQUAL(100, timeValueHundredths(stepTimeValue(raw, 1, false)) - timeValueHundredths(raw));
++	CHECK_EQUAL(1, timeValueHundredths(stepTimeValue(raw, 1, true)) - timeValueHundredths(raw));
++}
++
++TEST(EnvelopeTime, SaturatesEvenForExtremeEncoderOffsets) {
++	CHECK_EQUAL(INT32_MAX, stepTimeValue(0, INT32_MAX, false));
++	CHECK_EQUAL(INT32_MIN, stepTimeValue(0, INT32_MIN, false));
++	CHECK_EQUAL(INT32_MAX, stepTimeValue(INT32_MAX, 1, true));
++	CHECK_EQUAL(INT32_MIN, stepTimeValue(INT32_MIN, -1, true));
++	CHECK(stepTimeValue(INT32_MAX, -1, true) < INT32_MAX);
++	CHECK(stepTimeValue(INT32_MIN, 1, true) > INT32_MIN);
++}
++
++TEST(EnvelopeTime, DisplayAndEditsAreMonotonic) {
++	int32_t previous = -1;
++	for (int64_t raw = INT32_MIN; raw <= INT32_MAX; raw += 858993) {
++		const int32_t value = timeValueHundredths(raw);
++		CHECK(value >= previous);
++		CHECK(stepTimeValue(raw, 1, true) > raw);
++		previous = value;
++	}
++}
++
++TEST(EnvelopeTime, NominalPhaseTimeAndImmediateAttack) {
++	DOUBLES_EQUAL(0.0, nominalTimeMilliseconds(245633, true, 44100), 0.0);
++	CHECK(nominalTimeMilliseconds(245632, true, 44100) > 0.f);
++	DOUBLES_EQUAL(46.43991, nominalTimeMilliseconds(4096, true, 44100), 0.001);
++	DOUBLES_EQUAL(11888.616, nominalTimeMilliseconds(16, true, 44100), 0.01);
++	DOUBLES_EQUAL(190217.87, nominalTimeMilliseconds(1, false, 44100), 0.1);
++	float previous = nominalTimeMilliseconds(1, false, 44100);
++	for (int32_t rate = 2; rate < 100000; rate += 103) {
++		const float next = nominalTimeMilliseconds(rate, false, 44100);
++		CHECK(next < previous);
++		previous = next;
++	}
++}

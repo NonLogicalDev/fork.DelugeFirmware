@@ -1,0 +1,552 @@
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+index 04fe2d7bfb968410b55ff3f664630c43d6e5afde..3b9015bda2c4f7ec0906fb4255409b502f4f4044 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.cpp
+@@ -957,12 +957,24 @@ void KeyboardScreen::displayOrLanguageChanged() {
+ 
+ void KeyboardScreen::openedInBackground() {
+ 	getCurrentInstrumentClip()->onKeyboardScreen = true;
++	refreshScaleMapping();
++}
++
++bool KeyboardScreen::refreshScaleMapping(bool preserveSongScale) {
++	bool changedLayout = false;
++	auto& layout = getCurrentInstrumentClip()->keyboardState.currentLayout;
++	if (preserveSongScale && !layout_list[layout]->supportsScale(currentSong->getCurrentScale())) {
++		// Chord precalculation otherwise changes the Song back to its last supported scale.
++		layout = KeyboardLayoutType::KeyboardLayoutTypeInKey;
++		changedLayout = true;
++	}
+ 
+ 	// Ensure scroll values are calculated in bounds
+ 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->handleHorizontalEncoder(0, false, pressedPads,
+ 	                                                                                              xEncoderActive);
+ 	layout_list[getCurrentInstrumentClip()->keyboardState.currentLayout]->precalculate();
+ 	requestRendering(); // This one originally also included sidebar, the other ones didn't
++	return changedLayout;
+ }
+ 
+ void KeyboardScreen::checkNewInstrument(Instrument* newInstrument) {
+diff --git a/src/deluge/gui/ui/keyboard/keyboard_screen.h b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+index af48e206ee73b1a92b447c803a638e8dcfe5c060..5ad645ac3b3f5ba073fa991f7ede74da5fc26362 100644
+--- a/src/deluge/gui/ui/keyboard/keyboard_screen.h
++++ b/src/deluge/gui/ui/keyboard/keyboard_screen.h
+@@ -38,6 +38,8 @@ public:
+ 	KeyboardScreen();
+ 
+ 	ActionResult padAction(int32_t x, int32_t y, int32_t velocity) override;
++	// A Song-key editor must preserve its selected scale even when Chord layout cannot display it.
++	bool refreshScaleMapping(bool preserveSongScale = false);
+ 	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
+ 	ActionResult verticalEncoderAction(int32_t offset, bool inCardRoutine) override;
+ 	ActionResult horizontalEncoderAction(int32_t offset) override;
+diff --git a/src/deluge/gui/ui/scale_menu.cpp b/src/deluge/gui/ui/scale_menu.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..b20c56cbb5c232e6dd5cce9f03a22764bbd71deb
+--- /dev/null
++++ b/src/deluge/gui/ui/scale_menu.cpp
+@@ -0,0 +1,234 @@
++#include "gui/ui/scale_menu.h"
++#include "extern.h"
++
++#include "gui/ui/keyboard/keyboard_screen.h"
++#include "gui/ui/root_ui.h"
++#include "gui/views/arranger_view.h"
++#include "gui/views/automation_view.h"
++#include "gui/views/instrument_clip_view.h"
++#include "gui/views/performance_view.h"
++#include "gui/views/session_view.h"
++#include "hid/buttons.h"
++#include "hid/display/display.h"
++#include "hid/led/indicator_leds.h"
++#include "hid/matrix/matrix_driver.h"
++#include "io/midi/device_specific/specific_midi_device.h"
++#include "model/action/action_logger.h"
++#include "model/clip/clip.h"
++#include "model/output.h"
++#include "model/song/song.h"
++#include <algorithm>
++
++ScaleMenu scaleMenu;
++
++namespace {
++constexpr const char* rootNames[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
++int32_t pitchClass(int32_t note) {
++	return (note % 12 + 12) % 12;
++}
++} // namespace
++
++bool ScaleMenu::canOpen(bool otherButtonHeld) {
++	UI* ui = getCurrentUI();
++	if (!currentSong || ui != getRootUI() || currentUIMode != UI_MODE_NONE || otherButtonHeld
++	    || !Buttons::isShiftButtonPressed()) {
++		return false;
++	}
++	for (int32_t x = 0; x < kDisplayWidth + kSideBarWidth; ++x) {
++		for (int32_t y = 0; y < kDisplayHeight; ++y) {
++			if (matrixDriver.isPadPressed(x, y)) {
++				return false;
++			}
++		}
++	}
++	if (ui == &sessionView || ui == &arrangerView || ui == &performanceView
++	    || (ui == &automationView && automationView.onArrangerView)) {
++		return true;
++	}
++	if (ui != &instrumentClipView && ui != &keyboardScreen && ui != &automationView) {
++		return false;
++	}
++	Clip* clip = getCurrentClip();
++	return clip && clip->type == ClipType::INSTRUMENT && clip->output && clip->output->type != OutputType::KIT;
++}
++
++ActionResult ScaleMenu::handleScaleButton(bool on, bool inCardRoutine, bool otherButtonHeld) {
++	using Result = ScaleMenuGesture::Result;
++	switch (gesture_.handle(on, canOpen(otherButtonHeld), inCardRoutine)) {
++	case Result::PASS:
++		return ActionResult::NOT_DEALT_WITH;
++	case Result::DEFER:
++		return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
++	case Result::OPEN:
++		// Do not replay the gesture into a different UI if opening fails.
++		openUI(this);
++		[[fallthrough]];
++	case Result::CONSUME:
++		return ActionResult::DEALT_WITH;
++	}
++	return ActionResult::NOT_DEALT_WITH;
++}
++
++bool ScaleMenu::opened() {
++	// Scale is handled before the native Clip view sees it; dismiss its Shift shortcut colors explicitly.
++	UI* root = getRootUI();
++	if (root == &instrumentClipView) {
++		instrumentClipView.stopShortcutOverview();
++	}
++	else if (root == &automationView) {
++		automationView.stopShortcutOverview();
++	}
++	row_ = 0;
++	editing_ = false;
++	keyboardLayoutChanged_ = false;
++	focusRegained();
++	return true;
++}
++
++void ScaleMenu::focusRegained() {
++	indicator_leds::blinkLed(IndicatorLED::BACK);
++	refresh();
++}
++
++void ScaleMenu::displayOrLanguageChanged() {
++	refresh();
++}
++
++bool ScaleMenu::getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) {
++	*cols = 0;
++	*rows = 0;
++	return true;
++}
++
++ActionResult ScaleMenu::padAction(int32_t x, int32_t y, int32_t velocity) {
++	ActionResult result = getRootUI()->padAction(x, y, velocity);
++	// The native gesture may open another UI. Never replace its display with this menu.
++	if (getCurrentUI() == this && result != ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE) {
++		display->cancelPopup();
++		refresh();
++	}
++	return result;
++}
++
++ActionResult ScaleMenu::verticalEncoderAction(int32_t offset, bool inCardRoutine) {
++	ActionResult result = getRootUI()->verticalEncoderAction(offset, inCardRoutine);
++	if (getCurrentUI() == this && result != ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE) {
++		display->cancelPopup();
++		refresh();
++	}
++	return result;
++}
++
++void ScaleMenu::refresh() {
++	if (display->have7SEG()) {
++		const char* text = row_ == 0 ? "ROOT" : "MODE";
++		if (editing_) {
++			text = row_ == 0 ? rootNames[pitchClass(currentSong->key.rootNote)]
++			                 : getScaleName(currentSong->getCurrentScale());
++		}
++		display->setScrollingText(text);
++	}
++	renderUIsForOled();
++}
++
++ActionResult ScaleMenu::buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
++	using namespace deluge::hid::button;
++	if (b == SELECT_ENC || b == BACK) {
++		if (on) {
++			if (inCardRoutine) {
++				return ActionResult::REMIND_ME_OUTSIDE_CARD_ROUTINE;
++			}
++			if (b == BACK && !editing_) {
++				close();
++			}
++			else {
++				editing_ = b == SELECT_ENC ? !editing_ : false;
++				refresh();
++			}
++		}
++		return ActionResult::DEALT_WITH;
++	}
++	// Keep ordinary transport and Shift lifecycle, but do not forward sound-editing controls.
++	return b == SHIFT || b == PLAY || b == RECORD ? ActionResult::NOT_DEALT_WITH : ActionResult::DEALT_WITH;
++}
++
++void ScaleMenu::changeMode(int8_t offset) {
++	NoteSet present = currentSong->notesInScaleModeClips();
++	present.add(0);
++	std::bitset<NUM_ALL_SCALES> available;
++	for (int i = 0; i < NUM_ALL_SCALES; ++i) {
++		bool enabled = i == USER_SCALE ? currentSong->hasUserScale() : !currentSong->disabledPresetScales[i];
++		const NoteSet& notes = i == USER_SCALE ? currentSong->getUserScaleNotes() : presetScaleNotes[i];
++		available[i] = enabled && present.scaleSize() <= notes.scaleSize();
++	}
++	Scale candidate = stepScaleMenuMode(currentSong->getCurrentScale(), offset, available);
++	if (candidate >= NUM_ALL_SCALES || !available[candidate]) {
++		return;
++	}
++	// setScale can reject a request; preserve history until a genuine mutation succeeds.
++	const NoteSet& target = candidate == USER_SCALE ? currentSong->getUserScaleNotes() : presetScaleNotes[candidate];
++	if (target != currentSong->key.modeNotes && currentSong->setScale(candidate) != NO_SCALE) {
++		actionLogger.deleteAllLogs();
++		notifyScaleChanged();
++	}
++}
++
++void ScaleMenu::notifyScaleChanged() {
++	UI* root = getRootUI();
++	if (root == &instrumentClipView || (root == &automationView && !automationView.onArrangerView)) {
++		instrumentClipView.recalculateColours();
++	}
++	if (root == &keyboardScreen) {
++		keyboardLayoutChanged_ |= keyboardScreen.refreshScaleMapping(true);
++	}
++	uiNeedsRendering(root);
++	iterateAndCallSpecificDeviceHook(MIDICableUSBHosted::Hook::HOOK_ON_CHANGE_SCALE);
++}
++
++void ScaleMenu::selectEncoderAction(int8_t offset) {
++	if (!offset || sdRoutineLock) {
++		return;
++	}
++	if (editing_) {
++		// Native audition releases resolve against the current key. Do not remap it during a held gesture.
++		bool gestureActive = currentUIMode != UI_MODE_NONE;
++		for (int32_t x = 0; x < kDisplayWidth + kSideBarWidth && !gestureActive; ++x) {
++			for (int32_t y = 0; y < kDisplayHeight; ++y) {
++				gestureActive |= matrixDriver.isPadPressed(x, y);
++			}
++		}
++		if (gestureActive) {
++			display->displayPopup("Release pads");
++			return;
++		}
++	}
++	if (!editing_) {
++		row_ = std::clamp<int32_t>(row_ + offset, 0, 1);
++	}
++	else if (row_ == 0) {
++		int32_t root = pitchClass(currentSong->key.rootNote + offset);
++		if (root != pitchClass(currentSong->key.rootNote)) {
++			actionLogger.deleteAllLogs();
++			// Existing root selection preserves absolute notes and may infer a different mode.
++			currentSong->setRootNote(root);
++			notifyScaleChanged();
++			// Root selection can change both the root and inferred mode on connected controllers.
++			iterateAndCallSpecificDeviceHook(MIDICableUSBHosted::Hook::HOOK_ON_CHANGE_ROOT_NOTE);
++		}
++	}
++	else {
++		changeMode(offset);
++	}
++	refresh();
++}
++
++void ScaleMenu::renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) {
++	canvas.clear();
++	canvas.drawString(keyboardLayoutChanged_ ? "Song scale: In Key" : "Song scale", 6, 2, kTextSpacingX, kTextSpacingY);
++	canvas.drawString("Root", 6, 16, kTextSpacingX, kTextSpacingY);
++	canvas.drawString(rootNames[pitchClass(currentSong->key.rootNote)], 48, 16, kTextSpacingX, kTextSpacingY);
++	canvas.drawString("Mode", 6, 26, kTextSpacingX, kTextSpacingY);
++	canvas.drawString(getScaleName(currentSong->getCurrentScale()), 48, 26, kTextSpacingX, kTextSpacingY, 0, 127);
++	int32_t y = row_ == 0 ? 16 : 26;
++	canvas.invertLeftEdgeForMenuHighlighting(editing_ ? 46 : 4, editing_ ? 80 : 40, y, y + 8);
++}
+diff --git a/src/deluge/gui/ui/scale_menu.h b/src/deluge/gui/ui/scale_menu.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..c1c02d121b4cb94c5fb1bd34181a44dc23cdc6fe
+--- /dev/null
++++ b/src/deluge/gui/ui/scale_menu.h
+@@ -0,0 +1,35 @@
++#pragma once
++
++#include "gui/ui/scale_menu_policy.h"
++#include "gui/ui/ui.h"
++
++// Song-owned Root and Mode, independent of the current Clip and SoundEditor state.
++class ScaleMenu final : public UI {
++public:
++	ActionResult handleScaleButton(bool on, bool inCardRoutine, bool otherButtonHeld);
++	bool opened() override;
++	void focusRegained() override;
++	void displayOrLanguageChanged() override;
++	ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) override;
++	ActionResult padAction(int32_t x, int32_t y, int32_t velocity) override;
++	ActionResult verticalEncoderAction(int32_t offset, bool inCardRoutine) override;
++	void selectEncoderAction(int8_t offset) override;
++	void renderOLED(deluge::hid::display::oled_canvas::Canvas& canvas) override;
++	bool getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) override;
++	void modEncoderAction(int32_t, int32_t) override {}
++	void modButtonAction(uint8_t, bool) override {}
++	void modEncoderButtonAction(uint8_t, bool) override {}
++	UIType getUIType() override { return UIType::CONTEXT_MENU; }
++
++private:
++	void refresh();
++	void notifyScaleChanged();
++	bool canOpen(bool otherButtonHeld);
++	void changeMode(int8_t offset);
++	ScaleMenuGesture gesture_;
++	bool editing_ = false;
++	bool keyboardLayoutChanged_ = false;
++	int32_t row_ = 0;
++};
++
++extern ScaleMenu scaleMenu;
+diff --git a/src/deluge/gui/ui/scale_menu_policy.h b/src/deluge/gui/ui/scale_menu_policy.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..2e53a6bd5f417eadf0b2717f901bdffbcecc3bc3
+--- /dev/null
++++ b/src/deluge/gui/ui/scale_menu_policy.h
+@@ -0,0 +1,44 @@
++#pragma once
++
++#include "model/scale/preset_scales.h"
++
++// The initiating release belongs to this gesture even if the menu has already closed.
++class ScaleMenuGesture {
++public:
++	enum class Result { PASS, CONSUME, OPEN, DEFER };
++	Result handle(bool on, bool eligible, bool inCardRoutine) {
++		if (ownsRelease_) {
++			if (!on) {
++				ownsRelease_ = false;
++			}
++			return Result::CONSUME;
++		}
++		if (!on || !eligible) {
++			return Result::PASS;
++		}
++		if (inCardRoutine) {
++			return Result::DEFER;
++		}
++		ownsRelease_ = true;
++		return Result::OPEN;
++	}
++
++private:
++	bool ownsRelease_ = false;
++};
++
++// Step only through selectable modes; retaining an unlisted current mode is a valid no-op.
++inline Scale stepScaleMenuMode(Scale current, int8_t offset, const std::bitset<NUM_ALL_SCALES>& available) {
++	if (!offset || available.none()) {
++		return current;
++	}
++	int candidate = current < NUM_ALL_SCALES ? current : (offset > 0 ? NUM_ALL_SCALES - 1 : 0);
++	const int direction = offset > 0 ? 1 : -1;
++	const int steps = offset > 0 ? offset : -static_cast<int>(offset);
++	for (int step = 0; step < steps; ++step) {
++		do {
++			candidate = (candidate + direction + NUM_ALL_SCALES) % NUM_ALL_SCALES;
++		} while (!available[candidate]);
++	}
++	return static_cast<Scale>(candidate);
++}
+diff --git a/src/deluge/gui/views/clip_view.h b/src/deluge/gui/views/clip_view.h
+index 3c1667ea4683b299461bef53512f48ca7a2f960f..bb59c97a2a8ec2a6fd53dc4412a939f553d309cc 100644
+--- a/src/deluge/gui/views/clip_view.h
++++ b/src/deluge/gui/views/clip_view.h
+@@ -28,6 +28,7 @@ class UI;
+ class ClipView : public ClipNavigationTimelineView {
+ public:
+ 	ClipView() = default;
++	void stopShortcutOverview();
+ 
+ 	bool getGreyoutColsAndRows(uint32_t* cols, uint32_t* rows) override;
+ 	uint32_t getMaxZoom() override;
+@@ -56,7 +57,6 @@ protected:
+ 	uint32_t changeClipLength(int32_t offset, uint32_t oldLength, Action*& action);
+ 
+ 	void maybeStartShortcutOverview(deluge::hid::Button b, bool on);
+-	void stopShortcutOverview();
+ 	bool shouldRenderShortcutsOverview() const;
+ 	bool maybeRenderShortcutsOverview(uint32_t whichRows, RGB image[][kDisplayWidth + kSideBarWidth],
+ 	                                  uint8_t occupancyMask[][kDisplayWidth + kSideBarWidth], bool drawUndefinedArea);
+diff --git a/src/deluge/hid/buttons.cpp b/src/deluge/hid/buttons.cpp
+index 0c2456e36693563d842458a42c3b3b743cae653f..92b93f79dbc5026971a8b8476c01f19ada0a5aba 100644
+--- a/src/deluge/hid/buttons.cpp
++++ b/src/deluge/hid/buttons.cpp
+@@ -20,6 +20,7 @@
+ #include "gui/l10n/l10n.h"
+ #include "gui/ui/audio_recorder.h"
+ #include "gui/ui/load/load_song_ui.h"
++#include "gui/ui/scale_menu.h"
+ #include "gui/ui/ui.h"
+ #include "gui/ui_timer_manager.h"
+ #include "gui/views/arranger_view.h"
+@@ -149,6 +150,19 @@ ActionResult buttonAction(deluge::hid::Button b, bool on, bool inCardRoutine) {
+ 	}
+ 
+ 	ActionResult result;
++	if (b == SCALE_MODE) {
++		bool otherButtonHeld = false;
++		for (int32_t x = 0; x <= NUM_BUTTON_COLS; ++x) {
++			for (int32_t y = 0; y < NUM_BUTTON_ROWS; ++y) {
++				auto held = fromXY(x, y);
++				otherButtonHeld |= buttonStates[x][y] && held != SCALE_MODE && held != SHIFT;
++			}
++		}
++		result = scaleMenu.handleScaleButton(on, inCardRoutine, otherButtonHeld);
++		if (result != ActionResult::NOT_DEALT_WITH) {
++			return result;
++		}
++	}
+ 
+ 	// See if it was one of the mod buttons
+ 	for (int32_t i = 0; i < kNumModButtons; i++) {
+diff --git a/src/deluge/model/action/action_logger.cpp b/src/deluge/model/action/action_logger.cpp
+index 54e3616a89573b054bb6f6d30667abafe2bae159..1da9f0bd671e4fe53d8b894651c87cbac27ddaf9 100644
+--- a/src/deluge/model/action/action_logger.cpp
++++ b/src/deluge/model/action/action_logger.cpp
+@@ -19,6 +19,7 @@
+ #include "definitions_cxx.hpp"
+ #include "gui/ui/keyboard/keyboard_screen.h"
+ #include "gui/ui/load/load_pattern_ui.h"
++#include "gui/ui/scale_menu.h"
+ #include "gui/ui/ui.h"
+ #include "gui/views/arranger_view.h"
+ #include "gui/views/audio_clip_view.h"
+@@ -103,13 +104,16 @@ Action* ActionLogger::getNewActionInternal(ActionType newActionType, ActionAddit
+ 		return nullptr;
+ 	}
+ 
++	// ScaleMenu forwards native pad/encoder actions unchanged, including their undo navigation and coalescing.
++	bool scaleMenuContext = getCurrentUI() == &scaleMenu;
++	UI* actionView = scaleMenuContext ? static_cast<UI*>(getRootUI()) : getCurrentUI();
+ 	// If not on a View, not allowed!
+ 	// Exception for sound editor note editor UI which can edit notes on the grid
+ 	// Exception for sound editor note row editor UI which can edit note rows on the grid
+ 	// Exception for loadPatternUI which does edit note rows on the grid
+ 	if ((getCurrentUI() != getRootUI())
+ 	    && (!(getCurrentUI() == &soundEditor && (soundEditor.inNoteEditor() || soundEditor.inNoteRowEditor())))
+-	    && (getCurrentUI() != &loadPatternUI)) {
++	    && (getCurrentUI() != &loadPatternUI) && !scaleMenuContext) {
+ 		return nullptr;
+ 	}
+ 
+@@ -139,7 +143,7 @@ Action* ActionLogger::getNewActionInternal(ActionType newActionType, ActionAddit
+ 	// See if we can add to an existing action...
+ 	else if (addToExistingIfPossible != ActionAddition::NOT_ALLOWED && firstAction[BEFORE]
+ 	         && firstAction[BEFORE]->openForAdditions && firstAction[BEFORE]->type == newActionType
+-	         && firstAction[BEFORE]->view == getCurrentUI()
++	         && firstAction[BEFORE]->view == actionView
+ 	         && (!clipRequiredForAddition || firstAction[BEFORE]->currentClip == clipRequiredForAddition)
+ 	         && (addToExistingIfPossible == ActionAddition::ALLOWED
+ 	             || firstAction[BEFORE]->creationTime == AudioEngine::audioSampleTimer)) {
+@@ -194,7 +198,7 @@ Action* ActionLogger::getNewActionInternal(ActionType newActionType, ActionAddit
+ 		// newAction->modKnobModeSongView = currentSong->modKnobMode;
+ 		newAction->affectEntireSongView = currentSong->affectEntire;
+ 
+-		newAction->view = getCurrentUI();
++		newAction->view = actionView;
+ 		newAction->currentClip = getCurrentClip();
+ 		actionNeedsCommit = true;
+ 	}
+diff --git a/src/deluge/model/song/song.h b/src/deluge/model/song/song.h
+index 539fc922faea6a9454efc4d8aa20173310ceb9d9..98f5410f06bf615435feaea6b4cdd16394c6e8b4 100644
+--- a/src/deluge/model/song/song.h
++++ b/src/deluge/model/song/song.h
+@@ -147,6 +147,8 @@ public:
+ 	void learnScaleFromCurrentNotes();
+ 	/// Returns true if the song has a user scale.
+ 	bool hasUserScale();
++	/// Saved User scale, including when a preset is currently selected. Empty means unavailable.
++	const NoteSet& getUserScaleNotes() const { return userScaleNotes; }
+ 	/// Sets root note of key. If the previous scale no longer fits, changes to a new implied scale, which
+ 	/// can result in a new user scale being set.
+ 	void setRootNote(int32_t newRootNote, InstrumentClip* clipToAvoidAdjustingScrollFor = nullptr);
+diff --git a/tests/unit/scale_menu_tests.cpp b/tests/unit/scale_menu_tests.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..1225da05b9762d967c6efe4a8e4fb8d107fc6370
+--- /dev/null
++++ b/tests/unit/scale_menu_tests.cpp
+@@ -0,0 +1,60 @@
++#include "CppUTest/TestHarness.h"
++#include "gui/ui/scale_menu_policy.h"
++
++TEST_GROUP(ScaleMenu){};
++
++TEST(ScaleMenu, ExcludedPressAndReleasePassThrough) {
++	ScaleMenuGesture gesture;
++	CHECK(gesture.handle(true, false, false) == ScaleMenuGesture::Result::PASS);
++	CHECK(gesture.handle(false, true, false) == ScaleMenuGesture::Result::PASS);
++}
++
++TEST(ScaleMenu, OwnsReleaseAfterShiftReleaseOrMenuClosure) {
++	ScaleMenuGesture gesture;
++	CHECK(gesture.handle(true, true, false) == ScaleMenuGesture::Result::OPEN);
++	// Eligibility is now false because Shift was released or the originating view changed.
++	CHECK(gesture.handle(false, false, false) == ScaleMenuGesture::Result::CONSUME);
++	CHECK(gesture.handle(false, false, false) == ScaleMenuGesture::Result::PASS);
++	CHECK(gesture.handle(true, true, false) == ScaleMenuGesture::Result::OPEN);
++}
++
++TEST(ScaleMenu, RepeatedDownDoesNotReopenMenu) {
++	ScaleMenuGesture gesture;
++	CHECK(gesture.handle(true, true, false) == ScaleMenuGesture::Result::OPEN);
++	CHECK(gesture.handle(true, true, false) == ScaleMenuGesture::Result::CONSUME);
++	CHECK(gesture.handle(false, true, false) == ScaleMenuGesture::Result::CONSUME);
++}
++
++TEST(ScaleMenu, CardRoutineDefersBeforeTakingOwnership) {
++	ScaleMenuGesture gesture;
++	CHECK(gesture.handle(true, true, true) == ScaleMenuGesture::Result::DEFER);
++	CHECK(gesture.handle(true, true, false) == ScaleMenuGesture::Result::OPEN);
++	CHECK(gesture.handle(false, false, true) == ScaleMenuGesture::Result::CONSUME);
++}
++
++TEST(ScaleMenu, UnavailableModesAreSkippedInBothDirections) {
++	std::bitset<NUM_ALL_SCALES> available;
++	available[MAJOR_SCALE] = true;
++	available[DORIAN_SCALE] = true;
++	available[USER_SCALE] = true;
++	CHECK_EQUAL(DORIAN_SCALE, stepScaleMenuMode(MAJOR_SCALE, 1, available));
++	CHECK_EQUAL(USER_SCALE, stepScaleMenuMode(MAJOR_SCALE, -1, available));
++	CHECK_EQUAL(MAJOR_SCALE, stepScaleMenuMode(USER_SCALE, 1, available));
++	CHECK_EQUAL(USER_SCALE, stepScaleMenuMode(MAJOR_SCALE, 2, available));
++}
++
++TEST(ScaleMenu, NoAvailableModeAndZeroMovementPreserveCurrentState) {
++	std::bitset<NUM_ALL_SCALES> available;
++	CHECK_EQUAL(USER_SCALE, stepScaleMenuMode(USER_SCALE, 10, available));
++	available[MAJOR_SCALE] = true;
++	CHECK_EQUAL(USER_SCALE, stepScaleMenuMode(USER_SCALE, 0, available));
++	CHECK_EQUAL(MAJOR_SCALE, stepScaleMenuMode(MAJOR_SCALE, -128, available));
++}
++
++TEST(ScaleMenu, UnlistedCustomModeEntersAvailableListPredictably) {
++	std::bitset<NUM_ALL_SCALES> available;
++	available[MAJOR_SCALE] = true;
++	available[DORIAN_SCALE] = true;
++	CHECK_EQUAL(MAJOR_SCALE, stepScaleMenuMode(NO_SCALE, 1, available));
++	CHECK_EQUAL(DORIAN_SCALE, stepScaleMenuMode(NO_SCALE, -1, available));
++}

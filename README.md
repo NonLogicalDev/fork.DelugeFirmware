@@ -13,7 +13,7 @@ This repository defines a customized Deluge Community Firmware using ordered [la
 - [OLED waveform displays](DEVIATIONS.md#17-oled-sample-editing-waveform-companions), a [clip progress ruler](DEVIATIONS.md#18-oled-clip-timeline-ruler), and [recoverable Audio Clip start editing](DEVIATIONS.md#20-recoverable-audio-clip-start-editing).
 - [Velocity Drums profiles](DEVIATIONS.md#22-velocity-drums-velocity-profiles), [Kit choke groups](DEVIATIONS.md#27-kit-sound-drum-choke-groups), and [fine envelope time controls](DEVIATIONS.md#30-fine-envelope-time-controls).
 
-See [DEVIATIONS.md](DEVIATIONS.md) for the full feature and compatibility notes.
+See [DEVIATIONS.md](DEVIATIONS.md) for the full feature and compatibility notes and the [keybinding catalog](keybindings/README.md) for the control reference.
 
 ## Create a firmware workspace
 
@@ -50,33 +50,32 @@ Arrows point from prerequisites to dependent layers. Regenerate the diagram with
 ```mermaid
 flowchart LR
   n0["0001-base"]
-  n1["0004-add-keyboard-view-chord-detection"]
-  n2["0006-add-manual-slicer-kit-creation-option"]
-  n3["0007-improve-manual-slicer-controls"]
-  n4["0009-add-panic-action"]
-  n5["0010-copy-and-paste-kit-rows"]
-  n6["0011-reuse-a-kit-from-manual-slice"]
-  n7["0013-make-kit-row-reordering-undoable"]
-  n8["0015-add-midi-sustain-pedal-feature-flag"]
-  n9["0016-add-song-grid-track-column-glow"]
-  n10["0017-fix-repeated-audio-looper-recording"]
-  n11["0018-synchronize-grid-and-audio-clip-colors"]
-  n12["0019-keep-waveform-rendering-valid-for-long-samples"]
-  n13["0021-add-efficient-oled-waveform-displays"]
-  n14["0022-add-compact-oled-clip-progress-ruler"]
-  n15["0023-audition-current-waveform-editor-kit-row"]
-  n16["0024-add-recoverable-audio-clip-start-editing"]
-  n17["0025-improve-waveform-editor-entry-and-bound-selection"]
-  n18["0026-add-velocity-drums-velocity-profiles"]
-  n19["0027-reject-unsupported-song-compatibility-versions"]
-  n20["0028-add-external-step-midi-clips"]
-  n21["0029-make-preview-only-note-input-release-order-safe"]
-  n22["0030-correct-slicer-playhead-source"]
-  n23["0031-improve-waveform-playhead-visibility"]
-  n24["0032-add-kit-choke-groups"]
-  n25["0033-catalog-firmware-keybindings"]
-  n26["0034-add-shared-song-scale-menu"]
-  n27["0035-add-precise-envelope-time-controls"]
+  n1["0002-add-keyboard-view-chord-detection"]
+  n2["0003-add-manual-slicer-kit-creation-option"]
+  n3["0004-improve-manual-slicer-controls"]
+  n4["0005-add-panic-action"]
+  n5["0006-copy-and-paste-kit-rows"]
+  n6["0007-reuse-a-kit-from-manual-slice"]
+  n7["0008-make-kit-row-reordering-undoable"]
+  n8["0009-add-midi-sustain-pedal-feature-flag"]
+  n9["0010-add-song-grid-track-column-glow"]
+  n10["0011-fix-repeated-audio-looper-recording"]
+  n11["0012-synchronize-grid-and-audio-clip-colors"]
+  n12["0013-keep-waveform-rendering-valid-for-long-samples"]
+  n13["0014-add-efficient-oled-waveform-displays"]
+  n14["0015-add-compact-oled-clip-progress-ruler"]
+  n15["0016-audition-current-waveform-editor-kit-row"]
+  n16["0017-add-recoverable-audio-clip-start-editing"]
+  n17["0018-improve-waveform-editor-entry-and-bound-selection"]
+  n18["0019-add-velocity-drums-velocity-profiles"]
+  n19["0020-reject-unsupported-song-compatibility-versions"]
+  n20["0021-add-external-step-midi-clips"]
+  n21["0022-make-preview-only-note-input-release-order-safe"]
+  n22["0023-correct-slicer-playhead-source"]
+  n23["0024-improve-waveform-playhead-visibility"]
+  n24["0025-add-kit-choke-groups"]
+  n25["0026-add-shared-song-scale-menu"]
+  n26["0027-add-precise-envelope-time-controls"]
   n0 --> n1
   n0 --> n2
   n2 --> n3
@@ -120,7 +119,6 @@ flowchart LR
   n23 --> n25
   n24 --> n25
   n25 --> n26
-  n26 --> n27
 ```
 
 ## License

@@ -18,6 +18,8 @@ Keep the official community firmware source locally available and add requested 
 
 ## Current State
 
+- Completed: [move the keybinding catalog and renumber layers](completed/plan-53%20Move%20keybinding%20catalog%20and%20renumber%20layers.md). Firmware content is unchanged; catalog source drift remains under review.
+
 - Completed: [port layers to v1.3.0](completed/plan-52%20Port%20layers%20to%20v1.3.0.md). The 28-layer projection passed layerctl verification, 27 host suites, and a Release firmware build; hardware testing remains outstanding.
 
 - Completed: [compare upstream base candidates](completed/plan-51%20Compare%20upstream%20base%20candidates.md); see the [v1.3.0 layer audit](artifacts/v1.3.0-layer-audit.md). The definitions now use the audited v1.3.0 release.

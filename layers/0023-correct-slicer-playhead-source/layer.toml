@@ -1,0 +1,20 @@
+[layer]
+depends-on = ["0014-add-efficient-oled-waveform-displays"]
+
+[vcs]
+commit-msg = """
+fix: correct Slicer playhead source
+
+Choose the Slicer playhead from the source that owns the waveform being displayed. Region
+mode for a new Kit follows the sample browser preview, while Manual/Lazy mode and an
+existing Kit follow the selected Sound; an unrelated playing source must not move the
+cursor.
+
+Draw the Region cursor across its waveform rows and restrict the Manual cursor to the
+waveform area above its slice pads. Clear the Slicer cursor when leaving so the next view
+can redraw correctly. Add tests for source selection and row ownership.
+"""
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

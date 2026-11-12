@@ -1,0 +1,20 @@
+[layer]
+depends-on = ["0007-reuse-a-kit-from-manual-slice", "0011-fix-repeated-audio-looper-recording"]
+
+[vcs]
+commit-msg = """
+feat: synchronize Grid and Audio Clip colors
+
+Use the Audio Output's Song Grid color as the shared hue for its Audio Clips, and render
+their waveforms in a pastel form of that color. Initialize an unassigned Output color
+before rendering and keep the legacy per-clip color as a fallback when a clip has no
+Output.
+
+Route the existing Grid, Audio Clip, and Row-view color gestures through the shared Output
+color so clips on the same track stay consistent. Add color-stepping tests covering
+wraparound and the reserved unassigned value.
+"""
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

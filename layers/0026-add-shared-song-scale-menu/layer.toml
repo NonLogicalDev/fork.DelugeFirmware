@@ -1,0 +1,29 @@
+[layer]
+depends-on = [
+  "0005-add-panic-action",
+  "0010-add-song-grid-track-column-glow",
+  "0022-make-preview-only-note-input-release-order-safe",
+  "0024-improve-waveform-playhead-visibility",
+  "0025-add-kit-choke-groups",
+]
+
+[vcs]
+commit-msg = """
+feat: add shared Song scale menu
+
+Open a shared Song Root and Mode menu with Shift+Scale in supported idle Clip, Keyboard,
+Automation, Session, Arranger, and Performance views. Root uses the existing Song
+root-selection behavior, which can infer a different mode; Mode uses the existing preset
+and saved User scale rules. The display reads back the actual Song state rather than
+silently changing an unsupported mode.
+
+Keep the opening gesture owned through release, even if Shift is released first, and defer
+key edits while pads or native editing gestures are held so releases keep their original
+mapping. Forward native pad and Vertical controls, preserve existing Kit and Velocity
+Drums Scale behavior, and retain the Song's existing saved state and undo semantics.
+Update the keybinding catalog and add menu policy tests.
+"""
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

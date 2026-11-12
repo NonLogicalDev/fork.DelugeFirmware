@@ -1,0 +1,21 @@
+[layer]
+depends-on = ["0003-add-manual-slicer-kit-creation-option"]
+
+[vcs]
+commit-msg = """
+feat: improve manual slicer controls
+
+Keep the existing 100-sample movement per ordinary horizontal encoder detent and add
+1,000-sample movement while the encoder is held. Shift alone no longer selects the
+previous 10-sample step. Clamp the selected boundary against either neighbor, including at
+the ends of the slice list. The two step sizes support precise placement and faster
+navigation with the same control.
+
+Treat a held encoder combined with another input as an editing gesture, while a tap still
+switches slicer modes. Add Shift + Back to stop the current Manual Slicer preview without
+leaving the editor or discarding the slice positions.
+"""
+
+[[operation]]
+[operation.patch]
+file = "changes.patch"

@@ -16,6 +16,8 @@ Describe every firmware control binding in one systematic representation that su
 
 ## Current State
 
+- The catalog now lives in `keybindings/data/`, with maintenance scripts in `keybindings/scripts/` in the definitions repository. Its source checks use the `.layerctl-worktree` link. On v1.3.0 the audit reports 68 changed files and three unreviewed handler candidates; this is review work, not permission to refresh hashes blindly.
+
 - Full-inventory workers completed: `/root/catalog_views` reviewed timeline, Session/Arranger, Clip, Automation, Performance and Clip Minder controls; `/root/catalog_editors` reviewed keyboard layouts, sample editors, browsers/load/save/rename/QWERTY and control identities; `/root/keybinding_evidence` reviewed Sound Editor, menus and shortcut tables. `/root` integrated and validated the canonical catalog, HID/global playback, target-specific gold controls and coverage.
 
 - Latest scope: catalog ALL firmware shortcuts. Inventory global dispatch, view handlers, inherited controls, inline handlers, keyboard layouts, menus, browser/load/save surfaces, and configurable control families. Reconcile each input-producing branch to a record or explicit exclusion; keep records incremental and never claim completeness from a raw handler count.

@@ -1,0 +1,1373 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-09-06",
+  "purpose": "Physical control identity, aliases and state-dependent pad-role resolution for keybinding lookup. Resolver text is a source-backed contract, not executable code.",
+  "coordinateSpaces": {
+    "buttonScan": {
+      "description": "Firmware button scan Cartesian coordinates. Separate from pad coordinates and not UI pixel positions.",
+      "x": [
+        0,
+        8
+      ],
+      "y": [
+        0,
+        3
+      ],
+      "sources": [
+        {
+          "file": "src/deluge/hid/button.h",
+          "symbol": "fromCartesian",
+          "anchor": "9 * (c.y + kDisplayHeight * 2) + c.x"
+        }
+      ]
+    },
+    "padMatrix": {
+      "description": "Zero-based pad coordinates; x increases left to right, y=0 is bottom. Main grid x=0..15; left sidebar x=16; right sidebar x=17.",
+      "x": [
+        0,
+        17
+      ],
+      "y": [
+        0,
+        7
+      ],
+      "mainX": [
+        0,
+        15
+      ],
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "kDisplayWidth"
+        },
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "kDisplayHeight"
+        },
+        {
+          "file": "src/deluge/gui/ui/keyboard/layout/column_controls.cpp",
+          "symbol": "evaluatePads",
+          "anchor": "#define LEFT_COL kDisplayWidth"
+        },
+        {
+          "file": "src/deluge/gui/ui/keyboard/layout/column_controls.cpp",
+          "symbol": "evaluatePads",
+          "anchor": "#define RIGHT_COL (kDisplayWidth + 1)"
+        }
+      ]
+    }
+  },
+  "eventSemantics": {
+    "down": "Physical button/pad activation; a delayed hold action may arm here and fire later according to its binding lifecycle.",
+    "up": "Physical button/pad release. Required hold modifiers are inspected at this edge unless a binding documents a stored ownership latch.",
+    "turn": "Encoder movement carrying signed detents; it has no implicit down/up lifecycle.",
+    "shift": "Effective Shift, including sticky behavior, except entries explicitly requiring physical Shift.",
+    "midi": "Legacy catalog MIDI event suffixes denote received messages, not local button edges. CC.down does not by itself imply nonzero value or a threshold crossing; each binding's when clause defines its eligibility.",
+    "wildcards": "button and pad identify incoming event families. They are not extra physical controls."
+  },
+  "aliases": [
+    {
+      "from": "clip",
+      "to": "clip-view",
+      "sources": [
+        {
+          "file": "src/deluge/hid/button.h",
+          "symbol": "CLIP_VIEW"
+        }
+      ]
+    },
+    {
+      "from": "session",
+      "to": "session-view",
+      "sources": [
+        {
+          "file": "src/deluge/hid/button.h",
+          "symbol": "SESSION_VIEW"
+        }
+      ]
+    },
+    {
+      "from": "gold-lower",
+      "to": "gold[0]",
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "modEncoder0ButtonCoord"
+        }
+      ]
+    },
+    {
+      "from": "gold-upper",
+      "to": "gold[1]",
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "modEncoder1ButtonCoord"
+        }
+      ]
+    },
+    {
+      "from": "mod[index]",
+      "to": "gold[index]",
+      "sources": [
+        {
+          "file": "src/deluge/gui/views/view.cpp",
+          "symbol": "View::modEncoderAction"
+        }
+      ]
+    },
+    {
+      "from": "mod[knob]",
+      "to": "gold[index]",
+      "bind": {
+        "index": "knob"
+      },
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::modEncoderAction"
+        }
+      ]
+    },
+    {
+      "from": "mod[1]",
+      "to": "gold[1]",
+      "sources": [
+        {
+          "file": "src/deluge/gui/views/performance_view.cpp",
+          "symbol": "PerformanceView::modEncoderButtonAction"
+        }
+      ]
+    },
+    {
+      "from": "mod7",
+      "to": "mod-bank[6]",
+      "sources": [
+        {
+          "file": "src/deluge/hid/button.h",
+          "symbol": "MOD7",
+          "anchor": "ZmodButtonX[6], ZmodButtonY[6]"
+        }
+      ]
+    },
+    {
+      "from": "pad[x,y]",
+      "to": "grid[x,y]",
+      "match": "^pad\\[([^,\\]]+),([^\\]]+)\\]$",
+      "preserveSlots": true,
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::potentialShortcutPadAction"
+        }
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "affect-entire",
+      "label": "Affect Entire",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 3,
+        "y": 0
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "affectEntireButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "clip-view",
+      "label": "Clip",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 3,
+        "y": 2
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "clipViewButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "session-view",
+      "label": "Song / Session",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 3,
+        "y": 1
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "sessionViewButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "cross-screen",
+      "label": "Cross Screen",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 6,
+        "y": 2
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "crossScreenEditButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "cv",
+      "label": "CV",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 5,
+        "y": 3
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "cvButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "midi",
+      "label": "MIDI",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 5,
+        "y": 2
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "midiButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "synth",
+      "label": "Synth",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 5,
+        "y": 0
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "synthButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "kit",
+      "label": "Kit",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 5,
+        "y": 1
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "kitButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "keyboard",
+      "label": "Keyboard",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 3,
+        "y": 3
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "keyboardButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "scale",
+      "label": "Scale",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 6,
+        "y": 0
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "scaleModeButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "back",
+      "label": "Back / Undo",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 7,
+        "y": 1
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "backButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "load",
+      "label": "Load",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 6,
+        "y": 1
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "loadButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "save",
+      "label": "Save",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 6,
+        "y": 3
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "saveButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "learn",
+      "label": "Learn",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 7,
+        "y": 0
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "learnButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "record",
+      "label": "Record",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 8,
+        "y": 2
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "recordButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "play",
+      "label": "Play",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 8,
+        "y": 3
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "playButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "shift",
+      "label": "Shift",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 8,
+        "y": 0
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "shiftButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "tap-tempo",
+      "label": "Tap Tempo",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 7,
+        "y": 3
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "tapTempoButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "sync-scaling",
+      "label": "Sync Scaling / Fill",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 7,
+        "y": 2
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "syncScalingButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "triplets",
+      "label": "Triplets",
+      "kind": "button",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 8,
+        "y": 1
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "tripletsButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "horizontal",
+      "label": "Horizontal encoder",
+      "kind": "encoder",
+      "events": [
+        "down",
+        "up",
+        "turn"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 0,
+        "y": 1
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "xEncButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "vertical",
+      "label": "Vertical encoder",
+      "kind": "encoder",
+      "events": [
+        "down",
+        "up",
+        "turn"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 0,
+        "y": 0
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "yEncButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "select",
+      "label": "Select encoder",
+      "kind": "encoder",
+      "events": [
+        "down",
+        "up",
+        "turn"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 4,
+        "y": 3
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "selectEncButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "tempo",
+      "label": "Tempo encoder",
+      "kind": "encoder",
+      "events": [
+        "down",
+        "up",
+        "turn"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "buttonScan",
+        "x": 4,
+        "y": 1
+      },
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "tempoEncButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "gold[index]",
+      "label": "Gold encoder",
+      "kind": "encoder",
+      "match": "^gold\\[(index|knob|0|1)\\]$",
+      "events": [
+        "down",
+        "up",
+        "turn"
+      ],
+      "holdable": true,
+      "slots": {
+        "index": {
+          "values": [
+            0,
+            1
+          ],
+          "labels": {
+            "0": "lower",
+            "1": "upper"
+          }
+        }
+      },
+      "coordinates": [
+        {
+          "index": 0,
+          "space": "buttonScan",
+          "x": 0,
+          "y": 2
+        },
+        {
+          "index": 1,
+          "space": "buttonScan",
+          "x": 0,
+          "y": 3
+        }
+      ],
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "modEncoder0ButtonCoord"
+        },
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "modEncoder1ButtonCoord"
+        }
+      ]
+    },
+    {
+      "id": "mod-bank[index]",
+      "label": "Gold-knob parameter bank button",
+      "kind": "button",
+      "match": "^mod-bank\\[(index|[0-7])\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "slots": {
+        "index": {
+          "min": 0,
+          "max": 7
+        }
+      },
+      "resolver": "buttonScan x=ZmodButtonX[index], y=ZmodButtonY[index]; these eight buttons are distinct from the two gold encoder switches.",
+      "coordinates": [
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ],
+      "sources": [
+        {
+          "file": "src/deluge/hid/button.h",
+          "symbol": "ZmodButtonX"
+        },
+        {
+          "file": "src/deluge/hid/button.h",
+          "symbol": "ZmodButtonY"
+        }
+      ]
+    },
+    {
+      "id": "grid[x,y]",
+      "label": "Pad",
+      "kind": "pad",
+      "match": "^grid\\[[^,\\]]+,[^\\]]+\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "padMatrix",
+        "x": "x",
+        "y": "y"
+      },
+      "resolver": "Resolve numeric slots directly; symbolic names such as sourceX/sourceY, firstX/firstY, paramX/paramY or row bind to coordinates of the gesture and its source-defined state. The binding's when clause limits the accepted region.",
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "kDisplayWidth"
+        },
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "kDisplayHeight"
+        }
+      ]
+    },
+    {
+      "id": "mute[row]",
+      "label": "Left sidebar pad",
+      "kind": "pad-role",
+      "match": "^mute\\[(row|[0-7])\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "padMatrix",
+        "x": 16,
+        "y": "row"
+      },
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/browser/sample_browser.cpp",
+          "symbol": "SampleBrowser::padAction",
+          "anchor": "x == kDisplayWidth"
+        }
+      ]
+    },
+    {
+      "id": "audition[row]",
+      "label": "Right sidebar pad",
+      "kind": "pad-role",
+      "match": "^audition\\[(row|other|[0-7])\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "padMatrix",
+        "x": 17,
+        "y": "row"
+      },
+      "resolver": "row is a displayed row; other binds a second audition-row gesture, not a stored note number.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sample_marker_editor.cpp",
+          "symbol": "SampleMarkerEditor::padAction",
+          "anchor": "x == kDisplayWidth + 1"
+        }
+      ]
+    },
+    {
+      "id": "audition[mode]",
+      "label": "Song Grid action-mode pad",
+      "kind": "pad-role",
+      "match": "^audition\\[(mode|green|blue|red|magenta)\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinates": {
+        "green": [
+          17,
+          7
+        ],
+        "blue": [
+          17,
+          6
+        ],
+        "red": [
+          17,
+          4
+        ],
+        "magenta": [
+          17,
+          3
+        ]
+      },
+      "space": "padMatrix",
+      "resolver": "mode binds the explicitly permitted mode(s) in the binding. Red and magenta actions require EnableGridViewLoopPads; colors identify fixed rows only within Song Grid action-mode rendering.",
+      "sources": [
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "GridMode"
+        },
+        {
+          "file": "src/deluge/gui/views/session_view.cpp",
+          "symbol": "SessionView::gridHandlePads"
+        }
+      ]
+    },
+    {
+      "id": "status[row]",
+      "label": "Clip or Output status pad",
+      "kind": "pad-role",
+      "match": "^status\\[(row|[0-7])\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "padMatrix",
+        "x": 16,
+        "y": "row"
+      },
+      "resolver": "Row-layout Session and Arranger status column; not a generic launch cell in Song Grid.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/views/session_view.cpp",
+          "symbol": "SessionView::padAction",
+          "anchor": "xDisplay == kDisplayWidth"
+        },
+        {
+          "file": "src/deluge/gui/views/arranger_view.cpp",
+          "symbol": "ArrangerView::padAction"
+        }
+      ]
+    },
+    {
+      "id": "section[row]",
+      "label": "Section pad",
+      "kind": "pad-role",
+      "match": "^section\\[(row|[0-7])\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "resolver": "Session Rows: padMatrix [17,row], section belongs to the Clip on that displayed row. Session Grid: padMatrix [16,row], section resolved by gridSectionFromY(row); in Macros mode that column owns macros instead.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/views/session_view.cpp",
+          "symbol": "SessionView::padAction",
+          "anchor": "xDisplay == kDisplayWidth + 1"
+        },
+        {
+          "file": "src/deluge/gui/views/session_view.cpp",
+          "symbol": "SessionView::gridRenderSidebar",
+          "anchor": "sectionColumnIndex = kDisplayWidth"
+        }
+      ]
+    },
+    {
+      "id": "sidebar[row]",
+      "label": "Assigned keyboard sidebar function",
+      "kind": "pad-role",
+      "match": "^sidebar\\[(row|[0-7])\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "resolver": "Resolve to padMatrix [16,row] when the binding's function equals keyboardState.columnControl.leftColFunc, or [17,row] for rightColFunc. It can be either physical column. Vertical-turn handling prioritizes the held left column before the held right column.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/keyboard/layout/column_controls.cpp",
+          "symbol": "ColumnControlsKeyboard::evaluatePads"
+        },
+        {
+          "file": "src/deluge/gui/ui/keyboard/layout/column_controls.cpp",
+          "symbol": "ColumnControlsKeyboard::verticalEncoderHandledByColumns"
+        }
+      ]
+    },
+    {
+      "id": "slice[index]",
+      "label": "Manual slice pad",
+      "kind": "pad-role",
+      "match": "^slice\\[(index|[0-9]+)\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "resolver": "Manual Slicer: padMatrix x=(index % 4)+floor(index/16)*4, y=floor(index/4)%4. index must be a valid slice for actions requiring an existing slice; delete additionally requires index==currentSlice.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/slicer.cpp",
+          "symbol": "Slicer::buttonAction",
+          "anchor": "(currentSlice % 4) + (currentSlice / 16) * 4"
+        },
+        {
+          "file": "src/deluge/gui/ui/slicer.cpp",
+          "symbol": "Slicer::padAction",
+          "anchor": "slicePadIndex"
+        }
+      ]
+    },
+    {
+      "id": "marker[bound]",
+      "label": "Sample playback-bound marker column",
+      "kind": "pad-role",
+      "match": "^marker\\[(start|end)\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "resolver": "Sample Marker Editor: resolve raw MarkerType::START or END through getColsOnScreen; any y=0..7 in its visible x column can select it. Bound role names here follow raw sample markers; reverseRemap changes playback-relative labels/colors. Overlapping columns require current marker selection to resolve which marker a press selects.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sample_marker_editor.cpp",
+          "symbol": "SampleMarkerEditor::getColsOnScreen"
+        },
+        {
+          "file": "src/deluge/gui/ui/sample_marker_editor.cpp",
+          "symbol": "SampleMarkerEditor::reverseRemap"
+        },
+        {
+          "file": "src/deluge/gui/ui/sample_marker_editor.cpp",
+          "symbol": "SampleMarkerEditor::padAction"
+        }
+      ]
+    },
+    {
+      "id": "loop-marker[bound]",
+      "label": "Sample loop marker column",
+      "kind": "pad-role",
+      "match": "^loop-marker\\[(start|end)\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "resolver": "Sample Marker Editor: resolve raw LOOP_START or LOOP_END via getColsOnScreen, at any y=0..7. Absent loop points and Audio Clips have kInvalidColumn, so no visible pad resolves. Requires a visible x=0..15.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sample_marker_editor.cpp",
+          "symbol": "SampleMarkerEditor::getColsOnScreen"
+        }
+      ]
+    },
+    {
+      "id": "qwerty-backspace",
+      "label": "QWERTY Backspace",
+      "kind": "pad-role",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "space": "padMatrix",
+      "coordinates": [
+        [
+          14,
+          5
+        ],
+        [
+          15,
+          5
+        ]
+      ],
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/qwerty_ui.cpp",
+          "symbol": "QwertyUI::padAction",
+          "anchor": "y == kQwertyHomeRow + 2 && x >= 14"
+        },
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "kQwertyHomeRow"
+        }
+      ]
+    },
+    {
+      "id": "qwerty-enter",
+      "label": "QWERTY Enter",
+      "kind": "pad-role",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "space": "padMatrix",
+      "coordinates": [
+        [
+          14,
+          3
+        ],
+        [
+          15,
+          3
+        ]
+      ],
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/qwerty_ui.cpp",
+          "symbol": "QwertyUI::padAction",
+          "anchor": "y == kQwertyHomeRow && x >= 14"
+        },
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "kQwertyHomeRow"
+        }
+      ]
+    },
+    {
+      "id": "qwerty-shift",
+      "label": "QWERTY symbol Shift pads",
+      "kind": "pad-role",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "space": "padMatrix",
+      "coordinates": [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          13,
+          2
+        ],
+        [
+          14,
+          2
+        ]
+      ],
+      "resolver": "Physical on-pad Shift only; independent of the panel Shift button or sticky Shift.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/qwerty_ui.cpp",
+          "symbol": "QwertyUI::padAction",
+          "anchor": "matrixDriver.isPadPressed(1, kQwertyHomeRow - 1)"
+        }
+      ]
+    },
+    {
+      "id": "qwerty-character[x,y]",
+      "label": "QWERTY character pad",
+      "kind": "pad-role",
+      "match": "^qwerty-character\\[[^,\\]]+,[^\\]]+\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "padMatrix",
+        "x": "x",
+        "y": "y"
+      },
+      "resolver": "x=3..13, y=1..5. Character is keyboardChars[FlashStorage::keyboardLayout][5-y][x-3]; zero entries do nothing. First-character and shifted-symbol conditions are handled by QwertyUI. The same physical pad can represent different characters by configured layout.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/qwerty_ui.cpp",
+          "symbol": "QwertyUI::padAction",
+          "anchor": "keyboardChars[util::to_underlying(FlashStorage::keyboardLayout)]"
+        },
+        {
+          "file": "src/definitions_cxx.hpp",
+          "symbol": "kQwertyHomeRow"
+        }
+      ]
+    },
+    {
+      "id": "favourite[x]",
+      "label": "Favourite slot",
+      "kind": "pad-role",
+      "match": "^favourite\\[(x|[0-9]+)\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "resolver": "padMatrix [x,QwertyUI::favouriteRow], x=0..15. Row is 7 for Favourites-only layout and 6 for Favourites-and-Banks. Resolve only while isFavouritesVisible().",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/qwerty_ui.cpp",
+          "symbol": "QwertyUI::opened"
+        },
+        {
+          "file": "src/deluge/gui/ui/browser/browser.cpp",
+          "symbol": "Browser::padAction"
+        }
+      ]
+    },
+    {
+      "id": "favourite-bank[x]",
+      "label": "Favourite bank",
+      "kind": "pad-role",
+      "match": "^favourite-bank\\[(x|[0-9]+)\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "coordinate": {
+        "space": "padMatrix",
+        "x": "x",
+        "y": 7
+      },
+      "resolver": "x=0..15; resolve only while isBanksVisible().",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/qwerty_ui.h",
+          "symbol": "favouriteBankRow"
+        },
+        {
+          "file": "src/deluge/gui/ui/browser/browser.cpp",
+          "symbol": "Browser::padAction"
+        }
+      ]
+    },
+    {
+      "id": "pad[source]",
+      "label": "Modulation-source shortcut pad",
+      "kind": "pad-role",
+      "match": "^pad\\[(source|source1|source2)\\]$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": true,
+      "resolver": "source/source1/source2 bind a modulation-source identity and gesture order, not literal coordinates. Resolve a source through SoundEditor modSourceShortcuts or modSourceShortcutsSecondLayer at padMatrix [14+tableColumn,y]. Respect shortcut-version table mutation, runtime availability and selected layer; NOT_AVAILABLE has no binding.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "modSourceShortcuts"
+        },
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "modSourceShortcutsSecondLayer"
+        },
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::potentialShortcutPadAction"
+        },
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::blinkShortcut",
+          "anchor": "x + 14"
+        }
+      ]
+    },
+    {
+      "id": "button",
+      "label": "Any panel button event",
+      "kind": "event-family",
+      "match": "^button(?:\\[other\\])?$",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": false,
+      "resolver": "Use event's actual Button identifier. other excludes controls explicitly handled earlier in the source dispatch branch or named by the binding; no fixed location.",
+      "sources": [
+        {
+          "file": "src/deluge/hid/button.h",
+          "symbol": "Button"
+        }
+      ]
+    },
+    {
+      "id": "pad",
+      "label": "Any pad event",
+      "kind": "event-family",
+      "events": [
+        "down",
+        "up"
+      ],
+      "holdable": false,
+      "resolver": "Any physical pad in padMatrix; used for gesture cancellation or event forwarding, not an extra pad.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::padAction"
+        }
+      ]
+    },
+    {
+      "id": "midi-note",
+      "label": "Incoming MIDI Note On",
+      "kind": "midi-message",
+      "events": [
+        "down"
+      ],
+      "holdable": false,
+      "payload": [
+        "cable",
+        "channel",
+        "note"
+      ],
+      "resolver": "External MIDI input; no Deluge panel coordinate. Preserve message value and binding-specific eligibility; suffix is legacy catalog notation rather than a physical switch or encoder event.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::noteOnReceivedForMidiLearn"
+        }
+      ]
+    },
+    {
+      "id": "midi-cc",
+      "label": "Incoming MIDI Control Change",
+      "kind": "midi-message",
+      "events": [
+        "down"
+      ],
+      "holdable": false,
+      "payload": [
+        "cable",
+        "channel",
+        "ccNumber",
+        "value"
+      ],
+      "resolver": "External MIDI input; no Deluge panel coordinate. Preserve message value and binding-specific eligibility; suffix is legacy catalog notation rather than a physical switch or encoder event.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::midiCCReceived"
+        }
+      ]
+    },
+    {
+      "id": "midi-program",
+      "label": "Incoming MIDI Program Change",
+      "kind": "midi-message",
+      "events": [
+        "down"
+      ],
+      "holdable": false,
+      "payload": [
+        "cable",
+        "channel",
+        "program"
+      ],
+      "resolver": "External MIDI input; no Deluge panel coordinate. Preserve message value and binding-specific eligibility; suffix is legacy catalog notation rather than a physical switch or encoder event.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::pcReceivedForMidiLearn"
+        }
+      ]
+    },
+    {
+      "id": "midi-pitchbend",
+      "label": "Incoming MIDI Pitch Bend",
+      "kind": "midi-message",
+      "events": [
+        "turn"
+      ],
+      "holdable": false,
+      "payload": [
+        "cable",
+        "channel",
+        "data1",
+        "data2"
+      ],
+      "resolver": "External MIDI input; no Deluge panel coordinate. Preserve message value and binding-specific eligibility; suffix is legacy catalog notation rather than a physical switch or encoder event.",
+      "sources": [
+        {
+          "file": "src/deluge/gui/ui/sound_editor.cpp",
+          "symbol": "SoundEditor::pitchBendReceived"
+        }
+      ]
+    }
+  ]
+}
